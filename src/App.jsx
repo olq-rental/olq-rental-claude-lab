@@ -2319,7 +2319,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const receiptNo = genDeliveryNo(r, rIdx);
         const receiptDateStr = r.receiptDate ? new Date(r.receiptDate).toLocaleDateString("ja-JP") : fd(r.startDate);
         const payLabel = r.paymentMethod === "cash" ? "現金" : "クレジット　スクエア";
-        const receiptName = r.ordererName || g.customer?.contact || g.customer?.invoiceName || g.customerName;
+        const receiptName = g.customer?.invoiceName || g.customerName;
         const honorific = (receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様';
         const subTot = Math.round(r.amount / 1.1);
         const tax = r.amount - subTot;
