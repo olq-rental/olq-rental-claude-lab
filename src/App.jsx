@@ -954,7 +954,7 @@ export default function App() {
   const isAdmin = session?.user?.user_metadata?.role === 'admin';
 
   // ---- App state ----
-  const [products,  setProducts]  = useState(ALL_PRODUCTS);
+  const [products,  setProducts]  = useState([]);
   const [customers, setCustomers] = useState([]);
   const [records,   setRecords]   = useState([]);
   const [invoiceData, setInvoiceData] = useState({});
@@ -993,11 +993,12 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     const reload = async (table) => {
+      if (table === 'products')  { const d = await sGet(K.p); if(d?.length) setProducts(d); }
       if (table === 'customers') { const d = await sGet(K.c); if(d?.length) setCustomers(d); }
       if (table === 'cases')     { const d = await sGet(K.r); if(d?.length) setRecords(d); }
       if (table === 'invoices')  { const d = await sGet(K.inv); if(d) setInvoiceData(d); }
     };
-    const channels = ['customers','cases','invoices'].map(table =>
+    const channels = ['products','customers','cases','invoices'].map(table =>
       supabase.channel(`rt_${table}`)
         .on('postgres_changes', { event:'*', schema:'public', table }, () => reload(table))
         .subscribe()
