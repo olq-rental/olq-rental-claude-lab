@@ -820,120 +820,6 @@ function Toast({t}) {
 }
 
 
-// CORSプロキシ経由でOLQサイトHTMLを直接取得 → 正規表現でパース（AI不要）
-async function fetchAllProducts(onMsg) {
-  const results = [];
-  const seenIds = new Set();
-  let page = 1;
-  let emptyCount = 0;
-
-  while (emptyCount < 2) {
-    onMsg && onMsg(`${page}ページ目取得中... (${results.length}件)`);
-
-    const siteUrl = page === 1
-      ? 'https://rental.olq.co.jp/?actmode=ItemList'
-      : `https://rental.olq.co.jp/?pageno=${page}&actmode=ItemList`;
-
-    // CORSプロキシ経由でHTMLを直接取得
-    const proxies = [
-      `https://corsproxy.io/?url=${encodeURIComponent(siteUrl)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(siteUrl)}`,
-      `https://corsproxy.io/?${encodeURIComponent(siteUrl)}`,
-    ];
-
-    let pageProds = [];
-    let html = "";
-    for (const proxyUrl of proxies) {
-      try {
-        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
-        if (res.ok) { html = await res.text(); if (html.length > 1000) break; }
-      } catch {}
-    }
-    try {
-      if (!html || html.length < 1000) throw new Error("全プロキシ失敗");
-
-      onMsg && onMsg(`${page}ページ目 HTML ${html.length}bytes パース中...`);
-
-      // 各製品リンクブロックで分割（<a href="...actmode=ItemDetail...">）
-      const parts = html.split(/(?=<a\s[^>]*actmode=ItemDetail)/i);
-      for (const part of parts) {
-        const iidM = part.match(/iid=(\d+)/);
-        if (!iidM) continue;
-        const priceM = part.match(/¥([\d,]+)\/日/);
-        if (!priceM) continue;
-
-        const iid = iidM[1];
-        const priceIn = parseInt(priceM[1].replace(/,/g, ''), 10);
-
-        // HTMLタグを除去してテキスト行に分解
-        const text = part
-          .replace(/<script[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<img[^>]*>/gi, '')
-          .replace(/<[^>]+>/g, '\n')
-          .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '')
-          .replace(/\n{2,}/g, '\n').trim();
-
-        // 価格より前の行からブランド・製品名を取得
-        const priceIdx = text.indexOf('¥');
-        const lines = text.slice(0, priceIdx)
-          .split('\n')
-          .map(l => l.trim())
-          .filter(l => l && !l.includes('item_image') && !l.includes('.jpg') && !l.startsWith('http'));
-
-        if (lines.length < 2) continue;
-        const name  = lines[lines.length - 1];
-        const brand = lines[lines.length - 2];
-
-        pageProds.push({ id: iid, brand, name, priceIn });
-      }
-
-      onMsg && onMsg(`${page}ページ目: ${pageProds.length}件取得`);
-    } catch(e) {
-      onMsg && onMsg(`[ERROR p${page}] ${e.message || String(e)}`);
-    } // end try
-
-    if (!pageProds.length) {
-      emptyCount++;
-      page++;
-      continue;
-    }
-    emptyCount = 0;
-    for (const p of pageProds) {
-      if (!p.id || seenIds.has(p.id)) continue;
-      seenIds.add(p.id);
-      results.push({
-        id:       p.id,
-        brand:    p.brand,
-        name:     p.name,
-        priceIn:  p.priceIn,
-        priceEx:  Math.round(p.priceIn / 1.1),
-        fullName: `${p.brand} ${p.name}`.trim()
-      });
-    }
-    page++;
-    await new Promise(r => setTimeout(r, 300));
-  }
-
-  if (results.length < 10) throw new Error(`取得件数が少なすぎます (${results.length}件)`);
-  return results;
-}
-
-// サイトデータと既存製品マスタをマージ
-// - 新製品(idなし) → 先頭に追加
-// - 既存製品(id一致) → brand/name/priceIn/priceEx をサイト側で上書き
-// - サイトにない製品 → 削除せず残す（手動追加製品を保護）
-function mergeProducts(siteProds, currentProds) {
-  const siteMap = new Map(siteProds.map(p => [p.id, p]));
-  const updated = currentProds.map(p => {
-    const s = siteMap.get(p.id);
-    if (!s) return p;
-    return { ...p, brand: s.brand, name: s.name, priceIn: s.priceIn, priceEx: s.priceEx, fullName: s.fullName };
-  });
-  const existIds = new Set(currentProds.map(p => p.id));
-  const added = siteProds.filter(p => !existIds.has(p.id));
-  return [...added, ...updated];
-}
 
 
 export default function App() {
@@ -961,10 +847,6 @@ export default function App() {
   const [tab,       setTab]       = useState("records");
   const [openCustomerId, setOpenCustomerId] = useState(null);
   const [toast,     setToast]     = useState(null);
-  const [syncStatus, setSyncStatus] = useState("idle");
-  const [syncMsg,    setSyncMsg]    = useState("");
-  const [syncLog,    setSyncLog]    = useState([]);
-  const [showLog,    setShowLog]    = useState(false);
   const [globalQ,    setGlobalQ]    = useState("");
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
@@ -973,19 +855,14 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     (async () => {
-      const [p, c, r, inv, lastSync] = await Promise.all([
-        sGet(K.p), sGet(K.c), sGet(K.r), sGet(K.inv), sGet(K.sync)
+      const [p, c, r, inv] = await Promise.all([
+        sGet(K.p), sGet(K.c), sGet(K.r), sGet(K.inv)
       ]);
       if (p?.length) setProducts(p);
       if (c?.length) { setCustomers(c); }
       else { setCustomers(PRESET_CUSTOMERS); await sSet(K.c, PRESET_CUSTOMERS); }
       if (r?.length) setRecords(r);
       if (inv) setInvoiceData(inv);
-      if (lastSync !== today()) {
-        setTimeout(() => autoSync(), 500);
-      } else {
-        setSyncStatus("synced");
-      }
     })();
   }, [session]);
 
@@ -1005,34 +882,6 @@ export default function App() {
     );
     return () => channels.forEach(ch => supabase.removeChannel(ch));
   }, [session]);
-
-  const autoSync = async (manual=false) => {
-    if (syncStatus==="syncing") return;
-    setSyncStatus("syncing");
-    setSyncLog([]);
-    try {
-      const siteProds = await fetchAllProducts((msg) => { setSyncMsg(msg); setSyncLog(l => [...l, msg]); });
-      const merged = mergeProducts(siteProds, products);
-      const added   = merged.length - products.length;
-      const changed = siteProds.filter(s => {
-        const cur = products.find(p => p.id === s.id);
-        return cur && (cur.priceIn !== s.priceIn || cur.name !== s.name || cur.brand !== s.brand);
-      }).length;
-      await saveProd(merged);
-      await sSet(K.sync, today());
-      setSyncStatus("synced");
-      setSyncMsg("");
-      if (manual) {
-        const detail = [added>0&&`新製品+${added}件`, changed>0&&`更新${changed}件`].filter(Boolean).join(" / ");
-        showToast(`同期完了（計${merged.length}件）${detail ? " — "+detail : ""}`);
-      }
-    } catch(e) {
-      await sSet(K.sync, today());
-      setSyncStatus(manual?"failed":"idle");
-      setSyncMsg(e?.message||"");
-      if (manual) showToast("同期に失敗しました: "+(e?.message||"不明なエラー"), false);
-    }
-  };
 
   const saveProd = async n => {
     setProducts(n);
@@ -1139,19 +988,7 @@ export default function App() {
       <Toast t={toast}/>
 
 
-      {showLog && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowLog(false)}>
-          <div style={{background:"#1e293b",color:"#e2e8f0",borderRadius:12,padding:24,maxWidth:700,width:"90%",maxHeight:"80vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-              <b style={{fontSize:14}}>🔍 同期デバッグログ</b>
-              <button onClick={()=>setShowLog(false)} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:18}}>✕</button>
-            </div>
-            <pre style={{fontSize:11,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-all",color:"#86efac"}}>
-              {syncLog.length ? syncLog.join("\n") : "(ログなし — 再度同期を実行してください)"}
-            </pre>
-          </div>
-        </div>
-      )}
+
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
       <header className="app-header" style={{background:"#0f172a",color:"#fff",padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1159,7 +996,6 @@ export default function App() {
           <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>OLQ レンタル管理</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={()=>setTab("products")} style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",color:"#86efac",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>🔄 製品同期</button>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
           <span style={{fontSize:11,color:"#94a3b8"}}>製品{products.length}件 / 顧客{customers.length}社 / 案件{records.length}件</span>
           <span style={{fontSize:11,color:"#64748b"}}>{session.user.email}</span>
@@ -3794,38 +3630,19 @@ function ProductsTab({products,customers,onSave,showToast,allProducts}){
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
   const [q,setQ]=useState("");
-  const [showImport,setShowImport]=useState(false);
-  const [importText,setImportText]=useState("");
+  const [syncing,setSyncing]=useState(false);
 
-  // ブックマークレット本体（rental.olq.co.jpで実行→全製品JSONをクリップボードへ）
-  const BOOKMARKLET = `javascript:(async()=>{const r=[];const seen=new Set();let page=1;let empty=0;while(empty<2){const url=page===1?'https://rental.olq.co.jp/?actmode=ItemList':'https://rental.olq.co.jp/?pageno='+page+'&actmode=ItemList';try{const h=await fetch(url).then(r=>r.text());const parts=h.split(/(?=<a[^>]*actmode=ItemDetail)/i);let found=0;for(const p of parts){const im=p.match(/iid=(\d+)/);if(!im)continue;const pm=p.match(/¥([\d,]+)\/日/);if(!pm)continue;const txt=p.replace(/<[^>]+>/g,'\n').replace(/\n{2,}/g,'\n');const priceIdx=txt.indexOf('¥');const lines=txt.slice(0,priceIdx).split('\n').map(l=>l.trim()).filter(l=>l&&!l.includes('.jpg')&&!l.startsWith('http'));if(lines.length<2)continue;const iid=im[1];if(seen.has(iid))continue;seen.add(iid);r.push({id:iid,brand:lines[lines.length-2],name:lines[lines.length-1],priceIn:parseInt(pm[1].replace(/,/g,''),10)});found++;}if(!found){empty++;}else{empty=0;}page++;}catch(e){break;}}await navigator.clipboard.writeText(JSON.stringify(r));alert('✅ '+r.length+'件をクリップボードにコピーしました。OLQアプリで「JSONを貼り付けて同期」してください。');})();`;
-
-  const copyBookmarklet = () => {
-    navigator.clipboard.writeText(BOOKMARKLET)
-      .then(() => showToast("ブックマークレットをコピーしました。ブックマークバーに追加してください。"))
-      .catch(() => showToast("コピー失敗", false));
-  };
-
-  const importFromJson = async () => {
+  const manualSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
     try {
-      const parsed = JSON.parse(importText.trim());
-      const arr = Array.isArray(parsed) ? parsed : [];
-      if (!arr.length) throw new Error("製品が見つかりません");
-      const siteProds = arr.map(p => ({
-        id: String(p.id||""),
-        brand: String(p.brand||""),
-        name: String(p.name||""),
-        priceIn: Number(p.priceIn)||0,
-        priceEx: Math.round((Number(p.priceIn)||0)/1.1),
-        fullName: `${p.brand||""} ${p.name||""}`.trim()
-      })).filter(p=>p.id&&p.name);
-      const merged = mergeProducts(siteProds, products);
-      const added = merged.length - products.length;
-      await onSave(merged);
-      setImportText(""); setShowImport(false);
-      showToast(`同期完了（計${merged.length}件）${added>0?" — 新製品+"+added+"件":""}`);
+      const res = await fetch("https://olq-sync-worker.y-inoue-olq-co-jp.workers.dev/");
+      const msg = await res.text();
+      alert(msg);
     } catch(e) {
-      showToast("JSONの形式が正しくありません: "+e.message, false);
+      alert("同期に失敗しました: " + (e.message || "不明なエラー"));
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -3881,35 +3698,10 @@ function ProductsTab({products,customers,onSave,showToast,allProducts}){
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="絞込..." style={{...S.inp,paddingLeft:28,width:200}}/>
           </div>
           <button onClick={()=>{setForm(E);setEditId(null);setOpen(true);}} style={S.btn("#0f172a",true)}><Ico d={I.plus} size={13}/>製品を追加</button>
-          <button onClick={()=>setShowImport(v=>!v)} style={S.btn("#0369a1",true)}>🔄 サイト同期</button>
+          <button onClick={manualSync} disabled={syncing} style={S.btn("#0369a1",true)}>{syncing?"同期中...":"🔄 手動同期"}</button>
           <button onClick={resetToDefault} style={S.btn("#64748b",true)}>↺ リセット</button>
         </div>
       </div>
-      {showImport && (
-        <div style={{...S.card,padding:20,marginBottom:14,border:"2px solid #0369a1"}}>
-          <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:"#0369a1"}}>🔄 OLQサイトと同期</h3>
-          <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:14,marginBottom:14,fontSize:12.5,lineHeight:1.8}}>
-            <b>手順：</b><br/>
-            1. 下の「ブックマークレットをコピー」ボタンをクリック<br/>
-            2. ブラウザのブックマークバーを右クリック →「ページを追加」→ URL欄に貼り付けて保存<br/>
-            3. <a href="https://rental.olq.co.jp/?actmode=ItemList" target="_blank" style={{color:"#0369a1"}}>rental.olq.co.jp</a> を開く<br/>
-            4. ブックマークレットをクリック → 完了アラートが出たら<br/>
-            5. 下のテキストエリアに貼り付け（Ctrl+V）→「同期を実行」
-          </div>
-          <button onClick={copyBookmarklet} style={{...S.btn("#0369a1",true),marginBottom:12}}>📋 ブックマークレットをコピー</button>
-          <div style={{marginBottom:8,fontSize:12,color:"#64748b"}}>ブックマークレット実行後、クリップボードの内容を貼り付けてください：</div>
-          <textarea
-            value={importText}
-            onChange={e=>setImportText(e.target.value)}
-            placeholder='ブックマークレット実行後、ここにCtrl+Vで貼り付け...'
-            style={{width:"100%",minHeight:80,padding:10,fontSize:12,borderRadius:6,border:"1px solid #cbd5e1",fontFamily:"monospace",resize:"vertical",boxSizing:"border-box"}}
-          />
-          <div style={{display:"flex",gap:8,marginTop:10}}>
-            <button onClick={importFromJson} disabled={!importText.trim()} style={S.btn("#16a34a",true)}>✅ 同期を実行</button>
-            <button onClick={()=>{setShowImport(false);setImportText("");}} style={S.btn("#64748b",true)}>キャンセル</button>
-          </div>
-        </div>
-      )}
       <div style={S.card}>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
