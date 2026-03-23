@@ -2097,7 +2097,7 @@ body{font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;
 table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:3px 5px;font-size:10px}
 th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{text-align:center}
 .pb{page-break-after:always}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
-.hdr{display:flex;justify-content:space-between;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
 .sign-label{font-weight:bold;font-size:11px;margin-bottom:4px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:3px 7px}
@@ -2342,8 +2342,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const payLabel = r.paymentMethod === "cash" ? "現金" : "クレジット　スクエア";
         const receiptName = r.receiptNameCustom && r.receiptNameOverride ? r.receiptNameOverride : (g.customer?.invoiceName || g.customerName);
         const honorific = r.receiptNameCustom && r.receiptNameOverride ? (r.receiptHonorific || '様') : ((receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様');
-        const subTot = Math.round(r.amount / 1.1);
-        const tax = r.amount - subTot;
+        const equipAmt = r.amount || 0;
+        const insurAmt = r.insuranceAmount || 0;
+        const subTot = equipAmt + insurAmt;
+        const tax = Math.round(subTot * 0.1);
+        const grandTot = subTot + tax;
 
         body += `<div class="pb" style="padding:30px 34px">
           <div style="display:flex;justify-content:space-between">
@@ -2359,7 +2362,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           </div>${olqBlock}</div>
           <div style="margin-bottom:6px;font-size:11px">
             <span style="margin-right:16px">合計金額</span>
-            <span style="font-size:20px;font-weight:900;border-bottom:2px solid #111;padding:0 14px">${fm(r.amount)}</span>
+            <span style="font-size:20px;font-weight:900;border-bottom:2px solid #111;padding:0 14px">${fm(grandTot)}</span>
             <span style="font-size:11px;margin-left:8px">（税込）</span>
           </div>
           <div style="margin-bottom:6px;font-size:11px">上記、正に領収いたしました。</div>
@@ -2408,7 +2411,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               </tr>
               <tr style="background:#f0f0f0">
                 <td colspan="5" style="border:1px solid #aaa;padding:4px 8px;text-align:right;font-weight:900;font-size:11px">税込合計</td>
-                <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:900;font-size:11px">${fm(r.amount)}</td>
+                <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:900;font-size:11px">${fm(grandTot)}</td>
               </tr>
             </tfoot>
           </table>
