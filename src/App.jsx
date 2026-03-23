@@ -3636,7 +3636,7 @@ function ProductsTab({products,customers,onSave,showToast,allProducts}){
     if (syncing) return;
     setSyncing(true);
     try {
-      const res = await fetch("https://olq-sync-worker.y-inoue-olq-co-jp.workers.dev/");
+      const res = await fetch("https://olq-sync-worker.y-inoue-567.workers.dev/");
       const msg = await res.text();
       alert(msg);
     } catch(e) {
