@@ -1074,7 +1074,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   });
   const emptyLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false};
   const emptyManualLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false,isManual:true,isFee:false,noBillingDiscount:false};
-  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:today(),paymentMethod:"credit",includeInsurance:false};
+  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
@@ -1157,7 +1157,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
     const rec={customerId:form.customerId,projectName:form.projectName,projectDetail:form.projectDetail,ecOrderNo:form.ecOrderNo||"",ordererName:form.ordererName,ourStaff:form.ourStaff,
       billingType:form.billingType,months:form.billingType==="monthly"?(Number(form.months)||1):0,
       days:form.billingType==="monthly"?0:days,billingDays:form.billingType==="monthly"?0:billingDays,startDate:form.startDate,endDate:form.endDateOpen?"":form.endDate,endDateOpen:form.billingType==="monthly"&&!!form.endDateOpen,notes:form.notes,
-      issueReceipt:!!form.issueReceipt,receiptDate:form.issueReceipt?(form.receiptDate||""):"",paymentMethod:form.issueReceipt?(form.paymentMethod||"credit"):"",
+      issueReceipt:!!form.issueReceipt,receiptDate:form.issueReceipt?(form.receiptDate||""):"",paymentMethod:form.issueReceipt?(form.paymentMethod||"credit"):"",receiptNote:form.issueReceipt?(form.receiptNote||""):"",receiptNameCustom:form.issueReceipt?!!form.receiptNameCustom:false,receiptNameOverride:form.issueReceipt?(form.receiptNameOverride||""):"",receiptHonorific:form.issueReceipt?(form.receiptHonorific||"御中"):"",
       includeInsurance:!!form.includeInsurance,
       lines,amount:totalAmount,insuranceAmount,
       equipmentName:lines.map(l=>l.equipmentName).join(", "),unitPrice:lines[0]?.unitPrice||0,quantity:lines.reduce((s,l)=>s+(Number(l.quantity)||0),0),
@@ -1398,7 +1398,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 16px",marginTop:10}}>
                 <div>
                   <label style={S.lbl}>領収日</label>
-                  <input type="date" value={form.receiptDate} onChange={e=>setForm(f=>({...f,receiptDate:e.target.value}))} style={S.inp}/>
+                  <input type="text" value={form.receiptDate} onChange={e=>setForm(f=>({...f,receiptDate:e.target.value}))} style={S.inp} placeholder="例：2026/3/23"/>
                 </div>
                 <div>
                   <label style={S.lbl}>支払方法</label>
@@ -1407,6 +1407,26 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                       <button key={t.k} type="button" onClick={()=>setForm(f=>({...f,paymentMethod:t.k}))} style={{flex:1,background:form.paymentMethod===t.k?"#fff":"transparent",border:"none",borderRadius:5,padding:"6px 0",fontSize:12,fontWeight:form.paymentMethod===t.k?700:500,color:form.paymentMethod===t.k?"#713f12":"#94a3b8",cursor:"pointer",boxShadow:form.paymentMethod===t.k?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>{t.l}</button>
                     ))}
                   </div>
+                </div>
+                <div style={{gridColumn:"1/-1"}}>
+                  <label style={S.lbl}>但し書き</label>
+                  <input type="text" value={form.receiptNote} onChange={e=>setForm(f=>({...f,receiptNote:e.target.value}))} style={S.inp} placeholder="例：機材レンタル代として　[クレジット スクエア]"/>
+                </div>
+                <div style={{gridColumn:"1/-1"}}>
+                  <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,userSelect:"none"}}>
+                    <input type="checkbox" checked={!!form.receiptNameCustom} onChange={e=>setForm(f=>({...f,receiptNameCustom:e.target.checked}))} style={{cursor:"pointer"}}/>
+                    宛名を変更する
+                  </label>
+                  {form.receiptNameCustom&&(
+                    <div style={{display:"flex",gap:8,alignItems:"center",marginTop:6}}>
+                      <input type="text" value={form.receiptNameOverride} onChange={e=>setForm(f=>({...f,receiptNameOverride:e.target.value}))} style={{...S.inp,flex:1}} placeholder="宛名"/>
+                      <div style={{display:"flex",gap:2,background:"#e2e8f0",borderRadius:6,padding:2,flexShrink:0}}>
+                        {["御中","様"].map(h=>(
+                          <button key={h} type="button" onClick={()=>setForm(f=>({...f,receiptHonorific:h}))} style={{background:form.receiptHonorific===h?"#fff":"transparent",border:"none",borderRadius:5,padding:"5px 12px",fontSize:12,fontWeight:form.receiptHonorific===h?700:500,color:form.receiptHonorific===h?"#713f12":"#94a3b8",cursor:"pointer"}}>{h}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2317,10 +2337,10 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if (type === "delivery-receipt" && r.issueReceipt) {
         const rIdx = g.items.indexOf(r);
         const receiptNo = genDeliveryNo(r, rIdx);
-        const receiptDateStr = r.receiptDate ? new Date(r.receiptDate).toLocaleDateString("ja-JP") : fd(r.startDate);
+        const receiptDateStr = r.receiptDate || fd(r.startDate);
         const payLabel = r.paymentMethod === "cash" ? "現金" : "クレジット　スクエア";
-        const receiptName = g.customer?.invoiceName || g.customerName;
-        const honorific = (receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様';
+        const receiptName = r.receiptNameCustom && r.receiptNameOverride ? r.receiptNameOverride : (g.customer?.invoiceName || g.customerName);
+        const honorific = r.receiptNameCustom && r.receiptNameOverride ? (r.receiptHonorific || '様') : ((receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様');
         const subTot = Math.round(r.amount / 1.1);
         const tax = r.amount - subTot;
 
