@@ -2320,6 +2320,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const receiptDateStr = r.receiptDate ? new Date(r.receiptDate).toLocaleDateString("ja-JP") : fd(r.startDate);
         const payLabel = r.paymentMethod === "cash" ? "現金" : "クレジット　スクエア";
         const receiptName = r.ordererName || g.customer?.contact || g.customer?.invoiceName || g.customerName;
+        const honorific = (receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様';
         const subTot = Math.round(r.amount / 1.1);
         const tax = r.amount - subTot;
 
@@ -2333,7 +2334,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             </div>
           </div>
           <div class="hdr"><div>
-            <div class="cust-name">${receiptName}　様</div>
+            <div class="cust-name">${receiptName}　${honorific}</div>
           </div>
           <div class="olq" style="position:relative">
             <div style="font-weight:bold;font-size:12px">オルク株式会社</div>
@@ -2348,14 +2349,13 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               </div>
             </div>
           </div>
-          </div>
-          <div style="margin-bottom:8px;font-size:11px">
+          <div style="margin-bottom:6px;font-size:11px">
             <span style="margin-right:16px">合計金額</span>
-            <span style="font-size:20px;font-weight:900;border-bottom:2px solid #111;padding:0 20px">${fm(r.amount)}</span>
+            <span style="font-size:20px;font-weight:900;border-bottom:2px solid #111;padding:0 14px">${fm(r.amount)}</span>
             <span style="font-size:11px;margin-left:8px">（税込）</span>
           </div>
-          <div style="margin-bottom:12px;font-size:11px">上記、正に領収いたしました。</div>
-          <div style="font-size:11px;margin-bottom:16px;border:1px solid #ddd;border-radius:4px;padding:8px 12px;background:#f9f9f9">
+          <div style="margin-bottom:6px;font-size:11px">上記、正に領収いたしました。</div>
+          <div style="font-size:11px;margin-bottom:8px;border:1px solid #ddd;border-radius:4px;padding:6px 10px;background:#f9f9f9">
             但書き　${r.receiptNote || `機材レンタル代として　［${payLabel}］`}
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0">
