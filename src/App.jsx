@@ -695,7 +695,12 @@ async function sSet(k, val) {
       if (!Array.isArray(val)) return;
       const rows = val.map(item => ({ id: String(item.id), data: item, updated_at: new Date().toISOString() }));
       if (rows.length > 0) {
-        await supabase.from(_TABLE[k]).upsert(rows, { onConflict: 'id' });
+        const { error } = await supabase.from(_TABLE[k]).upsert(rows, { onConflict: 'id' });
+        if (error) {
+          console.error('sSet upsert error', k, error);
+          alert('保存に失敗しました: ' + error.message);
+          return;
+        }
         const { data: existing } = await supabase.from(_TABLE[k]).select('id');
         const newIds = rows.map(r => r.id);
         const toDelete = (existing||[]).map(r=>r.id).filter(id => !newIds.includes(id));
