@@ -2416,16 +2416,9 @@ ${css}
 </div>
 <div style="margin-top:52px">${body}</div>
 </body></html>`;
-  // アーティファクト環境ではwindow.openがブロックされるため、aタグDLで対応
-  const blob = new Blob([fullHTML], {type:"text/html;charset=utf-8"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${title}.html`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  const newTab = window.open('', '_blank');
+  newTab.document.write(fullHTML);
+  newTab.document.close();
 }
 
 // =========================================================
