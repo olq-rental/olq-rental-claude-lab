@@ -2310,7 +2310,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
       // 納品書控（社内用）
       body += `<div class="pb" style="padding:30px 34px">
-        <div style="display:flex;justify-content:space-between"><div class="title" style="letter-spacing:4px;margin-top:16px">納品書控</div>
+        <div style="display:flex;justify-content:space-between"><div class="title" style="letter-spacing:4px">納品書控</div>
           <div class="olq"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div></div>
         <div class="hdr"><div>
           <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
@@ -2350,12 +2350,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
         body += `<div class="pb" style="padding:30px 34px">
           <div style="display:flex;justify-content:space-between">
-            <div class="title" style="letter-spacing:8px;margin-top:16px">領 収 証</div>
-            <div class="olq">
-              <div>領収証No.　<strong>${receiptNo}</strong></div>
-              <div>登録番号　T5-0104-0109-2630</div>
-              <div>領収日　${receiptDateStr}</div>
-            </div>
+            <div class="title" style="letter-spacing:8px">領 収 証</div>
+            <div class="olq"><div style="text-align:right"><div>領収証No.　<strong>${receiptNo}</strong></div><div>登録番号　T5-0104-0109-2630</div><div>領収日　${receiptDateStr}</div></div></div>
           </div>
           <div class="hdr" style="position:relative"><div>
             <div class="cust-name">${receiptName}　${honorific}</div>
