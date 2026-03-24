@@ -2335,7 +2335,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           body += `<tr class="sub-row"><td></td><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
         });
       });
-      body += `${(r.insuranceAmount||0)>0?`<tr><td></td><td colspan="6">補償料（機材合計の10%）</td><td class="c">${fm(r.insuranceAmount)}</td></tr>`:""}`;
+      body += `${(r.insuranceAmount||0)>0?`<tr><td></td><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`:""}`;
       for (let i = rowN; i < 20; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
       body += `</tbody></table>
         <table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table></div>`;
