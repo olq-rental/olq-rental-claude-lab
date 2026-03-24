@@ -2311,7 +2311,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </div></div>`;
 
       // 納品書控（社内用）
-      body += `<div class="pb" style="padding:400px 34px 30px 34px">
+      body += `<div class="pb" style="padding:100px 34px 30px 34px">
         <div style="position:relative">
           <div class="title" style="letter-spacing:4px">納品書控</div>
           <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
@@ -2352,7 +2352,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const tax = Math.round(subTot * 0.1);
         const grandTot = subTot + tax;
 
-        body += `<div class="pb" style="padding:400px 34px 30px 34px">
+        body += `<div class="pb" style="padding:100px 34px 30px 34px">
           <div style="position:relative">
             <div class="title" style="letter-spacing:8px">領 収 証</div>
             <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>領収証No.　<strong>${receiptNo}</strong></div><div>登録番号　T5-0104-0109-2630</div><div>領収日　${receiptDateStr}</div></div>
