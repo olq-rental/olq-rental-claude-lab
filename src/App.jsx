@@ -1932,6 +1932,7 @@ function InvoicePreview({type,g,forPrint}){
   if(type==="invoice"){
     const firstRec = g.items[0];
     const invNo = g.invNo || (g.month ? `${g.month}-???` : genDeliveryNo(firstRec,0));
+    const monthStr = g.month || "";
     const rawDate = g.issueDate||(()=>{
       const [y,m] = (monthStr).split("-").map(Number);
       if(y&&m){ const ld=new Date(y,m,0); return `${y}-${String(m).padStart(2,"0")}-${String(ld.getDate()).padStart(2,"0")}`; }
@@ -2133,6 +2134,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     // 管理No：先頭案件のcreatedAtから生成
     const firstRec = g.items[0];
     const invNo = g.invNo || (g.month ? `${g.month}-???` : genDeliveryNo(firstRec,0));
+    const monthStr = g.month || "";
     const rawDate = g.issueDate||(()=>{
       const [y,m] = (monthStr).split("-").map(Number);
       if(y&&m){ const ld=new Date(y,m,0); return `${y}-${String(m).padStart(2,"0")}-${String(ld.getDate()).padStart(2,"0")}`; }
