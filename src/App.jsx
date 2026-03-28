@@ -2548,8 +2548,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         pagesC.forEach((pageRows, pageIdx) => {
           const isFirstPage = pageIdx === 0;
           const pageNo = pageIdx + 1;
-          const topPad = isFirstPage ? '80px' : '50px';
-          body += `<div class="pb" style="padding:${topPad} 14px 30px 54px;position:relative">`;
+          const topPad = isFirstPage ? '80px' : '70px';
+          body += `<div class="pb" style="padding:${topPad} 19px 30px 54px;position:relative">`;
           if(isFirstPage){
             body += `<div style="position:relative">
               <div class="title" style="letter-spacing:4px">納品書控</div>
