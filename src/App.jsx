@@ -1003,7 +1003,7 @@ export default function App() {
       <header className="app-header" style={{background:"#0f172a",color:"#fff",padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Ico d={I.box} size={20}/>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>OLQ レンタル管理</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -3925,7 +3925,7 @@ function LoginScreen() {
           <div style={{background:'#0f172a',borderRadius:8,padding:'6px 10px'}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           </div>
-          <span style={{fontWeight:800,fontSize:17,letterSpacing:2,color:'#0f172a'}}>OLQ レンタル管理</span>
+          <span style={{fontWeight:800,fontSize:17,letterSpacing:2,color:'#0f172a'}}>オルク レンタル伝票管理</span>
         </div>
         <form onSubmit={handleLogin}>
           <div style={{marginBottom:14}}>
