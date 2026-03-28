@@ -701,7 +701,13 @@ async function sSet(k, val) {
           alert('保存に失敗しました: ' + error.message);
           return;
         }
-        // 削除処理を無効化（インポートデータ保護のため）
+        // 案件のみ削除処理を実行（顧客・製品は削除しない）
+        if (k === K.r) {
+          const { data: existing } = await supabase.from(_TABLE[k]).select('id');
+          const newIds = rows.map(r => r.id);
+          const toDelete = (existing||[]).map(r=>r.id).filter(id => !newIds.includes(id));
+          if (toDelete.length > 0) await supabase.from(_TABLE[k]).delete().in('id', toDelete);
+        }
       }
       return;
     }
