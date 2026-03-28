@@ -3653,6 +3653,8 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
   const [spList,setSpList]=useState([]);
   const [spCid,setSpCid]=useState("");
   const [spPrice,setSpPrice]=useState("");
+  const [prodSpQ,setProdSpQ]=useState("");
+  const filteredProdCusts=prodSpQ.length>=1?customers.filter(c=>c.name.includes(prodSpQ)):[];
   const [q,setQ]=useState("");
   const [syncing,setSyncing]=useState(false);
 
@@ -3690,7 +3692,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
       });
       await saveCust(updatedCustomers);
     }
-    showToast(editId?"更新しました":"追加しました"); setForm(E); setEditId(null); setOpen(false); setSpList([]); setSpCid(""); setSpPrice("");
+    showToast(editId?"更新しました":"追加しました"); setForm(E); setEditId(null); setOpen(false); setSpList([]); setSpCid(""); setSpPrice(""); setProdSpQ("");
   };
 
   const resetToDefault=async()=>{
@@ -3726,38 +3728,46 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
               />
             </div>
             <div style={{gridColumn:"1/-1"}}>
-              <label style={S.lbl}>特別価格顧客</label>
-              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-                <select value={spCid} onChange={e=>setSpCid(e.target.value)} style={{...S.inp,flex:1}}>
-                  <option value="">顧客を選択...</option>
-                  {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <input type="number" value={spPrice} onChange={e=>setSpPrice(e.target.value)} style={{...S.inp,width:120}} placeholder="特別単価(税込)"/>
-                <button type="button" onClick={()=>{
-                  if(!spCid||!spPrice){return;}
-                  setSpList(l=>{
-                    const cust=customers.find(c=>c.id===spCid);
-                    const filtered=l.filter(s=>s.cid!==spCid);
-                    return [...filtered,{cid:spCid,cname:cust?.name||"",price:Number(spPrice)}];
-                  });
-                  setSpCid(""); setSpPrice("");
-                }} style={S.btn("#0369a1",true)}>追加</button>
-              </div>
-              {spList.length>0&&(
-                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                  {spList.map((s,i)=>(
-                    <span key={i} style={{fontSize:11,background:"#fef3c7",color:"#92400e",borderRadius:4,padding:"3px 8px",display:"flex",alignItems:"center",gap:4}}>
-                      {s.cname}: {fmt(s.price)}
-                      <button type="button" onClick={()=>setSpList(l=>l.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:"#92400e",padding:0,lineHeight:1}}>×</button>
-                    </span>
-                  ))}
+              <div style={{marginTop:4,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:9,padding:16}}>
+                <div style={{fontSize:13,fontWeight:700,marginBottom:10,color:"#92400e",display:"flex",alignItems:"center",gap:6}}>
+                  <Ico d={I.star} size={14} color="#f59e0b"/>特別価格顧客（この製品専用）
                 </div>
-              )}
+                {spList.map((s,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,fontSize:12}}>
+                    <span style={{flex:1,fontWeight:600}}>{s.cname}</span>
+                    <span style={{color:"#16a34a",fontWeight:700}}>{fmt(s.price)}/日（税込）</span>
+                    <button type="button" onClick={()=>setSpList(l=>l.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
+                  </div>
+                ))}
+                <div style={{marginBottom:6}}>
+                  <input value={prodSpQ} onChange={e=>setProdSpQ(e.target.value)} placeholder="顧客名で検索（1文字以上入力）..." style={{...S.inp,marginBottom:4}}/>
+                  {prodSpQ.length>=1?(
+                    <select value={spCid} onChange={e=>setSpCid(e.target.value)} style={{...S.inp,marginBottom:6}} size={Math.min(6,filteredProdCusts.length+1)}>
+                      <option value="">検索結果: {filteredProdCusts.length}件（全{customers.length}件中）</option>
+                      {filteredProdCusts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  ):(
+                    <div style={{fontSize:11,color:"#94a3b8",padding:"8px 0"}}>🔍 顧客名を入力すると全{customers.length}社から検索できます</div>
+                  )}
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <input type="number" value={spPrice} onChange={e=>setSpPrice(e.target.value)} placeholder="特別単価（税込）" style={{...S.inp,width:160}}/>
+                  <button type="button" onClick={()=>{
+                    if(!spCid||!spPrice){return;}
+                    setSpList(l=>{
+                      const cust=customers.find(c=>c.id===spCid);
+                      const filtered=l.filter(s=>s.cid!==spCid);
+                      return [...filtered,{cid:spCid,cname:cust?.name||"",price:Number(spPrice)}];
+                    });
+                    setSpCid(""); setSpPrice(""); setProdSpQ("");
+                  }} style={S.btn("#f59e0b",true)}><Ico d={I.plus} size={13}/>追加</button>
+                </div>
+              </div>
             </div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <button onClick={submit} style={S.btn("#0f172a")}>{editId?"更新":"追加"}</button>
-            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setSpList([]);setSpCid("");setSpPrice("");}} style={S.btn("#94a3b8")}>キャンセル</button>
+            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");}} style={S.btn("#94a3b8")}>キャンセル</button>
           </div>
         </div>
       )}
@@ -3817,7 +3827,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                         }
                       </td>
                       <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||""});setSpList([]);setSpCid("");setSpPrice("");setEditId(p.id);setOpen(true);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
+                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||""});setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
                         <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(products.filter(x=>x.id!==p.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                       </td>
                     </tr>
