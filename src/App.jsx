@@ -2462,7 +2462,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       // 納品書（お客様用）
       const showDPrice = !!g.customer?.showDeliveryPrice;
       { // ページ分割スコープ
-        const ROWS_PER_PAGE = 32;
+        const ROWS_PER_PAGE = 30;
         const allRows = [];
         lines.forEach(ln => {
           allRows.push({type:'main', ln});
@@ -2527,7 +2527,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
       // 納品書控（社内用）
       { // ページ分割スコープ
-        const ROWS_PER_PAGE_C = 32;
+        const ROWS_PER_PAGE_C = 30;
         const allRowsC = [];
         lines.forEach(ln => {
           allRowsC.push({type:'main', ln});
