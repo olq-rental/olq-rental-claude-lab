@@ -2461,65 +2461,137 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
       // 納品書（お客様用）
       const showDPrice = !!g.customer?.showDeliveryPrice;
-      body += `<div class="pb" style="padding:30px 34px">
-        <div style="position:relative">
-          <div class="title">納 品 書</div>
-          ${r.isExtension?`<div style="font-size:11px;color:#2563eb;font-weight:700;text-align:center;margin-top:2px">${r.extendedFromNo?"元伝票No."+r.extendedFromNo+" ":""}ご延長分</div>`:""}
-          <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
-        </div>
-        <div class="hdr"><div>
-          <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
-          ${projText?`<div style="margin-top:4px"><strong>『${projText}』</strong></div>`:""}
-          ${orderer?`${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}`:""}
-          ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
-        </div>${olqBlock}</div>
-        <div style="font-size:10px;color:#444;margin-bottom:10px">毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>
-        <table><thead><tr><th style="width:30px">No.</th><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}
-          <th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
-      let rowN = 0;
-      lines.forEach(ln => { rowN++;
-        body += `<tr><td class="c">${rowN}</td><td>${ln.equipmentName||""}</td>${showDPrice?`<td class="r">${fm(ln.unitPrice||0)}</td>`:""}<td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
-        (ln.subItems||[]).forEach(si => { rowN++;
-          body += `<tr class="sub-row"><td></td><td style="padding-left:16px">└ No.${si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
+      { // ページ分割スコープ
+        const ROWS_PER_PAGE = 20;
+        const allRows = [];
+        lines.forEach(ln => {
+          allRows.push({type:'main', ln});
+          (ln.subItems||[]).forEach(si => allRows.push({type:'sub', ln, si}));
         });
-      });
-      const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
-      body += `${(r.insuranceAmount||0)>0?(showDPrice?`<tr><td></td><td>補償料（機材合計の10%）</td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`:`<tr><td></td><td colspan="4">補償料（機材合計の10%）</td><td></td></tr>`):""}`;
-      for (let i = rowN; i < 20; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${i+1}</td>${emptyCols}</tr>`;
-      body += `</tbody></table>
-        <table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
-        <div class="note">
-          <div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div>
-        </div></div>`;
+        if((r.insuranceAmount||0)>0) allRows.push({type:'insurance'});
+        const pages = [];
+        for(let pi=0; pi<Math.max(1, Math.ceil(allRows.length/ROWS_PER_PAGE)); pi++){
+          pages.push(allRows.slice(pi*ROWS_PER_PAGE, (pi+1)*ROWS_PER_PAGE));
+        }
+        const totalPages = pages.length;
+        const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
+        pages.forEach((pageRows, pageIdx) => {
+          const isFirstPage = pageIdx === 0;
+          const pageNo = pageIdx + 1;
+          body += `<div class="pb" style="padding:30px 34px;position:relative">`;
+          if(isFirstPage){
+            body += `<div style="position:relative">
+              <div class="title">納 品 書</div>
+              ${r.isExtension?`<div style="font-size:11px;color:#2563eb;font-weight:700;text-align:center;margin-top:2px">${r.extendedFromNo?"元伝票No."+r.extendedFromNo+" ":""}ご延長分</div>`:""}
+              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+            </div>
+            <div class="hdr"><div>
+              <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
+              ${projText?`<div style="margin-top:4px"><strong>『${projText}』</strong></div>`:""}
+              ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
+              ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
+            </div>${olqBlock}</div>
+            <div style="font-size:10px;color:#444;margin-bottom:10px">毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>`;
+          } else {
+            body += `<div style="position:relative;margin-bottom:10px">
+              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納 品 書（続き）</div>
+              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+            </div>`;
+          }
+          body += `<table><thead><tr><th style="width:30px">No.</th><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}<th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
+          let rowNum = pageIdx * ROWS_PER_PAGE;
+          pageRows.forEach(row => {
+            rowNum++;
+            if(row.type==='main'){
+              const ln=row.ln;
+              body += `<tr><td class="c">${rowNum}</td><td>${ln.equipmentName||""}</td>${showDPrice?`<td class="r">${fm(ln.unitPrice||0)}</td>`:""}<td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+            } else if(row.type==='sub'){
+              body += `<tr class="sub-row"><td></td><td style="padding-left:16px">└ No.${row.si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px">${row.si.note||""}</td></tr>`;
+            } else if(row.type==='insurance'){
+              body += showDPrice?`<tr><td></td><td>補償料（機材合計の10%）</td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`:`<tr><td></td><td colspan="4">補償料（機材合計の10%）</td><td></td></tr>`;
+            }
+          });
+          const emptyCount = ROWS_PER_PAGE - pageRows.length;
+          for(let i=0; i<emptyCount; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${rowNum+i+1}</td>${emptyCols}</tr>`;
+          body += `</tbody></table>`;
+          if(pageNo===totalPages){
+            body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
+              <div class="note"><div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div></div>`;
+          }
+          if(!isFirstPage){
+            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#64748b">納品書No.${no}　${pageNo}/${totalPages}</div>`;
+          }
+          body += `</div>`;
+        });
+      }
 
       // 納品書控（社内用）
-      body += `<div class="pb" style="padding:80px 34px 30px 34px">
-        <div style="position:relative">
-          <div class="title" style="letter-spacing:4px">納品書控</div>
-          <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
-        </div>
-        <div class="hdr"><div>
-          <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
-          ${projText?`<div style="margin-top:4px"><strong>『${projText}』</strong></div>`:""}
-          ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
-          ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
-          <div style="display:flex;gap:14px;margin-top:12px">
-            <div class="sign-box"><div class="sign-label">納品確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:32px"></div></div>
-            <div class="sign-box"><div class="sign-label">返却確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:32px"></div></div>
-          </div>
-        </div>${olqBlock}</div>
-        <table style="margin-top:10px"><thead><tr><th style="width:30px">No.</th><th>機材名</th><th style="width:36px">No</th><th style="width:54px">単価</th><th style="width:36px">数量</th><th style="width:72px">開始日</th><th style="width:72px">終了日</th><th>備考</th></tr></thead><tbody>`;
-      rowN = 0;
-      lines.forEach(ln => { rowN++;
-        body += `<tr><td class="c">${rowN}</td><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
-        (ln.subItems||[]).forEach(si => { rowN++;
-          body += `<tr class="sub-row"><td></td><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
+      { // ページ分割スコープ
+        const ROWS_PER_PAGE_C = 20;
+        const allRowsC = [];
+        lines.forEach(ln => {
+          allRowsC.push({type:'main', ln});
+          (ln.subItems||[]).forEach(si => allRowsC.push({type:'sub', ln, si}));
         });
-      });
-      body += `${(r.insuranceAmount||0)>0?`<tr><td></td><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`:""}`;
-      for (let i = rowN; i < 20; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
-      body += `</tbody></table>
-        <table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table></div>`;
+        if((r.insuranceAmount||0)>0) allRowsC.push({type:'insurance'});
+        const pagesC = [];
+        for(let pi=0; pi<Math.max(1, Math.ceil(allRowsC.length/ROWS_PER_PAGE_C)); pi++){
+          pagesC.push(allRowsC.slice(pi*ROWS_PER_PAGE_C, (pi+1)*ROWS_PER_PAGE_C));
+        }
+        const totalPagesC = pagesC.length;
+        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
+        pagesC.forEach((pageRows, pageIdx) => {
+          const isFirstPage = pageIdx === 0;
+          const pageNo = pageIdx + 1;
+          const topPad = isFirstPage ? '80px' : '30px';
+          body += `<div class="pb" style="padding:${topPad} 34px 30px 44px;position:relative">`;
+          if(isFirstPage){
+            body += `<div style="position:relative">
+              <div class="title" style="letter-spacing:4px">納品書控</div>
+              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+            </div>
+            <div class="hdr"><div>
+              <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
+              ${projText?`<div style="margin-top:4px"><strong>『${projText}』</strong></div>`:""}
+              ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
+              ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
+              <div style="display:flex;gap:14px;margin-top:12px">
+                <div class="sign-box"><div class="sign-label">納品確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:32px"></div></div>
+                <div class="sign-box"><div class="sign-label">返却確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:32px"></div></div>
+              </div>
+            </div>${olqBlock}</div>`;
+          } else {
+            body += `<div style="position:relative;margin-bottom:10px">
+              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納品書控（続き）</div>
+              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+            </div>`;
+          }
+          body += `<table style="margin-top:10px"><thead><tr><th style="width:30px">No.</th><th>機材名</th><th style="width:36px">No</th><th style="width:54px">単価</th><th style="width:36px">数量</th><th style="width:72px">開始日</th><th style="width:72px">終了日</th><th>備考</th></tr></thead><tbody>`;
+          let rowNumC = pageIdx * ROWS_PER_PAGE_C;
+          pageRows.forEach(row => {
+            rowNumC++;
+            if(row.type==='main'){
+              const ln=row.ln;
+              body += `<tr><td class="c">${rowNumC}</td><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+            } else if(row.type==='sub'){
+              const ln=row.ln; const si=row.si;
+              body += `<tr class="sub-row"><td></td><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
+            } else if(row.type==='insurance'){
+              body += `<tr><td></td><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
+            }
+          });
+          const emptyCountC = ROWS_PER_PAGE_C - pageRows.length;
+          for(let i=0; i<emptyCountC; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${rowNumC+i+1}</td>${emptyColsC}</tr>`;
+          body += `</tbody></table>`;
+          if(pageNo===totalPagesC){
+            body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>`;
+          }
+          if(!isFirstPage){
+            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#64748b">納品書No.${no}　${pageNo}/${totalPagesC}</div>`;
+          }
+          body += `</div>`;
+        });
+      }
 
       // 領収証ページ（delivery-receipt かつ issueReceipt=true の案件のみ）
       if (type === "delivery-receipt" && r.issueReceipt) {
