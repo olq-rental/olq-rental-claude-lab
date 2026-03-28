@@ -854,6 +854,7 @@ export default function App() {
   const [invoiceData, setInvoiceData] = useState({});
   const [tab,       setTab]       = useState("records");
   const [openCustomerId, setOpenCustomerId] = useState(null);
+  const [autoOpenDelivery, setAutoOpenDelivery] = useState(null);
   const [toast,     setToast]     = useState(null);
   const [globalQ,    setGlobalQ]    = useState("");
 
@@ -1055,8 +1056,8 @@ export default function App() {
       )}
 
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
-        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={()=>setTab("delivery")} invoiceData={invoiceData} globalQ={globalQ}/>}
-        {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec}/>}
+        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ}/>}
+        {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
         {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
@@ -1155,6 +1156,22 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   const addLine=()=>{setForm(f=>({...f,lines:[...(f.lines||[]),{...emptyLine}]}));setLineSearches(s=>[...s,""]);}; 
   const addManualLine=()=>{setForm(f=>({...f,lines:[...(f.lines||[]),{...emptyManualLine}]}));setLineSearches(s=>[...s,""]);};
   const removeLine=idx=>{if((form.lines||[]).length<=1)return;setForm(f=>({...f,lines:f.lines.filter((_,i)=>i!==idx)}));setLineSearches(s=>s.filter((_,i)=>i!==idx));};
+  const moveLine=(idx,dir)=>{
+    setForm(f=>{
+      const lines=[...f.lines];
+      const target=idx+dir;
+      if(target<0||target>=lines.length) return f;
+      [lines[idx],lines[target]]=[lines[target],lines[idx]];
+      return {...f,lines};
+    });
+    setLineSearches(s=>{
+      const n=[...s];
+      const target=idx+dir;
+      if(target<0||target>=n.length) return s;
+      [n[idx],n[target]]=[n[target],n[idx]];
+      return n;
+    });
+  };
   const setLineProdQ=(idx,v)=>setLineSearches(s=>{const n=[...s];n[idx]=v;return n;});
   const addSub=(li)=>setLine(li,{subItems:[...(form.lines[li].subItems||[]),{no:"",note:""}]});
   const removeSub=(li,si)=>setLine(li,{subItems:form.lines[li].subItems.filter((_,j)=>j!==si)});
@@ -1185,7 +1202,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
     await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records]);
     const wasNew=!editId;
     showToast(editId?"更新しました":"登録しました");setForm(E);setEditId(null);setOpen(false);setLineSearches([""]);
-    if(wasNew&&onAfterSubmit) onAfterSubmit();
+    if(wasNew&&onAfterSubmit) onAfterSubmit(rec);
   };
 
   const mnths=[...new Set(records.map(r=>r.startDate?.slice(0,7)))].filter(Boolean).sort().reverse();
@@ -1326,6 +1343,12 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                           行を増やす（各台個別入力）
                         </label>
                       )}
+                      <div style={{display:"flex",gap:2}}>
+                        <button type="button" onClick={()=>moveLine(li,-1)} disabled={li===0}
+                          style={{background:"none",border:"1px solid #e2e8f0",borderRadius:4,padding:"1px 5px",cursor:li===0?"not-allowed":"pointer",opacity:li===0?0.3:1,fontSize:10}}>↑</button>
+                        <button type="button" onClick={()=>moveLine(li,1)} disabled={li===(form.lines||[]).length-1}
+                          style={{background:"none",border:"1px solid #e2e8f0",borderRadius:4,padding:"1px 5px",cursor:li===(form.lines||[]).length-1?"not-allowed":"pointer",opacity:li===(form.lines||[]).length-1?0.3:1,fontSize:10}}>↓</button>
+                      </div>
                       {form.lines.length>1&&<button type="button" onClick={()=>removeLine(li)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.trash} size={14} color="#ef4444"/></button>}
                     </div>
                   </div>
@@ -2597,10 +2620,18 @@ ${css}
 // =========================================================
 // DeliveryTab（納品書タブ）
 // =========================================================
-function DeliveryTab({records, customers, groups, showToast, globalQ, onSave}){
+function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, autoOpenRecord, onClearAutoOpen}){
   const [fil, setFil] = useState({q:"", cid:"", month:new Date().toISOString().slice(0,7)});
   const [preview, setPreview] = useState(null); // {type, g}
   const [extModal, setExtModal] = useState(null);
+
+  useEffect(()=>{
+    if(autoOpenRecord){
+      const r=records.find(x=>x.id===autoOpenRecord);
+      if(r) setPreview({r,type:r.issueReceipt?"delivery-receipt":"delivery"});
+      onClearAutoOpen&&onClearAutoOpen();
+    }
+  },[autoOpenRecord]);
 
   const mnths=[...new Set(records.map(r=>r.startDate?.slice(0,7)))].filter(Boolean).sort().reverse();
 
