@@ -1588,9 +1588,9 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
           {filtered.length===0
             ?<div style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません。「新規登録」から追加してください。</div>
             :(()=>{
-              const filteredExtension = filtered.filter(r=>r.isExtension===true);
+              const filteredExtension = filtered.filter(r=>r.isExtension===true&&!r.returnDate);
               const filteredMonthly = filtered.filter(r=>r.billingType==="monthly"&&!r.isExtension);
-              const filteredDaily   = filtered.filter(r=>r.billingType!=="monthly"&&!r.isExtension);
+              const filteredDaily   = filtered.filter(r=>r.billingType!=="monthly"&&(!r.isExtension||r.returnDate));
               const renderGroup = (recs, sectionLabel, sectionColor) => {
                 if(recs.length===0) return null;
                 const custGroups={};
@@ -1728,7 +1728,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
           {filtered.length>0&&(
             <div style={{background:"#eff6ff",padding:"9px 16px",display:"flex",justifyContent:"flex-end",gap:16,fontSize:12,fontWeight:700,borderTop:"2px solid #e2e8f0"}}>
               <span style={{color:"#64748b"}}>合計（税抜）</span>
-              <span style={{color:"#16a34a",fontSize:14}}>{fmt(filtered.reduce((s,r)=>s+r.amount,0))}</span>
+              <span style={{color:"#16a34a",fontSize:14}}>{fmt(filtered.reduce((s,r)=>s+(r.amount||0),0))}</span>
             </div>
           )}
         </div>
