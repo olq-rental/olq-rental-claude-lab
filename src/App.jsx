@@ -1507,20 +1507,27 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
           <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",overflowY:"auto"}}>
             <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
             <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
-            {(extModal.flatItems||[]).map(item=>(
-              <label key={item.key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[item.key]?"#eff6ff":"#fff"}}>
-                <input type="checkbox" checked={!!extModal.selected[item.key]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[item.key]:e.target.checked}}))}/>
+            {(extModal.units||[]).map((u,i)=>(
+              <label key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[i]?"#eff6ff":"#fff"}}>
+                <input type="checkbox" checked={!!extModal.selected[i]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[i]:e.target.checked}}))}/>
                 <div>
-                  <div style={{fontWeight:600,fontSize:13}}>{item.equipmentName}{item.equipNo&&<span style={{color:"#64748b",marginLeft:6,fontWeight:400}}>No.{item.equipNo}</span>}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>×{item.quantity}　¥{Number(item.unitPrice).toLocaleString()}/日</div>
+                  <div style={{fontWeight:600,fontSize:13}}>{u.equipmentName}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>No.{u.no}　¥{Number(u.unitPrice).toLocaleString()}/日　{u.note}</div>
                 </div>
               </label>
             ))}
             <div style={{display:"flex",gap:10,marginTop:16}}>
               <button onClick={async()=>{
                 const r=extModal.record;
-                const selectedLines=buildExtLines(extModal.lines,extModal.flatItems||[],extModal.selected);
-                if(selectedLines.length===0){alert("製品を1つ以上選択してください");return;}
+                const selectedUnits=extModal.units.filter((_,i)=>extModal.selected[i]);
+                if(selectedUnits.length===0){alert("製品を1つ以上選択してください");return;}
+                const lineMap={};
+                selectedUnits.forEach(u=>{
+                  if(!lineMap[u.lineIdx]) lineMap[u.lineIdx]={...u.originalLine,subItems:[],quantity:0};
+                  lineMap[u.lineIdx].subItems.push({no:u.no,note:u.note});
+                  lineMap[u.lineIdx].quantity=lineMap[u.lineIdx].subItems.length;
+                });
+                const selectedLines=Object.values(lineMap);
                 const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):today();
                 const delivNo=await nextDeliveryNo();
                 const newRec={
@@ -1655,8 +1662,16 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                         <button onClick={e=>{
                                           e.stopPropagation();
                                           const rLns=getLines(r);
-                                          const fi=makeExtFlatItems(rLns);
-                                          setExtModal({record:r,lines:rLns,flatItems:fi,selected:Object.fromEntries(fi.map(item=>[item.key,true]))});
+                                          const units=[];
+                                          rLns.forEach((ln,lineIdx)=>{
+                                            const qty=Number(ln.quantity)||1;
+                                            if(ln.subItems&&ln.subItems.length>0){
+                                              ln.subItems.forEach((si,siIdx)=>units.push({lineIdx,siIdx,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:si.no,note:si.note||"",originalLine:ln}));
+                                            } else {
+                                              for(let i=0;i<qty;i++) units.push({lineIdx,siIdx:i,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:i+1,note:"",originalLine:ln});
+                                            }
+                                          });
+                                          setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
                                         }} style={{...S.ib("#0369a1"),marginRight:4,fontSize:10}}>🔄 延長</button>
                                         {(r.endDateOpen||(!r.endDate&&r.billingType==="monthly"))&&!r.returnDate&&(
                                           <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today()});}}
@@ -2623,8 +2638,16 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave}){
                         <td style={{padding:"8px 12px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
                           <button onClick={()=>{
                             const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
-                            const fi=makeExtFlatItems(rLns);
-                            setExtModal({record:r,lines:rLns,flatItems:fi,selected:Object.fromEntries(fi.map(item=>[item.key,true]))});
+                            const units=[];
+                            rLns.forEach((ln,lineIdx)=>{
+                              const qty=Number(ln.quantity)||1;
+                              if(ln.subItems&&ln.subItems.length>0){
+                                ln.subItems.forEach((si,siIdx)=>units.push({lineIdx,siIdx,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:si.no,note:si.note||"",originalLine:ln}));
+                              } else {
+                                for(let i=0;i<qty;i++) units.push({lineIdx,siIdx:i,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:i+1,note:"",originalLine:ln});
+                              }
+                            });
+                            setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
                           }} style={{...S.ib("#0369a1"),fontSize:11,marginRight:4}}>🔄 延長</button>
                           <button onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)} style={{...S.ib("#16a34a"),fontSize:11}}>
                             <Ico d={I.file} size={11}/>{r.issueReceipt?"納品書・領収証":"納品書"}
@@ -2664,20 +2687,27 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave}){
           <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",overflowY:"auto"}}>
             <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
             <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
-            {(extModal.flatItems||[]).map(item=>(
-              <label key={item.key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[item.key]?"#eff6ff":"#fff"}}>
-                <input type="checkbox" checked={!!extModal.selected[item.key]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[item.key]:e.target.checked}}))}/>
+            {(extModal.units||[]).map((u,i)=>(
+              <label key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[i]?"#eff6ff":"#fff"}}>
+                <input type="checkbox" checked={!!extModal.selected[i]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[i]:e.target.checked}}))}/>
                 <div>
-                  <div style={{fontWeight:600,fontSize:13}}>{item.equipmentName}{item.equipNo&&<span style={{color:"#64748b",marginLeft:6,fontWeight:400}}>No.{item.equipNo}</span>}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>×{item.quantity}　¥{Number(item.unitPrice).toLocaleString()}/日</div>
+                  <div style={{fontWeight:600,fontSize:13}}>{u.equipmentName}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>No.{u.no}　¥{Number(u.unitPrice).toLocaleString()}/日　{u.note}</div>
                 </div>
               </label>
             ))}
             <div style={{display:"flex",gap:10,marginTop:16}}>
               <button onClick={async()=>{
                 const r=extModal.record;
-                const selectedLines=buildExtLines(extModal.lines,extModal.flatItems||[],extModal.selected);
-                if(selectedLines.length===0){alert("製品を1つ以上選択してください");return;}
+                const selectedUnits=extModal.units.filter((_,i)=>extModal.selected[i]);
+                if(selectedUnits.length===0){alert("製品を1つ以上選択してください");return;}
+                const lineMap={};
+                selectedUnits.forEach(u=>{
+                  if(!lineMap[u.lineIdx]) lineMap[u.lineIdx]={...u.originalLine,subItems:[],quantity:0};
+                  lineMap[u.lineIdx].subItems.push({no:u.no,note:u.note});
+                  lineMap[u.lineIdx].quantity=lineMap[u.lineIdx].subItems.length;
+                });
+                const selectedLines=Object.values(lineMap);
                 const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):new Date().toISOString().slice(0,10);
                 const delivNo=await nextDeliveryNo();
                 const newRec={
