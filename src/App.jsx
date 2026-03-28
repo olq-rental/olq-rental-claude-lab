@@ -1588,8 +1588,9 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
           {filtered.length===0
             ?<div style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません。「新規登録」から追加してください。</div>
             :(()=>{
-              const filteredMonthly = filtered.filter(r=>r.billingType==="monthly");
-              const filteredDaily   = filtered.filter(r=>r.billingType!=="monthly");
+              const filteredExtension = filtered.filter(r=>r.isExtension===true);
+              const filteredMonthly = filtered.filter(r=>r.billingType==="monthly"&&!r.isExtension);
+              const filteredDaily   = filtered.filter(r=>r.billingType!=="monthly"&&!r.isExtension);
               const renderGroup = (recs, sectionLabel, sectionColor) => {
                 if(recs.length===0) return null;
                 const custGroups={};
@@ -1695,6 +1696,15 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               });
               };
               return(<>
+                {filteredExtension.length>0&&(
+                  <div>
+                    <div style={{padding:"8px 16px",background:"#dbeafe",borderBottom:"2px solid #93c5fd",display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:12,fontWeight:700,color:"#1d4ed8"}}>🔄 延長中案件</span>
+                      <span style={{fontSize:11,color:"#3b82f6"}}>{filteredExtension.length}件</span>
+                    </div>
+                    {renderGroup(filteredExtension,"延長中","#dbeafe")}
+                  </div>
+                )}
                 {filteredMonthly.length>0&&(
                   <div>
                     <div style={{padding:"8px 16px",background:"#f5f3ff",borderBottom:"2px solid #ede9fe",display:"flex",alignItems:"center",gap:8}}>
@@ -2568,13 +2578,16 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave}){
   // 案件ごとに単独グループを作成してdownloadに渡す
   const makeGroup = (r) => {
     const c = customers.find(x=>x.id===r.customerId);
+    const lns = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName||"",unitPrice:r.unitPrice,quantity:r.quantity,subItems:r.subItems||[]}];
+    const equipName = lns.map(ln=>ln.equipmentName).filter(Boolean).join("、");
+    const rWithEquip = {...r, equipmentName: r.equipmentName||equipName};
     return {
       customerId: r.customerId,
       customer: c||null,
       customerName: c?.name||"不明",
       projectName: r.projectName||"",
       month: r.startDate?.slice(0,7)||"",
-      items: [r],
+      items: [rWithEquip],
       split: true,
       consolidate: false,
     };
