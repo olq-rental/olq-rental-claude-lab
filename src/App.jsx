@@ -3646,10 +3646,11 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
 }
 
 function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts}){
-  const E={brand:"",name:"",priceIn:"",memo:""};
+  const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
+  const formRef=useRef(null);
   const [spList,setSpList]=useState([]);
   const [spCid,setSpCid]=useState("");
   const [spPrice,setSpPrice]=useState("");
@@ -3680,7 +3681,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     const priceIn=Number(form.priceIn);
     const priceEx=taxEx(priceIn);
     const pid=editId||uid();
-    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||""};
+    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount};
     p.fullName=`${p.brand} ${p.name}`;
     await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
     if(spList.length>0&&saveCust){
@@ -3704,7 +3705,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
   return(
     <div>
       {open&&(
-        <div style={{...S.card,padding:24,marginBottom:18}}>
+        <div ref={formRef} style={{...S.card,padding:24,marginBottom:18}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
             <h3 style={{margin:0,fontSize:16,fontWeight:700}}>{editId?"製品を編集":"製品を追加"}</h3>
             <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);}} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={18} color="#94a3b8"/></button>
@@ -3716,6 +3717,16 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
               <label style={S.lbl}>定価（税込）/日 *</label>
               <input type="number" value={form.priceIn} onChange={e=>setForm(f=>({...f,priceIn:e.target.value}))} style={S.inp} placeholder="例: 11000"/>
               {form.priceIn&&<div style={{fontSize:11,color:"#16a34a",marginTop:3}}>税抜: {fmt(taxEx(Number(form.priceIn)))}/日</div>}
+            </div>
+            <div style={{gridColumn:"1/-1"}}>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13}}>
+                <input
+                  type="checkbox"
+                  checked={!!form.noBillingDiscount}
+                  onChange={e=>setForm(f=>({...f,noBillingDiscount:e.target.checked}))}
+                />
+                日数値引き非適用（チェックを入れると日数値引きが適用されなくなります）
+              </label>
             </div>
             <div style={{gridColumn:"1/-1"}}>
               <label style={S.lbl}>備考</label>
@@ -3827,7 +3838,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                         }
                       </td>
                       <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||""});setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
+                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false});setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
                         <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(products.filter(x=>x.id!==p.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                       </td>
                     </tr>
