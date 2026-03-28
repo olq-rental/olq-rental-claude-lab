@@ -886,8 +886,16 @@ export default function App() {
   }, [session]);
 
   const saveProd = async n => {
-    setProducts(n);
-    await sSet(K.p, n);
+    const merged = n.map(p => {
+      const existing = products.find(x => x.id === p.id);
+      return {
+        ...p,
+        noBillingDiscount: p.noBillingDiscount ?? existing?.noBillingDiscount ?? false,
+        memo: p.memo ?? existing?.memo ?? ""
+      };
+    });
+    setProducts(merged);
+    await sSet(K.p, merged);
     // 製品マスタ変更時、全顧客の特別価格を自動同期
     const updated = customers.map(c => {
       if (!(c.specialPrices||[]).length) return c;
