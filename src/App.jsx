@@ -1492,7 +1492,30 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
             <div style={{display:"flex",gap:8}}>
               <button onClick={async()=>{
                 if(!returnModal.billingEndDate){showToast("計上終了日を入力してください",false);return;}
-                await onSave(records.map(x=>x.id===returnModal.id?{...x,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate}:x));
+                const targetRec=records.find(x=>x.id===returnModal.id);
+                if(targetRec){
+                  const endDate=returnModal.billingEndDate;
+                  const d=calcDays(targetRec.startDate,endDate);
+                  const bd=calcBillingDays(d);
+                  const rLines=(targetRec.lines&&targetRec.lines.length)?targetRec.lines:[{unitPrice:targetRec.unitPrice,quantity:targetRec.quantity||1,noBillingDiscount:targetRec.noBillingDiscount}];
+                  const newAmount=rLines.reduce((s,ln)=>{
+                    const noDisc=ln.noBillingDiscount;
+                    const qty=noDisc?d:bd;
+                    return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
+                  },0);
+                  const newInsurance=targetRec.includeInsurance?Math.round(newAmount*0.1):0;
+                  await onSave(records.map(x=>x.id===returnModal.id?{
+                    ...x,
+                    returnDate:returnModal.billingEndDate,
+                    actualReturnDate:returnModal.returnDate,
+                    endDate,
+                    endDateOpen:false,
+                    days:d,
+                    billingDays:bd,
+                    amount:newAmount,
+                    insuranceAmount:newInsurance
+                  }:x));
+                }
                 showToast("計上終了日: "+returnModal.billingEndDate+" で設定しました");
                 setReturnModal(null);
               }} style={S.btn("#7c3aed",true)}>設定する</button>
@@ -2392,7 +2415,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     // 納品書HTML（各案件 → 納品書1ページ + 控え1ページ）
     g.items.forEach((r, idx) => {
       const no = genDeliveryNo(r, idx);
-      const lines = (r.lines && r.lines.length) ? r.lines : [{equipmentName:r.equipmentName,equipNo:r.equipNo,unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[]}];
+      const lines = (r.lines && r.lines.length) ? r.lines.map(ln=>({...ln,unitPrice:Number(ln.unitPrice)||0,quantity:Number(ln.quantity)||1})) : [{equipmentName:r.equipmentName,equipNo:r.equipNo,unitPrice:Number(r.unitPrice)||0,quantity:Number(r.quantity)||1,lineNote:r.lineNote||"",subItems:r.subItems||[]}];
       const projText = r.projectName || g.projectName || "";
       const orderer = r.ordererName || g.customer?.contact || "";
       const honorific = orderer ? "　様" : "";
