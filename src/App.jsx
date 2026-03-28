@@ -1085,7 +1085,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   });
   const emptyLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false};
   const emptyManualLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false,isManual:true,isFee:false,noBillingDiscount:false};
-  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false};
+  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false,isExtension:false,extendedFrom:"",extendedFromNo:""};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
@@ -1093,6 +1093,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   const [expandedCust,setExpandedCust]=useState({}); // {custId: bool}
   const [expandedProj,setExpandedProj]=useState({}); // {custId_projName: bool}
   const [returnModal,setReturnModal]=useState(null); // {id, returnDate:"", billingEndDate:""}
+  const [extModal,setExtModal]=useState(null); // {record, lines, selected}
   const [lineSearches,setLineSearches]=useState([""]);
   const [custSearch,setCustSearch]=useState(""); // 顧客絞り込み入力
 
@@ -1500,6 +1501,60 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
           </div>
         </div>
       )}
+      {/* 延長モーダル */}
+      {extModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",overflowY:"auto"}}>
+            <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
+            <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
+            {extModal.lines.map((ln,i)=>(
+              <label key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[i]?"#eff6ff":"#fff"}}>
+                <input type="checkbox" checked={!!extModal.selected[i]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[i]:e.target.checked}}))}/>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>{ln.equipmentName}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>×{ln.quantity}　¥{Number(ln.unitPrice).toLocaleString()}/日</div>
+                </div>
+              </label>
+            ))}
+            <div style={{display:"flex",gap:10,marginTop:16}}>
+              <button onClick={async()=>{
+                const r=extModal.record;
+                const selectedLines=extModal.lines.filter((_,i)=>extModal.selected[i]);
+                if(selectedLines.length===0){alert("製品を1つ以上選択してください");return;}
+                const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):today();
+                const delivNo=await nextDeliveryNo();
+                const newRec={
+                  ...E,
+                  id:uid(),
+                  customerId:r.customerId,
+                  projectName:r.projectName||"",
+                  projectDetail:r.projectDetail||"",
+                  ordererName:r.ordererName||"",
+                  ourStaff:r.ourStaff||"",
+                  billingType:"daily",
+                  startDate:nextDay,
+                  endDate:nextDay,
+                  endDateOpen:true,
+                  isExtension:true,
+                  extendedFrom:r.id,
+                  extendedFromNo:r.deliveryNo||"",
+                  deliveryNo:delivNo,
+                  lines:selectedLines.map(ln=>({...ln})),
+                  receiptNote:r.receiptNote||"機材レンタル代として　[クレジット スクエア]",
+                  paymentMethod:r.paymentMethod||"credit",
+                  includeInsurance:false,
+                  issueReceipt:false,
+                  createdAt:new Date().toISOString(),
+                };
+                await onSave([...records,newRec]);
+                setExtModal(null);
+                showToast("延長案件を作成しました");
+              }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
+              <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={S.card}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9"}}>
           <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
@@ -1582,7 +1637,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                   const locked=isRecordLocked(r);
                                   return(
                                     <tr key={r.id} style={{borderTop:"1px solid #f1f5f9",background:locked?"#f0fdf4":"#fff"}}>
-                                      <td style={{padding:"8px 16px 8px 56px",color:"#64748b",fontSize:11,whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.deliveryNo&&<span style={{marginLeft:6,fontSize:10,color:"#94a3b8",background:"#f1f5f9",borderRadius:4,padding:"1px 5px"}}>No.{r.deliveryNo}</span>}</td>
+                                      <td style={{padding:"8px 16px 8px 56px",color:"#64748b",fontSize:11,whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.deliveryNo&&<span style={{marginLeft:6,fontSize:10,color:"#94a3b8",background:"#f1f5f9",borderRadius:4,padding:"1px 5px"}}>No.{r.deliveryNo}</span>}{r.isExtension&&<span style={{fontSize:10,background:"#dbeafe",color:"#1d4ed8",borderRadius:4,padding:"1px 6px",marginLeft:4,fontWeight:700}}>🔄 延長中</span>}{r.isExtension&&r.extendedFromNo&&<span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>元No.{r.extendedFromNo}</span>}</td>
                                       <td style={{padding:"8px 12px"}}>
                                         {rL.length===1
                                           ?<span>{rL[0].equipmentName||r.equipmentName} <span style={{color:"#94a3b8"}}>×{rL[0].quantity||r.quantity}</span></span>
@@ -1597,6 +1652,11 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                       <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a",whiteSpace:"nowrap"}}>{fmt(r.amount)}</td>
                                       <td style={{padding:"8px 12px",whiteSpace:"nowrap",textAlign:"right"}}>
                                         {locked&&<span style={{fontSize:10,marginRight:4,color:"#15803d"}}>🔒</span>}
+                                        <button onClick={e=>{
+                                          e.stopPropagation();
+                                          const rLns=getLines(r);
+                                          setExtModal({record:r,lines:rLns,selected:Object.fromEntries(rLns.map((_,i)=>[i,true]))});
+                                        }} style={{...S.ib("#0369a1"),marginRight:4,fontSize:10}}>🔄 延長</button>
                                         {(r.endDateOpen||(!r.endDate&&r.billingType==="monthly"))&&!r.returnDate&&(
                                           <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today()});}}
                                             style={{...S.ib("#7c3aed"),marginRight:4,fontSize:10}}>📦 戻り[終了]</button>
@@ -2297,6 +2357,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       body += `<div class="pb" style="padding:30px 34px">
         <div style="position:relative">
           <div class="title">納 品 書</div>
+          ${r.isExtension?`<div style="font-size:11px;color:#2563eb;font-weight:700;text-align:center;margin-top:2px">${r.extendedFromNo?"元伝票No."+r.extendedFromNo+" ":""}ご延長分</div>`:""}
           <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
         </div>
         <div class="hdr"><div>
