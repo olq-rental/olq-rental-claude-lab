@@ -2462,7 +2462,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       // 納品書（お客様用）
       const showDPrice = !!g.customer?.showDeliveryPrice;
       { // ページ分割スコープ
-        const ROWS_PER_PAGE = 28;
+        const ROWS_PER_PAGE = 32; // 1ページ目
+        const ROWS_PER_PAGE_REST = 40; // 2ページ目以降
         const allRows = [];
         lines.forEach(ln => {
           allRows.push({type:'main', ln});
@@ -2470,8 +2471,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         });
         if((r.insuranceAmount||0)>0) allRows.push({type:'insurance'});
         const pages = [];
-        for(let pi=0; pi<Math.max(1, Math.ceil(allRows.length/ROWS_PER_PAGE)); pi++){
-          pages.push(allRows.slice(pi*ROWS_PER_PAGE, (pi+1)*ROWS_PER_PAGE));
+        { let remaining = [...allRows]; let isFirst = true;
+          while(remaining.length > 0){ const limit = isFirst ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST; pages.push(remaining.slice(0,limit)); remaining = remaining.slice(limit); isFirst = false; }
+          if(pages.length===0) pages.push([]);
         }
         const totalPages = pages.length;
         const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
@@ -2499,7 +2501,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             </div>`;
           }
           body += `<table><thead><tr><th style="width:30px">No.</th><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}<th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
-          let rowNum = pageIdx * ROWS_PER_PAGE;
+          let rowNum = pages.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
           pageRows.forEach(row => {
             rowNum++;
             if(row.type==='main'){
@@ -2511,7 +2513,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               body += showDPrice?`<tr><td></td><td>補償料（機材合計の10%）</td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`:`<tr><td></td><td colspan="4">補償料（機材合計の10%）</td><td></td></tr>`;
             }
           });
-          const emptyCount = ROWS_PER_PAGE - pageRows.length;
+          const pageLimit = isFirstPage ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST;
+          const emptyCount = pageLimit - pageRows.length;
           for(let i=0; i<emptyCount; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${rowNum+i+1}</td>${emptyCols}</tr>`;
           body += `</tbody></table>`;
           if(pageNo===totalPages){
@@ -2527,7 +2530,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
       // 納品書控（社内用）
       { // ページ分割スコープ
-        const ROWS_PER_PAGE_C = 28;
+        const ROWS_PER_PAGE_C = 32; // 1ページ目
+        const ROWS_PER_PAGE_C_REST = 40; // 2ページ目以降
         const allRowsC = [];
         lines.forEach(ln => {
           allRowsC.push({type:'main', ln});
@@ -2535,8 +2539,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         });
         if((r.insuranceAmount||0)>0) allRowsC.push({type:'insurance'});
         const pagesC = [];
-        for(let pi=0; pi<Math.max(1, Math.ceil(allRowsC.length/ROWS_PER_PAGE_C)); pi++){
-          pagesC.push(allRowsC.slice(pi*ROWS_PER_PAGE_C, (pi+1)*ROWS_PER_PAGE_C));
+        { let remaining = [...allRowsC]; let isFirst = true;
+          while(remaining.length > 0){ const limit = isFirst ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST; pagesC.push(remaining.slice(0,limit)); remaining = remaining.slice(limit); isFirst = false; }
+          if(pagesC.length===0) pagesC.push([]);
         }
         const totalPagesC = pagesC.length;
         const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
@@ -2567,7 +2572,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             </div>`;
           }
           body += `<table style="margin-top:10px"><thead><tr><th style="width:30px">No.</th><th>機材名</th><th style="width:36px">No</th><th style="width:54px">単価</th><th style="width:36px">数量</th><th style="width:72px">開始日</th><th style="width:72px">終了日</th><th>備考</th></tr></thead><tbody>`;
-          let rowNumC = pageIdx * ROWS_PER_PAGE_C;
+          let rowNumC = pagesC.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
           pageRows.forEach(row => {
             rowNumC++;
             if(row.type==='main'){
@@ -2580,7 +2585,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               body += `<tr><td></td><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
             }
           });
-          const emptyCountC = ROWS_PER_PAGE_C - pageRows.length;
+          const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
+          const emptyCountC = pageLimitC - pageRows.length;
           for(let i=0; i<emptyCountC; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${rowNumC+i+1}</td>${emptyColsC}</tr>`;
           body += `</tbody></table>`;
           if(pageNo===totalPagesC){
