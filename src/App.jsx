@@ -2571,7 +2571,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
             </div>`;
           }
-          body += `<table style="margin-top:10px"><thead><tr><th style="width:30px">No.</th><th>機材名</th><th style="width:36px">No</th><th style="width:54px">単価</th><th style="width:36px">数量</th><th style="width:72px">開始日</th><th style="width:72px">終了日</th><th>備考</th></tr></thead><tbody>`;
+          body += `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:30px"><col><col style="width:36px"><col style="width:54px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col style="width:60px"></colgroup><thead><tr><th style="width:30px">No.</th><th>機材名</th><th style="width:36px">No</th><th style="width:54px">単価</th><th style="width:36px">数量</th><th style="width:72px">開始日</th><th style="width:72px">終了日</th><th style="width:60px">備考</th></tr></thead><tbody>`;
           let rowNumC = pagesC.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
           pageRows.forEach(row => {
             rowNumC++;
