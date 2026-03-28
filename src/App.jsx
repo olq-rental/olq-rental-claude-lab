@@ -1050,7 +1050,7 @@ export default function App() {
 
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
         {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={()=>setTab("delivery")} invoiceData={invoiceData} globalQ={globalQ}/>}
-        {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ}/>}
+        {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec}/>}
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
         {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
@@ -1507,19 +1507,19 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
           <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",overflowY:"auto"}}>
             <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
             <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
-            {extModal.lines.map((ln,i)=>(
-              <label key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[i]?"#eff6ff":"#fff"}}>
-                <input type="checkbox" checked={!!extModal.selected[i]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[i]:e.target.checked}}))}/>
+            {(extModal.flatItems||[]).map(item=>(
+              <label key={item.key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[item.key]?"#eff6ff":"#fff"}}>
+                <input type="checkbox" checked={!!extModal.selected[item.key]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[item.key]:e.target.checked}}))}/>
                 <div>
-                  <div style={{fontWeight:600,fontSize:13}}>{ln.equipmentName}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>×{ln.quantity}　¥{Number(ln.unitPrice).toLocaleString()}/日</div>
+                  <div style={{fontWeight:600,fontSize:13}}>{item.equipmentName}{item.equipNo&&<span style={{color:"#64748b",marginLeft:6,fontWeight:400}}>No.{item.equipNo}</span>}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>×{item.quantity}　¥{Number(item.unitPrice).toLocaleString()}/日</div>
                 </div>
               </label>
             ))}
             <div style={{display:"flex",gap:10,marginTop:16}}>
               <button onClick={async()=>{
                 const r=extModal.record;
-                const selectedLines=extModal.lines.filter((_,i)=>extModal.selected[i]);
+                const selectedLines=buildExtLines(extModal.lines,extModal.flatItems||[],extModal.selected);
                 if(selectedLines.length===0){alert("製品を1つ以上選択してください");return;}
                 const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):today();
                 const delivNo=await nextDeliveryNo();
@@ -1655,7 +1655,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                         <button onClick={e=>{
                                           e.stopPropagation();
                                           const rLns=getLines(r);
-                                          setExtModal({record:r,lines:rLns,selected:Object.fromEntries(rLns.map((_,i)=>[i,true]))});
+                                          const fi=makeExtFlatItems(rLns);
+                                          setExtModal({record:r,lines:rLns,flatItems:fi,selected:Object.fromEntries(fi.map(item=>[item.key,true]))});
                                         }} style={{...S.ib("#0369a1"),marginRight:4,fontSize:10}}>🔄 延長</button>
                                         {(r.endDateOpen||(!r.endDate&&r.billingType==="monthly"))&&!r.returnDate&&(
                                           <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today()});}}
@@ -1723,6 +1724,32 @@ async function nextInvoiceNo(month) {
   const { data, error } = await supabase.rpc('next_invoice_no');
   if (error) { console.error('nextInvoiceNo error', error); return `${month}-ERR`; }
   return `${month}-${String(data).padStart(3,'0')}`;
+}
+
+function makeExtFlatItems(lines) {
+  const items = [];
+  lines.forEach((ln, li) => {
+    if (!ln.subItems || ln.subItems.length === 0) {
+      items.push({ key: String(li), lineIdx: li, subIdx: null, equipmentName: ln.equipmentName, equipNo: ln.equipNo, quantity: ln.quantity, unitPrice: ln.unitPrice });
+    } else {
+      ln.subItems.forEach((si, si_i) => {
+        items.push({ key: `${li}-${si_i}`, lineIdx: li, subIdx: si_i, equipmentName: ln.equipmentName, equipNo: si.equipNo || ln.equipNo, quantity: si.quantity || 1, unitPrice: ln.unitPrice });
+      });
+    }
+  });
+  return items;
+}
+function buildExtLines(lines, flatItems, selected) {
+  const selItems = flatItems.filter(item => selected[item.key]);
+  const lineMap = {};
+  selItems.forEach(item => {
+    if (!lineMap[item.lineIdx]) lineMap[item.lineIdx] = { ...lines[item.lineIdx], subItems: item.subIdx !== null ? [] : (lines[item.lineIdx].subItems || []) };
+    if (item.subIdx !== null) {
+      lineMap[item.lineIdx].subItems.push(lines[item.lineIdx].subItems[item.subIdx]);
+      lineMap[item.lineIdx].quantity = lineMap[item.lineIdx].subItems.length;
+    }
+  });
+  return Object.values(lineMap);
 }
 
 async function nextDeliveryNo() {
@@ -2516,9 +2543,10 @@ ${css}
 // =========================================================
 // DeliveryTab（納品書タブ）
 // =========================================================
-function DeliveryTab({records, customers, groups, showToast, globalQ}){
+function DeliveryTab({records, customers, groups, showToast, globalQ, onSave}){
   const [fil, setFil] = useState({q:"", cid:"", month:new Date().toISOString().slice(0,7)});
   const [preview, setPreview] = useState(null); // {type, g}
+  const [extModal, setExtModal] = useState(null);
 
   const mnths=[...new Set(records.map(r=>r.startDate?.slice(0,7)))].filter(Boolean).sort().reverse();
 
@@ -2593,6 +2621,11 @@ function DeliveryTab({records, customers, groups, showToast, globalQ}){
                         <td style={{padding:"8px 12px",fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
                         <td style={{padding:"8px 12px",fontWeight:700,color:"#16a34a"}}>{fmt(r.amount)}</td>
                         <td style={{padding:"8px 12px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
+                          <button onClick={()=>{
+                            const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
+                            const fi=makeExtFlatItems(rLns);
+                            setExtModal({record:r,lines:rLns,flatItems:fi,selected:Object.fromEntries(fi.map(item=>[item.key,true]))});
+                          }} style={{...S.ib("#0369a1"),fontSize:11,marginRight:4}}>🔄 延長</button>
                           <button onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)} style={{...S.ib("#16a34a"),fontSize:11}}>
                             <Ico d={I.file} size={11}/>{r.issueReceipt?"納品書・領収証":"納品書"}
                           </button>
@@ -2622,6 +2655,62 @@ function DeliveryTab({records, customers, groups, showToast, globalQ}){
           <div style={{fontSize:10,color:"#94a3b8",marginBottom:6}}>💡 「印刷・PDF」でHTMLファイルをダウンロードします</div>
           <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bbf7d0"}}>
             <InvoicePreview type={preview.type} g={previewG}/>
+          </div>
+        </div>
+      )}
+      {/* 延長モーダル */}
+      {extModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",overflowY:"auto"}}>
+            <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
+            <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
+            {(extModal.flatItems||[]).map(item=>(
+              <label key={item.key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[item.key]?"#eff6ff":"#fff"}}>
+                <input type="checkbox" checked={!!extModal.selected[item.key]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[item.key]:e.target.checked}}))}/>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>{item.equipmentName}{item.equipNo&&<span style={{color:"#64748b",marginLeft:6,fontWeight:400}}>No.{item.equipNo}</span>}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>×{item.quantity}　¥{Number(item.unitPrice).toLocaleString()}/日</div>
+                </div>
+              </label>
+            ))}
+            <div style={{display:"flex",gap:10,marginTop:16}}>
+              <button onClick={async()=>{
+                const r=extModal.record;
+                const selectedLines=buildExtLines(extModal.lines,extModal.flatItems||[],extModal.selected);
+                if(selectedLines.length===0){alert("製品を1つ以上選択してください");return;}
+                const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):new Date().toISOString().slice(0,10);
+                const delivNo=await nextDeliveryNo();
+                const newRec={
+                  id:uid(),
+                  customerId:r.customerId,
+                  projectName:r.projectName||"",
+                  projectDetail:r.projectDetail||"",
+                  ordererName:r.ordererName||"",
+                  ourStaff:r.ourStaff||"",
+                  billingType:"daily",
+                  months:"1",
+                  startDate:nextDay,
+                  endDate:nextDay,
+                  endDateOpen:true,
+                  isExtension:true,
+                  extendedFrom:r.id,
+                  extendedFromNo:r.deliveryNo||"",
+                  deliveryNo:delivNo,
+                  lines:selectedLines.map(ln=>({...ln})),
+                  receiptNote:r.receiptNote||"機材レンタル代として　[クレジット スクエア]",
+                  paymentMethod:r.paymentMethod||"credit",
+                  includeInsurance:false,
+                  issueReceipt:false,
+                  noProjectName:false,
+                  notes:"",
+                  createdAt:new Date().toISOString(),
+                };
+                await onSave([...records,newRec]);
+                setExtModal(null);
+                showToast("延長案件を作成しました");
+              }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
+              <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
+            </div>
           </div>
         </div>
       )}
