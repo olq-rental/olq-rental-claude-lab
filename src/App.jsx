@@ -701,10 +701,7 @@ async function sSet(k, val) {
           alert('保存に失敗しました: ' + error.message);
           return;
         }
-        const { data: existing } = await supabase.from(_TABLE[k]).select('id');
-        const newIds = rows.map(r => r.id);
-        const toDelete = (existing||[]).map(r=>r.id).filter(id => !newIds.includes(id));
-        if (toDelete.length > 0) await supabase.from(_TABLE[k]).delete().in('id', toDelete);
+        // 削除処理を無効化（インポートデータ保護のため）
       }
       return;
     }
