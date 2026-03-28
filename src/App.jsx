@@ -2566,12 +2566,16 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               </div>
             </div>${olqBlock}</div>`;
           } else {
-            body += `<div class="hdr" style="margin-bottom:0">
+            body += `<div class="hdr">
               <div>
                 <div style="font-size:16px;font-weight:bold;letter-spacing:6px">納品書控　${pageNo}/${totalPagesC}</div>
-                <div style="font-size:10px;margin-top:4px">納品書No.　<strong>${no}</strong>　／　日付　${fd(r.startDate)}</div>
+                <div style="font-size:10px;margin-top:4px">納品書No.　<strong>${no}</strong>　日付　${fd(r.startDate)}</div>
               </div>
-              ${olqBlock}
+              <div class="olq" style="position:relative;visibility:hidden"><div style="font-weight:bold;font-size:12px">オルク株式会社</div>
+                <div>担当　${staff}</div><div>〒105-0004</div>
+                <div>東京都港区新橋6-10-2</div><div>第二新洋ビル 1F</div>
+                <div>TEL: 03-5777-1100</div><div>FAX: 03-5777-1101</div>
+              </div>
             </div>`;
           }
           body += `<table style="margin-top:10px"><thead><tr><th style="width:30px">No.</th><th>機材名</th><th style="width:36px">No</th><th style="width:54px">単価</th><th style="width:36px">数量</th><th style="width:72px">開始日</th><th style="width:72px">終了日</th><th>備考</th></tr></thead><tbody>`;
