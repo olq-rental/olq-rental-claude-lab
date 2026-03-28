@@ -3658,6 +3658,13 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
   const filteredProdCusts=prodSpQ.length>=1?customers.filter(c=>c.name.includes(prodSpQ)):[];
   const [q,setQ]=useState("");
   const [syncing,setSyncing]=useState(false);
+  const [syncLog,setSyncLog]=useState(null);
+  const [logOpen,setLogOpen]=useState(false);
+
+  const fetchSyncLog=async()=>{
+    const {data}=await supabase.from('settings').select('value').eq('key','sync_log').maybeSingle();
+    try{setSyncLog(JSON.parse(data?.value||'[]'));}catch{setSyncLog([]);}
+  };
 
   const manualSync = async () => {
     if (syncing) return;
@@ -3793,6 +3800,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
           </div>
           <button onClick={()=>{setForm(E);setEditId(null);setOpen(true);}} style={S.btn("#0f172a",true)}><Ico d={I.plus} size={13}/>製品を追加</button>
           <button onClick={manualSync} disabled={syncing} style={S.btn("#0369a1",true)}>{syncing?"同期中...":"🔄 手動同期"}</button>
+          <button onClick={()=>{setLogOpen(true);fetchSyncLog();}} style={S.btn("#7c3aed",true)}>📋 同期ログ</button>
           <button onClick={resetToDefault} style={S.btn("#64748b",true)}>↺ リセット</button>
         </div>
       </div>
@@ -3850,6 +3858,36 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
         </div>
       </div>
       <div style={{marginTop:10,fontSize:12,color:"#94a3b8"}}>💡 特別価格は「顧客管理」タブの各顧客編集から設定できます</div>
+      {logOpen&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setLogOpen(false)}>
+          <div style={{background:"#fff",borderRadius:12,padding:28,width:"90%",maxWidth:700,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h3 style={{margin:0,fontSize:16,fontWeight:700}}>📋 同期ログ（直近20件）</h3>
+              <button onClick={()=>setLogOpen(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#94a3b8"}}>×</button>
+            </div>
+            {syncLog===null
+              ?<div style={{textAlign:"center",padding:40,color:"#94a3b8"}}>読み込み中...</div>
+              :syncLog.length===0
+                ?<div style={{textAlign:"center",padding:40,color:"#94a3b8"}}>ログがありません</div>
+                :syncLog.map((log,i)=>(
+                  <div key={i} style={{borderBottom:"1px solid #f1f5f9",padding:"12px 0"}}>
+                    <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:6}}>
+                      <span style={{fontSize:12,color:"#64748b"}}>{log.at}</span>
+                      <span style={{fontSize:11,background:log.mode==="auto"?"#eff6ff":"#f0fdf4",color:log.mode==="auto"?"#2563eb":"#16a34a",borderRadius:4,padding:"2px 7px",fontWeight:700}}>{log.mode==="auto"?"自動":"手動"}</span>
+                      <span style={{fontSize:11,background:log.status==="success"?"#f0fdf4":"#fef2f2",color:log.status==="success"?"#16a34a":"#dc2626",borderRadius:4,padding:"2px 7px",fontWeight:700}}>{log.status==="success"?"✅ 成功":"❌ 失敗"}</span>
+                      <span style={{fontSize:12,fontWeight:700}}>計{log.total}件</span>
+                    </div>
+                    <div style={{display:"flex",gap:16,fontSize:12}}>
+                      <span style={{color:"#16a34a"}}>＋追加 {log.added?.count||0}件{log.added?.names?.length>0?`（${log.added.names.join("、")}）`:""}</span>
+                      <span style={{color:"#f59e0b"}}>～修正 {log.modified?.count||0}件{log.modified?.names?.length>0?`（${log.modified.names.join("、")}）`:""}</span>
+                      <span style={{color:"#ef4444"}}>－削除 {log.deleted?.count||0}件{log.deleted?.names?.length>0?`（${log.deleted.names.join("、")}）`:""}</span>
+                    </div>
+                  </div>
+                ))
+            }
+          </div>
+        </div>
+      )}
     </div>
   );
 }
