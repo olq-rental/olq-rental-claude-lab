@@ -1046,7 +1046,7 @@ export default function App() {
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
         {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
-        {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
+        {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
       </div>
     </div>
   );
@@ -3645,11 +3645,14 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
   );
 }
 
-function ProductsTab({products,customers,onSave,showToast,allProducts}){
-  const E={brand:"",name:"",priceIn:""};
+function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts}){
+  const E={brand:"",name:"",priceIn:"",memo:""};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
+  const [spList,setSpList]=useState([]);
+  const [spCid,setSpCid]=useState("");
+  const [spPrice,setSpPrice]=useState("");
   const [q,setQ]=useState("");
   const [syncing,setSyncing]=useState(false);
 
@@ -3674,10 +3677,20 @@ function ProductsTab({products,customers,onSave,showToast,allProducts}){
     if(!form.brand||!form.name||!form.priceIn){showToast("ブランド・製品名・定価(税込)は必須",false);return;}
     const priceIn=Number(form.priceIn);
     const priceEx=taxEx(priceIn);
-    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:editId||uid()};
+    const pid=editId||uid();
+    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||""};
     p.fullName=`${p.brand} ${p.name}`;
     await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
-    showToast(editId?"更新しました":"追加しました"); setForm(E); setEditId(null); setOpen(false);
+    if(spList.length>0&&saveCust){
+      const updatedCustomers=customers.map(c=>{
+        const sp=spList.find(s=>s.cid===c.id);
+        if(!sp)return c;
+        const existing=(c.specialPrices||[]).filter(s=>s.productId!==pid);
+        return {...c,specialPrices:[...existing,{productId:pid,price:sp.price}]};
+      });
+      await saveCust(updatedCustomers);
+    }
+    showToast(editId?"更新しました":"追加しました"); setForm(E); setEditId(null); setOpen(false); setSpList([]); setSpCid(""); setSpPrice("");
   };
 
   const resetToDefault=async()=>{
@@ -3702,10 +3715,49 @@ function ProductsTab({products,customers,onSave,showToast,allProducts}){
               <input type="number" value={form.priceIn} onChange={e=>setForm(f=>({...f,priceIn:e.target.value}))} style={S.inp} placeholder="例: 11000"/>
               {form.priceIn&&<div style={{fontSize:11,color:"#16a34a",marginTop:3}}>税抜: {fmt(taxEx(Number(form.priceIn)))}/日</div>}
             </div>
+            <div style={{gridColumn:"1/-1"}}>
+              <label style={S.lbl}>備考</label>
+              <textarea
+                value={form.memo||""}
+                onChange={e=>setForm(f=>({...f,memo:e.target.value}))}
+                rows={10}
+                style={{...S.inp,height:"auto",resize:"vertical"}}
+                placeholder="製品に関するメモ（納品書等には反映されません）"
+              />
+            </div>
+            <div style={{gridColumn:"1/-1"}}>
+              <label style={S.lbl}>特別価格顧客</label>
+              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+                <select value={spCid} onChange={e=>setSpCid(e.target.value)} style={{...S.inp,flex:1}}>
+                  <option value="">顧客を選択...</option>
+                  {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <input type="number" value={spPrice} onChange={e=>setSpPrice(e.target.value)} style={{...S.inp,width:120}} placeholder="特別単価(税込)"/>
+                <button type="button" onClick={()=>{
+                  if(!spCid||!spPrice){return;}
+                  setSpList(l=>{
+                    const cust=customers.find(c=>c.id===spCid);
+                    const filtered=l.filter(s=>s.cid!==spCid);
+                    return [...filtered,{cid:spCid,cname:cust?.name||"",price:Number(spPrice)}];
+                  });
+                  setSpCid(""); setSpPrice("");
+                }} style={S.btn("#0369a1",true)}>追加</button>
+              </div>
+              {spList.length>0&&(
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {spList.map((s,i)=>(
+                    <span key={i} style={{fontSize:11,background:"#fef3c7",color:"#92400e",borderRadius:4,padding:"3px 8px",display:"flex",alignItems:"center",gap:4}}>
+                      {s.cname}: {fmt(s.price)}
+                      <button type="button" onClick={()=>setSpList(l=>l.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:"#92400e",padding:0,lineHeight:1}}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <button onClick={submit} style={S.btn("#0f172a")}>{editId?"更新":"追加"}</button>
-            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);}} style={S.btn("#94a3b8")}>キャンセル</button>
+            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setSpList([]);setSpCid("");setSpPrice("");}} style={S.btn("#94a3b8")}>キャンセル</button>
           </div>
         </div>
       )}
@@ -3765,7 +3817,7 @@ function ProductsTab({products,customers,onSave,showToast,allProducts}){
                         }
                       </td>
                       <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn)});setEditId(p.id);setOpen(true);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
+                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||""});setSpList([]);setSpCid("");setSpPrice("");setEditId(p.id);setOpen(true);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
                         <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(products.filter(x=>x.id!==p.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                       </td>
                     </tr>
