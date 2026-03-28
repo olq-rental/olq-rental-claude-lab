@@ -1081,7 +1081,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
-  const [fil,setFil]=useState({q:"",cid:"",month:"",locked:""});
+  const [fil,setFil]=useState({q:"",cid:"",month:new Date().toISOString().slice(0,7),locked:""});
   const [expandedCust,setExpandedCust]=useState({}); // {custId: bool}
   const [expandedProj,setExpandedProj]=useState({}); // {custId_projName: bool}
   const [returnModal,setReturnModal]=useState(null); // {id, returnDate:"", billingEndDate:""}
@@ -2446,7 +2446,7 @@ ${css}
 // DeliveryTab（納品書タブ）
 // =========================================================
 function DeliveryTab({records, customers, groups, showToast, globalQ}){
-  const [fil, setFil] = useState({q:"", cid:"", month:""});
+  const [fil, setFil] = useState({q:"", cid:"", month:new Date().toISOString().slice(0,7)});
   const [preview, setPreview] = useState(null); // {type, g}
 
   const mnths=[...new Set(records.map(r=>r.startDate?.slice(0,7)))].filter(Boolean).sort().reverse();
