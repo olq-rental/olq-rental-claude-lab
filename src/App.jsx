@@ -999,7 +999,13 @@ export default function App() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
-          <span style={{fontSize:11,color:"#94a3b8"}}>製品{products.length}件 / 顧客{customers.length}社 / 案件{records.length}件</span>
+          <span style={{fontSize:11,color:"#94a3b8"}}>
+            <span onClick={()=>setTab("products")}  style={{cursor:"pointer"}} onMouseEnter={e=>e.target.style.textDecoration="underline"} onMouseLeave={e=>e.target.style.textDecoration="none"}>製品{products.length}件</span>
+            {" / "}
+            <span onClick={()=>setTab("customers")} style={{cursor:"pointer"}} onMouseEnter={e=>e.target.style.textDecoration="underline"} onMouseLeave={e=>e.target.style.textDecoration="none"}>顧客{customers.length}社</span>
+            {" / "}
+            <span onClick={()=>setTab("records")}   style={{cursor:"pointer"}} onMouseEnter={e=>e.target.style.textDecoration="underline"} onMouseLeave={e=>e.target.style.textDecoration="none"}>案件{records.length}件</span>
+          </span>
           <span style={{fontSize:11,color:"#64748b"}}>{session.user.email}</span>
           <button onClick={()=>supabase.auth.signOut()} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#f87171",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>ログアウト</button>
         </div>
