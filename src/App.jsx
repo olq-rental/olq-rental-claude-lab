@@ -2566,9 +2566,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               </div>
             </div>${olqBlock}</div>`;
           } else {
-            body += `<div style="position:relative;margin-bottom:10px">
-              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納品書控　${pageNo}/${totalPagesC}</div>
-              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+            body += `<div class="hdr" style="margin-bottom:0">
+              <div>
+                <div style="font-size:16px;font-weight:bold;letter-spacing:6px">納品書控　${pageNo}/${totalPagesC}</div>
+                <div style="font-size:10px;margin-top:4px">納品書No.　<strong>${no}</strong>　／　日付　${fd(r.startDate)}</div>
+              </div>
+              ${olqBlock}
             </div>`;
           }
           body += `<table style="margin-top:10px"><thead><tr><th style="width:30px">No.</th><th>機材名</th><th style="width:36px">No</th><th style="width:54px">単価</th><th style="width:36px">数量</th><th style="width:72px">開始日</th><th style="width:72px">終了日</th><th>備考</th></tr></thead><tbody>`;
