@@ -2754,154 +2754,177 @@ function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, show
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((g,i)=>{
-                  const key=`${g.customerId}||${g.projectName}||${g.month}`;
-                  const d=getInvData(key,g.month);
-                  const locked=d.status==="locked";
-                  const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
-                  const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-                  const grandTot=baseTot+adjSum;
-                  const tax=Math.round(grandTot*0.1);
-                  const isOpen=!!expanded[key];
-                  const isActive=preview?.key===key;
-
-                  return(
-                    <React.Fragment key={key}>
-                      {/* サマリー行 */}
-                      <tr onClick={()=>toggleExpand(key)} style={{
-                        borderBottom:isOpen?"none":"1px solid #f1f5f9",
-                        background:locked?"#f0fdf4":isActive?"#eff6ff":i%2?"#fcfcfc":"#fff",
-                        cursor:"pointer",transition:"background .15s"
-                      }}
-                        onMouseEnter={e=>e.currentTarget.style.background=locked?"#dcfce7":"#e8f4ff"}
-                        onMouseLeave={e=>e.currentTarget.style.background=locked?"#f0fdf4":isActive?"#eff6ff":i%2?"#fcfcfc":"#fff"}
-                      >
-                        <td style={{padding:"8px 12px",textAlign:"center",color:"#94a3b8",fontSize:11}}>
-                          {isOpen?"▼":"▶"}
-                        </td>
-                        <td style={{padding:"8px 12px",fontWeight:600}}>{g.customerName}</td>
-                        <td style={{padding:"8px 12px",color:"#64748b",fontSize:11}}>
-                          {g.projectName
-                            ?<span style={{background:"#eff6ff",color:"#1d4ed8",borderRadius:4,padding:"1px 6px",fontSize:11,fontWeight:600}}>{g.projectName}</span>
-                            :<span style={{color:"#cbd5e1"}}>―</span>
-                          }
-                          {d.adjustments.length>0&&<span style={{marginLeft:6,fontSize:10,color:"#92400e"}}>調整あり</span>}
-                        </td>
-                        <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{g.items.length}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(grandTot)}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(grandTot+tax)}</td>
-                        <td style={{padding:"8px 12px",textAlign:"center"}} onClick={e=>toggleLock(key,e)}>
-                          <span style={{
-                            background:locked?"#dcfce7":"#f1f5f9",
-                            color:locked?"#15803d":"#64748b",
-                            border:`1px solid ${locked?"#86efac":"#e2e8f0"}`,
-                            borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,
-                            cursor:"pointer",whiteSpace:"nowrap"
-                          }}>{locked?"✅ 締め済み":"未締め"}</span>
-                        </td>
-                        <td style={{padding:"8px 8px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
-                          <button onClick={()=>setPreview(p=>p?.key===key?null:{key,g})}
-                            style={{...S.ib(isActive?"#1d4ed8":"#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
-                            <Ico d={I.print} size={10}/>確認
-                          </button>
-                          <button onClick={async()=>{
-                            // 最新のinvoiceDataから取得
-                            const cur = getInvData(key);
-                            let baseNo = cur.invNo;
-                            let count;
-                            if(!baseNo){
-                              // 初回発行: 番号を採番
-                              baseNo = await nextInvoiceNo(g.month);
-                              count = 1;
-                            } else {
-                              // 再発行: カウントを増やす
-                              count = (cur.printCount||1) + 1;
-                            }
-                            await updateInvData(key, {invNo:baseNo, printCount:count});
-                            const invNo = count <= 1 ? baseNo : `${baseNo}-${count}`;
-                            downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
-                          }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
-                            🖨
-                          </button>
-                        </td>
-                      </tr>
-
-                      {/* 展開行 */}
-                      {isOpen&&(
-                        <tr>
-                          <td colSpan={8} style={{padding:0,borderBottom:"1px solid #e2e8f0"}}>
-                            <div style={{background:"#f8fafc",padding:"12px 16px 12px 48px"}}>
-                              {/* 発行日 */}
-                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                                <span style={{fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>発行日：</span>
-                                <input type="date" value={d.issueDate||""} onChange={e=>updateInvData(key,{issueDate:e.target.value})}
-                                  style={{...S.inp,width:140,fontSize:11,padding:"3px 8px"}} disabled={locked}/>
-                                <span style={{fontSize:10,color:"#94a3b8"}}>（デフォルト: 月末日）</span>
-                              </div>
-                              {/* 案件リスト */}
-                              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:8}}>
-                                <thead>
-                                  <tr style={{color:"#94a3b8",borderBottom:"1px solid #e2e8f0"}}>
-                                    <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>機材</th>
-                                    <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>利用期間</th>
-                                    <th style={{padding:"3px 8px",textAlign:"center",fontWeight:600,width:50}}>日数</th>
-                                    <th style={{padding:"3px 8px",textAlign:"right",fontWeight:600,width:80}}>金額（税抜）</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {g.items.map(r=>(
-                                    <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
-                                      <td style={{padding:"4px 8px",color:"#475569"}}>
-                                        {r.equipmentName}
-                                        {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
-                                        {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
-                                      </td>
-                                      <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
-                                      <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
-                                        {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)}
-                                      </td>
-                                      <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(r.amount)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-
-                              {/* 調整行 */}
-                              <div style={{background:"#fefce8",border:"1px solid #fde68a",borderRadius:6,padding:"8px 12px"}}>
-                                <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                  <span>調整行</span>
-                                  {!locked&&<button onClick={()=>addAdj(key)} style={{...S.ib("#92400e"),fontSize:10,padding:"2px 8px"}}>
-                                    <Ico d={I.plus} size={11}/>追加
-                                  </button>}
-                                </div>
-                                {d.adjustments.length===0&&<div style={{fontSize:11,color:"#94a3b8"}}>調整行なし</div>}
-                                {d.adjustments.map(a=>(
-                                  <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
-                                    <input value={a.label} onChange={e=>updateAdj(key,a.id,{label:e.target.value})}
-                                      placeholder="内容（例: 値引き）" style={{...S.inp,flex:1,fontSize:11,padding:"4px 8px"}} disabled={locked}/>
-                                    <input type="number" value={a.amount} onChange={e=>updateAdj(key,a.id,{amount:Number(e.target.value)})}
-                                      style={{...S.inp,width:110,fontSize:11,padding:"4px 8px",textAlign:"right"}} disabled={locked}/>
-                                    <span style={{fontSize:11,color:Number(a.amount)<0?"#dc2626":"#16a34a",minWidth:64,textAlign:"right"}}>{fmt(Number(a.amount)||0)}</span>
-                                    {!locked&&<button onClick={()=>removeAdj(key,a.id)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={12} color="#ef4444"/></button>}
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* 合計 */}
-                              <div style={{display:"flex",justifyContent:"flex-end",gap:16,fontSize:12,marginTop:8,paddingTop:8,borderTop:"1px solid #e2e8f0"}}>
-                                <span><span style={{color:"#64748b"}}>機材: </span>{fmt(baseTot)}</span>
-                                {adjSum!==0&&<span style={{color:adjSum<0?"#dc2626":"#16a34a"}}><span style={{color:"#64748b"}}>調整: </span>{fmt(adjSum)}</span>}
-                                <span><span style={{color:"#64748b"}}>税抜: </span><strong>{fmt(grandTot)}</strong></span>
-                                <span><span style={{color:"#64748b"}}>消費税: </span>{fmt(tax)}</span>
-                                <strong style={{color:"#9333ea"}}>税込: {fmt(grandTot+tax)}</strong>
-                              </div>
-                            </div>
-                          </td>
+                {(()=>{
+                  const custGroups={};
+                  filtered.forEach(g=>{
+                    if(!custGroups[g.customerId]) custGroups[g.customerId]={customerName:g.customerName,customerId:g.customerId,groups:[]};
+                    custGroups[g.customerId].groups.push(g);
+                  });
+                  const custList=Object.values(custGroups).sort((a,b)=>a.customerName.localeCompare(b.customerName,"ja"));
+                  return custList.map(cust=>{
+                    const custKey=`cust_${cust.customerId}`;
+                    const custOpen=!!expanded[custKey];
+                    const custTotEx=cust.groups.reduce((s,g)=>{
+                      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);
+                      const base=g.items.reduce((t,r)=>t+(r.amount||0)+(r.insuranceAmount||0),0);
+                      const adj=d.adjustments.reduce((t,a)=>t+(Number(a.amount)||0),0);
+                      return s+base+adj;
+                    },0);
+                    const custTax=Math.round(custTotEx*0.1);
+                    return(
+                      <React.Fragment key={cust.customerId}>
+                        {/* 層1: 顧客行 */}
+                        <tr onClick={()=>toggleExpand(custKey)} style={{background:"#f1f5f9",cursor:"pointer",borderBottom:"1px solid #e2e8f0"}}>
+                          <td style={{padding:"8px 12px",textAlign:"center",color:"#94a3b8",fontSize:11}}>{custOpen?"▼":"▶"}</td>
+                          <td colSpan={2} style={{padding:"8px 12px",fontWeight:700,fontSize:13}}>{cust.customerName}</td>
+                          <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{cust.groups.length}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(custTotEx)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(custTotEx+custTax)}</td>
+                          <td colSpan={2}></td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                        {/* 層2: 案件行 */}
+                        {custOpen&&cust.groups.map(g=>{
+                          const key=`${g.customerId}||${g.projectName}||${g.month}`;
+                          const d=getInvData(key,g.month);
+                          const locked=d.status==="locked";
+                          const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
+                          const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
+                          const grandTot=baseTot+adjSum;
+                          const tax=Math.round(grandTot*0.1);
+                          const isOpen=!!expanded[key];
+                          const isActive=preview?.key===key;
+                          return(
+                            <React.Fragment key={key}>
+                              <tr onClick={()=>toggleExpand(key)} style={{
+                                borderBottom:isOpen?"none":"1px solid #f1f5f9",
+                                background:locked?"#f0fdf4":isActive?"#eff6ff":"#f8fafc",
+                                cursor:"pointer",transition:"background .15s"
+                              }}
+                                onMouseEnter={e=>e.currentTarget.style.background=locked?"#dcfce7":"#e8f4ff"}
+                                onMouseLeave={e=>e.currentTarget.style.background=locked?"#f0fdf4":isActive?"#eff6ff":"#f8fafc"}
+                              >
+                                <td style={{padding:"8px 12px",textAlign:"center",color:"#94a3b8",fontSize:11,paddingLeft:28}}>{isOpen?"▼":"▶"}</td>
+                                <td style={{padding:"8px 12px",paddingLeft:28,color:"#64748b",fontSize:11}}>
+                                  {g.projectName
+                                    ?<span style={{background:"#eff6ff",color:"#1d4ed8",borderRadius:4,padding:"1px 6px",fontSize:11,fontWeight:600}}>{g.projectName}</span>
+                                    :<span style={{color:"#cbd5e1"}}>案件名なし</span>
+                                  }
+                                  {d.adjustments.length>0&&<span style={{marginLeft:6,fontSize:10,color:"#92400e"}}>調整あり</span>}
+                                </td>
+                                <td></td>
+                                <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{g.items.length}</td>
+                                <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(grandTot)}</td>
+                                <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(grandTot+tax)}</td>
+                                <td style={{padding:"8px 12px",textAlign:"center"}} onClick={e=>toggleLock(key,e)}>
+                                  <span style={{
+                                    background:locked?"#dcfce7":"#f1f5f9",
+                                    color:locked?"#15803d":"#64748b",
+                                    border:`1px solid ${locked?"#86efac":"#e2e8f0"}`,
+                                    borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,
+                                    cursor:"pointer",whiteSpace:"nowrap"
+                                  }}>{locked?"✅ 締め済み":"未締め"}</span>
+                                </td>
+                                <td style={{padding:"8px 8px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
+                                  <button onClick={()=>setPreview(p=>p?.key===key?null:{key,g})}
+                                    style={{...S.ib(isActive?"#1d4ed8":"#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
+                                    <Ico d={I.print} size={10}/>確認
+                                  </button>
+                                  <button onClick={async()=>{
+                                    const cur=getInvData(key);
+                                    let baseNo=cur.invNo;
+                                    let count;
+                                    if(!baseNo){
+                                      baseNo=await nextInvoiceNo(g.month);
+                                      count=1;
+                                    } else {
+                                      count=(cur.printCount||1)+1;
+                                    }
+                                    await updateInvData(key,{invNo:baseNo,printCount:count});
+                                    const invNo=count<=1?baseNo:`${baseNo}-${count}`;
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
+                                  }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
+                                    🖨
+                                  </button>
+                                </td>
+                              </tr>
+                              {/* 層3: 詳細行 */}
+                              {isOpen&&(
+                                <tr>
+                                  <td colSpan={8} style={{padding:0,borderBottom:"1px solid #e2e8f0"}}>
+                                    <div style={{background:"#f8fafc",padding:"12px 16px 12px 48px"}}>
+                                      {/* 発行日 */}
+                                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                                        <span style={{fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>発行日：</span>
+                                        <input type="date" value={d.issueDate||""} onChange={e=>updateInvData(key,{issueDate:e.target.value})}
+                                          style={{...S.inp,width:140,fontSize:11,padding:"3px 8px"}} disabled={locked}/>
+                                        <span style={{fontSize:10,color:"#94a3b8"}}>（デフォルト: 月末日）</span>
+                                      </div>
+                                      {/* 案件リスト */}
+                                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:8}}>
+                                        <thead>
+                                          <tr style={{color:"#94a3b8",borderBottom:"1px solid #e2e8f0"}}>
+                                            <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>機材</th>
+                                            <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>利用期間</th>
+                                            <th style={{padding:"3px 8px",textAlign:"center",fontWeight:600,width:50}}>日数</th>
+                                            <th style={{padding:"3px 8px",textAlign:"right",fontWeight:600,width:80}}>金額（税抜）</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {g.items.map(r=>(
+                                            <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
+                                              <td style={{padding:"4px 8px",color:"#475569"}}>
+                                                {r.equipmentName}
+                                                {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
+                                                {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
+                                              </td>
+                                              <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
+                                              <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
+                                                {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)}
+                                              </td>
+                                              <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(r.amount)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                      {/* 調整行 */}
+                                      <div style={{background:"#fefce8",border:"1px solid #fde68a",borderRadius:6,padding:"8px 12px"}}>
+                                        <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                          <span>調整行</span>
+                                          {!locked&&<button onClick={()=>addAdj(key)} style={{...S.ib("#92400e"),fontSize:10,padding:"2px 8px"}}>
+                                            <Ico d={I.plus} size={11}/>追加
+                                          </button>}
+                                        </div>
+                                        {d.adjustments.length===0&&<div style={{fontSize:11,color:"#94a3b8"}}>調整行なし</div>}
+                                        {d.adjustments.map(a=>(
+                                          <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
+                                            <input value={a.label} onChange={e=>updateAdj(key,a.id,{label:e.target.value})}
+                                              placeholder="内容（例: 値引き）" style={{...S.inp,flex:1,fontSize:11,padding:"4px 8px"}} disabled={locked}/>
+                                            <input type="number" value={a.amount} onChange={e=>updateAdj(key,a.id,{amount:Number(e.target.value)})}
+                                              style={{...S.inp,width:110,fontSize:11,padding:"4px 8px",textAlign:"right"}} disabled={locked}/>
+                                            <span style={{fontSize:11,color:Number(a.amount)<0?"#dc2626":"#16a34a",minWidth:64,textAlign:"right"}}>{fmt(Number(a.amount)||0)}</span>
+                                            {!locked&&<button onClick={()=>removeAdj(key,a.id)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={12} color="#ef4444"/></button>}
+                                          </div>
+                                        ))}
+                                      </div>
+                                      {/* 合計 */}
+                                      <div style={{display:"flex",justifyContent:"flex-end",gap:16,fontSize:12,marginTop:8,paddingTop:8,borderTop:"1px solid #e2e8f0"}}>
+                                        <span><span style={{color:"#64748b"}}>機材: </span>{fmt(baseTot)}</span>
+                                        {adjSum!==0&&<span style={{color:adjSum<0?"#dc2626":"#16a34a"}}><span style={{color:"#64748b"}}>調整: </span>{fmt(adjSum)}</span>}
+                                        <span><span style={{color:"#64748b"}}>税抜: </span><strong>{fmt(grandTot)}</strong></span>
+                                        <span><span style={{color:"#64748b"}}>消費税: </span>{fmt(tax)}</span>
+                                        <strong style={{color:"#9333ea"}}>税込: {fmt(grandTot+tax)}</strong>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           }
