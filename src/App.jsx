@@ -1179,7 +1179,10 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
 
   const submit=async()=>{
     if(!form.customerId){showToast("顧客は必須です",false);return;}
-    const validLines=(form.lines||[]).filter(ln=>ln.isManual?(!!ln.equipmentName&&ln.unitPrice!==undefined&&ln.unitPrice!==""):(ln.productId&&ln.unitPrice!==undefined&&ln.unitPrice!==""));
+    const validLines=(form.lines||[]).filter(ln=>{
+      if(ln.isManual) return !!ln.equipmentName;
+      return !!ln.productId;
+    });
     if(!validLines.length){showToast("製品を1つ以上追加してください",false);return;}
     const lines=validLines.map(ln=>{
       const p=products.find(x=>x.id===ln.productId);
