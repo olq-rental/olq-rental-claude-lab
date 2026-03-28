@@ -2462,7 +2462,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       // 納品書（お客様用）
       const showDPrice = !!g.customer?.showDeliveryPrice;
       { // ページ分割スコープ
-        const ROWS_PER_PAGE = 20;
+        const ROWS_PER_PAGE = 32;
         const allRows = [];
         lines.forEach(ln => {
           allRows.push({type:'main', ln});
@@ -2494,7 +2494,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <div style="font-size:10px;color:#444;margin-bottom:10px">毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>`;
           } else {
             body += `<div style="position:relative;margin-bottom:10px">
-              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納 品 書（続き）</div>
+              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納 品 書　${pageNo}/${totalPages}</div>
               <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
             </div>`;
           }
@@ -2519,7 +2519,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               <div class="note"><div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div></div>`;
           }
           if(!isFirstPage){
-            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#64748b">納品書No.${no}　${pageNo}/${totalPages}</div>`;
+            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPages}</div>`;
           }
           body += `</div>`;
         });
@@ -2527,7 +2527,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
       // 納品書控（社内用）
       { // ページ分割スコープ
-        const ROWS_PER_PAGE_C = 20;
+        const ROWS_PER_PAGE_C = 32;
         const allRowsC = [];
         lines.forEach(ln => {
           allRowsC.push({type:'main', ln});
@@ -2562,7 +2562,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             </div>${olqBlock}</div>`;
           } else {
             body += `<div style="position:relative;margin-bottom:10px">
-              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納品書控（続き）</div>
+              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納品書控　${pageNo}/${totalPagesC}</div>
               <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
             </div>`;
           }
@@ -2587,7 +2587,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>`;
           }
           if(!isFirstPage){
-            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#64748b">納品書No.${no}　${pageNo}/${totalPagesC}</div>`;
+            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPagesC}</div>`;
           }
           body += `</div>`;
         });
