@@ -2275,7 +2275,7 @@ function downloadPrintHTML(type, g) {
 body{font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;margin:0}
 table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:3px 5px;font-size:10px}
 th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{text-align:center}
-.pb{page-break-after:always}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
+.pb{page-break-after:always;width:794px;box-sizing:border-box}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
