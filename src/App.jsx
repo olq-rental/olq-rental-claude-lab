@@ -2544,7 +2544,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           if(pagesC.length===0) pagesC.push([]);
         }
         const totalPagesC = pagesC.length;
-        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td>`;
+        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
         pagesC.forEach((pageRows, pageIdx) => {
           const isFirstPage = pageIdx === 0;
           const pageNo = pageIdx + 1;
