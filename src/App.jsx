@@ -2476,7 +2476,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           if(pages.length===0) pages.push([]);
         }
         const totalPages = pages.length;
-        const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
+        const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td>`;
         pages.forEach((pageRows, pageIdx) => {
           const isFirstPage = pageIdx === 0;
           const pageNo = pageIdx + 1;
@@ -2500,22 +2500,22 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
             </div>`;
           }
-          body += `<table><thead><tr><th style="width:30px">No.</th><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}<th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
+          body += `<table><thead><tr><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}<th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
           let rowNum = pages.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
           pageRows.forEach(row => {
             rowNum++;
             if(row.type==='main'){
               const ln=row.ln;
-              body += `<tr><td class="c">${rowNum}</td><td>${ln.equipmentName||""}</td>${showDPrice?`<td class="r">${fm(ln.unitPrice||0)}</td>`:""}<td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+              body += `<tr><td>${ln.equipmentName||""}</td>${showDPrice?`<td class="r">${fm(ln.unitPrice||0)}</td>`:""}<td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
             } else if(row.type==='sub'){
-              body += `<tr class="sub-row"><td></td><td style="padding-left:16px">└ No.${row.si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px">${row.si.note||""}</td></tr>`;
+              body += `<tr class="sub-row"><td style="padding-left:16px">└ No.${row.si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px">${row.si.note||""}</td></tr>`;
             } else if(row.type==='insurance'){
               body += showDPrice?`<tr><td></td><td>補償料（機材合計の10%）</td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`:`<tr><td></td><td colspan="4">補償料（機材合計の10%）</td><td></td></tr>`;
             }
           });
           const pageLimit = isFirstPage ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST;
           const emptyCount = pageLimit - pageRows.length;
-          for(let i=0; i<emptyCount; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${rowNum+i+1}</td>${emptyCols}</tr>`;
+          for(let i=0; i<emptyCount; i++) body += `<tr class="empty">${emptyCols}</tr>`;
           body += `</tbody></table>`;
           if(pageNo===totalPages){
             body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
@@ -2544,12 +2544,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           if(pagesC.length===0) pagesC.push([]);
         }
         const totalPagesC = pagesC.length;
-        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
+        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td>`;
         pagesC.forEach((pageRows, pageIdx) => {
           const isFirstPage = pageIdx === 0;
           const pageNo = pageIdx + 1;
           const topPad = isFirstPage ? '80px' : '70px';
-          body += `<div class="pb" style="padding:${topPad} 19px 30px 54px;position:relative;width:794px;box-sizing:border-box">`;
+          body += `<div class="pb" style="padding:${topPad} 19px 30px 56px;position:relative;width:794px;box-sizing:border-box">`;
           if(isFirstPage){
             body += `<div style="position:relative">
               <div class="title" style="letter-spacing:4px">納品書控</div>
@@ -2571,23 +2571,23 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               <div style="text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
             </div>`;
           }
-          body += `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:28px"><col style="width:240px"><col style="width:36px"><col style="width:56px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col></colgroup><thead><tr><th>No.</th><th>機材名</th><th>No</th><th>単価</th><th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
+          body += `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:268px"><col style="width:36px"><col style="width:56px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col></colgroup><thead><tr><th>機材名</th><th>No</th><th>単価</th><th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
           let rowNumC = pagesC.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
           pageRows.forEach(row => {
             rowNumC++;
             if(row.type==='main'){
               const ln=row.ln;
-              body += `<tr><td class="c">${rowNumC}</td><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+              body += `<tr><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
             } else if(row.type==='sub'){
               const ln=row.ln; const si=row.si;
-              body += `<tr class="sub-row"><td></td><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
+              body += `<tr class="sub-row"><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
             } else if(row.type==='insurance'){
               body += `<tr><td></td><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
             }
           });
           const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
           const emptyCountC = pageLimitC - pageRows.length;
-          for(let i=0; i<emptyCountC; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${rowNumC+i+1}</td>${emptyColsC}</tr>`;
+          for(let i=0; i<emptyCountC; i++) body += `<tr class="empty">${emptyColsC}</tr>`;
           body += `</tbody></table>`;
           if(pageNo===totalPagesC){
             body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>`;
