@@ -2476,7 +2476,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           if(pages.length===0) pages.push([]);
         }
         const totalPages = pages.length;
-        const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td>`;
+        const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
         pages.forEach((pageRows, pageIdx) => {
           const isFirstPage = pageIdx === 0;
           const pageNo = pageIdx + 1;
