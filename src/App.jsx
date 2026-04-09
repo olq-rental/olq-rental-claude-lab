@@ -3469,83 +3469,91 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
         </div>
       </div>
 
-      {/* LAYER3: 折りたたみ詳細 */}
-      {[
-        {key:"suggest",icon:"💡",label:"提案できる機材",count:suggestions.length},
-        {key:"equip",icon:"🏆",label:"よく使う機材",count:topProds.length},
-        {key:"tree",icon:"📋",label:"案件履歴",count:custRecords.length},
-      ].map(({key,icon,label,count})=>(
-        <div key={key} style={{marginBottom:6}}>
-          <button onClick={()=>toggleDetail(key)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"#fff",border:"1px solid #e2e8f0",borderRadius:detailOpen[key]?"8px 8px 0 0":8,padding:"9px 14px",cursor:"pointer",textAlign:"left"}}>
-            <span style={{fontSize:13}}>{icon}</span>
-            <span style={{fontSize:12,fontWeight:600,color:"#475569",flex:1}}>{label}</span>
-            <span style={{fontSize:10,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{count}件</span>
-            <span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>{detailOpen[key]?"▾":"▸"}</span>
-          </button>
-          {key==="suggest"&&detailOpen.suggest&&(
-            <div style={{background:"#fff",border:"1px solid #e2e8f0",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"12px 14px"}}>
-              <div style={{fontSize:10,color:"#94a3b8",marginBottom:8}}>他の顧客が使っているが、この顧客がまだ使っていない機材です</div>
-              {suggestions.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
-                :suggestions.map(([name,cnt])=>(
-                  <div key={name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,padding:"8px 10px",background:"#f0fdf4",borderRadius:6,border:"1px solid #bbf7d0"}}>
-                    <span style={{fontSize:13}}>📦</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#166534",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
-                      <div style={{fontSize:9,color:"#16a34a"}}>{cnt}社が使用中</div>
-                    </div>
+      {/* LAYER3: 常時表示 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+
+        {/* 提案できる機材 */}
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+            <span style={{fontSize:13}}>💡</span>
+            <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>提案できる機材</span>
+            <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{suggestions.length}件</span>
+          </div>
+          {suggestions.length===0
+            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"16px 0"}}>データなし</div>
+            :suggestions.map(([name,cnt])=>(
+              <div key={name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,padding:"7px 10px",background:"#f0fdf4",borderRadius:6,border:"1px solid #bbf7d0"}}>
+                <span style={{fontSize:12}}>📦</span>
+                <div style={{flex:1,overflow:"hidden"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#166534",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
+                  <div style={{fontSize:9,color:"#16a34a"}}>{cnt}社が使用中</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        {/* よく使う機材 */}
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+            <span style={{fontSize:13}}>🏆</span>
+            <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>よく使う機材</span>
+            <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{topProds.length}件</span>
+          </div>
+          {topProds.length===0
+            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"16px 0"}}>データなし</div>
+            :topProds.map(([name,cnt],idx)=>{
+              const bar=Math.round((cnt/topProds[0][1])*100);
+              const barColor=idx===0?"#f59e0b":idx===1?"#94a3b8":idx===2?"#b45309":"#2563eb";
+              return(
+                <div key={name} style={{marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
+                    <span style={{color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      <span style={{color:barColor,fontWeight:800,marginRight:4}}>#{idx+1}</span>{name}
+                    </span>
+                    <span style={{color:"#64748b",marginLeft:8,whiteSpace:"nowrap",fontWeight:600}}>{cnt}回</span>
                   </div>
-                ))
-              }
-            </div>
-          )}
-          {key==="equip"&&detailOpen.equip&&(
-            <div style={{background:"#fff",border:"1px solid #e2e8f0",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"12px 14px"}}>
-              {topProds.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
-                :topProds.map(([name,cnt],idx)=>{
-                  const bar=Math.round((cnt/topProds[0][1])*100);
-                  const barColor=idx===0?"#f59e0b":idx===1?"#94a3b8":idx===2?"#b45309":"#2563eb";
-                  return(
-                    <div key={name} style={{marginBottom:8}}>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
-                        <span style={{color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                          <span style={{color:barColor,fontWeight:800,marginRight:4}}>#{idx+1}</span>{name}
-                        </span>
-                        <span style={{color:"#64748b",marginLeft:8,whiteSpace:"nowrap",fontWeight:600}}>{cnt}回</span>
-                      </div>
-                      <div style={{height:5,background:"#f1f5f9",borderRadius:3}}>
-                        <div style={{height:5,width:`${bar}%`,background:barColor,borderRadius:3,transition:"width 0.3s"}}/>
-                      </div>
-                    </div>
-                  );
-                })
-              }
-            </div>
-          )}
-          {key==="tree"&&detailOpen.tree&&(
-            <div style={{background:"#fff",border:"1px solid #e2e8f0",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"12px 14px",maxHeight:320,overflowY:"auto"}}>
-              {treeYears.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
-                :treeYears.map(y=>(
-                  <div key={y} style={{marginBottom:10}}>
-                    <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:4,padding:"2px 0",borderBottom:"1px solid #f1f5f9"}}>{y}年</div>
-                    {Object.keys(tree[y]).sort().reverse().map(ym=>(
-                      <div key={ym} style={{marginBottom:6,paddingLeft:8}}>
-                        <div style={{fontSize:10,color:"#64748b",marginBottom:3,fontWeight:600}}>{ym.slice(5)}月（{tree[y][ym].length}件）</div>
-                        {tree[y][ym].map(r=>(
-                          <div key={r.id} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",background:"#f8fafc",borderRadius:4,marginBottom:2}}>
-                            <span style={{fontSize:9,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
-                            <span style={{fontSize:10,color:"#334155",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName||"（案件名なし）"}</span>
-                            <span style={{fontSize:10,fontWeight:600,color:"#475569",whiteSpace:"nowrap"}}>{fmt(r.amount||0)}</span>
-                          </div>
-                        ))}
+                  <div style={{height:5,background:"#f1f5f9",borderRadius:3}}>
+                    <div style={{height:5,width:`${bar}%`,background:barColor,borderRadius:3}}/>
+                  </div>
+                </div>
+              );
+            })
+          }
+        </div>
+      </div>
+
+      {/* 案件履歴 */}
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+          <span style={{fontSize:13}}>📋</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>案件履歴</span>
+          <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{custRecords.length}件</span>
+        </div>
+        {treeYears.length===0
+          ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
+          :<div style={{maxHeight:240,overflowY:"auto"}}>
+            {treeYears.map(y=>(
+              <div key={y} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:4,padding:"2px 0",borderBottom:"1px solid #f1f5f9"}}>{y}年</div>
+                {Object.keys(tree[y]).sort().reverse().map(ym=>(
+                  <div key={ym} style={{marginBottom:6,paddingLeft:8}}>
+                    <div style={{fontSize:10,color:"#64748b",marginBottom:3,fontWeight:600}}>{ym.slice(5)}月（{tree[y][ym].length}件）</div>
+                    {tree[y][ym].map(r=>(
+                      <div key={r.id} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",background:"#f8fafc",borderRadius:4,marginBottom:2}}>
+                        <span style={{fontSize:9,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
+                        <span style={{fontSize:10,color:"#334155",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName||"（案件名なし）"}</span>
+                        <span style={{fontSize:10,fontWeight:600,color:"#475569",whiteSpace:"nowrap"}}>{fmt(r.amount||0)}</span>
                       </div>
                     ))}
                   </div>
-                ))
-              }
-            </div>
-          )}
-        </div>
-      ))}
+                ))}
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+
     </div>
   );
 }
