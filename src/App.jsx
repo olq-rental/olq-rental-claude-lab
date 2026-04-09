@@ -2519,7 +2519,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           body += `</tbody></table>`;
           if(pageNo===totalPages){
             body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
-              <div class="note"><div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div></div>`;
+              <div class="note"><div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div></div>
+              <div style="text-align:right;margin-top:6px"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div>`;
           }
           if(!isFirstPage){
             body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPages}</div>`;
@@ -2676,6 +2677,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               </tr>
             </tfoot>
           </table>
+          <div style="text-align:right;margin-top:8px"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div>
 
         </div>`;
       }
