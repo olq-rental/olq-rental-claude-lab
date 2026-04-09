@@ -2313,7 +2313,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     // 顧客住所
 
 
-    body += `<div style="padding:4px 38px;max-width:760px;margin:0 auto;font-size:10px">
+    body += `<div style="padding:0px 38px;max-width:760px;margin:0 auto;font-size:10px">
       <div style="text-align:center;font-size:14px;font-weight:bold;margin-bottom:14px">ご請求書</div>
       <!-- grid 2列×2行（ヘッダー固定高さ：窓付き封筒対応） -->
       <div style="display:grid;grid-template-columns:1fr auto;align-items:stretch;gap:4px 0;margin-bottom:8px">
