@@ -3375,79 +3375,112 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   const treeYears=Object.keys(tree).sort().reverse();
 
   return(
-    <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"20px 20px 20px 62px"}}>
+    <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"16px 20px 20px 62px"}}>
 
-      <div style={{background:"#fff",borderRadius:12,border:`2px solid ${health.color}`,padding:"16px 20px",marginBottom:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-          <span style={{fontSize:18}}>{health.icon}</span>
-          <span style={{fontSize:16,fontWeight:800,color:health.color}}>{health.label}</span>
-          <span style={{fontSize:11,color:health.color,opacity:0.7,marginLeft:4}}>{health.sub}</span>
-        </div>
-        <div style={{background:"#f8fafc",borderRadius:8,padding:"10px 14px",marginBottom:12,borderLeft:`3px solid ${health.color}`}}>
-          <div style={{fontSize:10,color:"#94a3b8",marginBottom:3,fontWeight:600}}>⚡ やること</div>
-          <div style={{fontSize:13,fontWeight:700,color:"#0f172a",lineHeight:1.6}}>{nextAction}</div>
-        </div>
-        <button onClick={()=>toggleDetail("memo")} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-          📝 {detailOpen.memo?"メモを閉じる":"営業メモを書く"}
-        </button>
-        {detailOpen.memo&&(
-          <div style={{marginTop:10}}>
-            <textarea value={salesNote} onChange={e=>setSalesNote(e.target.value)} placeholder="次回コンタクト予定、提案内容、担当者メモなど..."
-              style={{width:"100%",height:80,padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit",outline:"none"}}/>
-            <button onClick={saveNote} style={{background:noteSaved?"#16a34a":"#0f172a",color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",marginTop:4}}>
-              {noteSaved?"✅ 保存しました":"保存する"}
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
-          <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,marginBottom:6}}>売上の変化</div>
-          <div style={{marginBottom:4}}>
-            <span style={{fontSize:9,color:"#64748b"}}>今年：</span>
-            <span style={{fontSize:14,fontWeight:800,color:yearGrowth===null?"#64748b":yearGrowth>=0?"#16a34a":"#dc2626"}}>
-              {yearGrowth===null?"データなし":yearGrowth>=0?`+${yearGrowth}%↑`:`${yearGrowth}%↓`}
-            </span>
+      {/* LAYER1: ステータス＋アクション */}
+      <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:10,marginBottom:10}}>
+        <div style={{background:health.bg,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between",border:`1px solid ${health.color}33`}}>
+          <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:8}}>
+            <span style={{fontSize:15}}>{health.icon}</span>
+            <span style={{fontSize:12,fontWeight:800,color:health.color}}>{health.label}</span>
           </div>
           <div>
-            <span style={{fontSize:9,color:"#64748b"}}>今月：</span>
-            <span style={{fontSize:14,fontWeight:800,color:monthGrowth===null?"#64748b":monthGrowth>=0?"#16a34a":"#dc2626"}}>
-              {monthGrowth===null?"データなし":monthGrowth>=0?`+${monthGrowth}%↑`:`${monthGrowth}%↓`}
-            </span>
+            <div style={{fontSize:8,color:health.color,opacity:0.8,marginBottom:2,fontWeight:600}}>累計売上 LTV</div>
+            <div style={{fontSize:17,fontWeight:800,color:health.color,lineHeight:1}}>{fmt(totalSales)}</div>
+            <div style={{fontSize:8,color:health.color,opacity:0.7,marginTop:3}}>{custRecords.length}件　平均{fmt(allAvg)}/件</div>
           </div>
-          <div style={{fontSize:9,color:"#94a3b8",marginTop:4}}>前年同期比</div>
         </div>
         <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
-          <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,marginBottom:6}}>単価の動き</div>
-          <div style={{fontSize:14,fontWeight:800,color:priceTrend.color,marginBottom:3}}>{priceTrend.label}</div>
-          <div style={{fontSize:9,color:"#94a3b8"}}>{priceTrend.sub}</div>
-          <div style={{fontSize:9,color:"#64748b",marginTop:4}}>累計{custRecords.length}件　合計{fmt(totalSales)}</div>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+            <span style={{fontSize:11}}>⚡</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#475569",letterSpacing:0.5}}>ネクストアクション</span>
+            <span style={{marginLeft:"auto",fontSize:9,color:"#94a3b8",background:"#f1f5f9",padding:"1px 6px",borderRadius:3}}>{daysSince<999?`最終利用 ${daysSince}日前`:"利用履歴なし"}</span>
+          </div>
+          <div style={{fontSize:13,fontWeight:700,color:"#0f172a",lineHeight:1.7,marginBottom:8}}>{nextAction}</div>
+          <button onClick={()=>toggleDetail("memo")} style={{background:detailOpen.memo?"#f1f5f9":"#0f172a",color:detailOpen.memo?"#475569":"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+            📝 {detailOpen.memo?"メモを閉じる":"営業メモを書く"}
+          </button>
+          {detailOpen.memo&&(
+            <div style={{marginTop:8}}>
+              <textarea value={salesNote} onChange={e=>setSalesNote(e.target.value)} placeholder="次回コンタクト予定、提案内容、担当者メモなど..."
+                style={{width:"100%",height:72,padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit",outline:"none"}}/>
+              <button onClick={saveNote} style={{background:noteSaved?"#16a34a":"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",marginTop:4}}>
+                {noteSaved?"✅ 保存済み":"保存する"}
+              </button>
+            </div>
+          )}
         </div>
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
-          <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,marginBottom:6}}>よく使う月</div>
+      </div>
+
+      {/* LAYER2: 4KPIカード */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
+          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>前年比売上</div>
+          <div style={{marginBottom:4}}>
+            <div style={{fontSize:8,color:"#64748b",marginBottom:1}}>今年累計</div>
+            <div style={{fontSize:17,fontWeight:800,color:yearGrowth===null?"#94a3b8":yearGrowth>=0?"#16a34a":"#dc2626",lineHeight:1}}>
+              {yearGrowth===null?"―":yearGrowth>=0?`+${yearGrowth}%`:`${yearGrowth}%`}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:8,color:"#64748b",marginBottom:1}}>今月</div>
+            <div style={{fontSize:13,fontWeight:700,color:monthGrowth===null?"#94a3b8":monthGrowth>=0?"#16a34a":"#dc2626"}}>
+              {monthGrowth===null?"―":monthGrowth>=0?`+${monthGrowth}%`:`${monthGrowth}%`}
+            </div>
+          </div>
+          <div style={{fontSize:8,color:"#cbd5e1",marginTop:5}}>対前年同期比</div>
+        </div>
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
+          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>受注単価トレンド</div>
+          <div style={{fontSize:13,fontWeight:800,color:priceTrend.color,marginBottom:4}}>{priceTrend.label}</div>
+          <div style={{fontSize:8,color:"#94a3b8",marginBottom:6}}>{priceTrend.sub}</div>
+          <div style={{display:"flex",justifyContent:"space-between"}}>
+            <div><div style={{fontSize:8,color:"#94a3b8"}}>直近3件</div><div style={{fontSize:11,fontWeight:700,color:"#334155"}}>{fmt(last3Avg)}</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:8,color:"#94a3b8"}}>全体平均</div><div style={{fontSize:11,fontWeight:700,color:"#334155"}}>{fmt(allAvg)}</div></div>
+          </div>
+        </div>
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
+          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>来店ペース</div>
+          {sortedRecs.length>=2?(()=>{
+            const intervals=sortedRecs.slice(0,-1).map((r,i)=>(new Date(r.startDate)-new Date(sortedRecs[i+1].startDate))/(1000*60*60*24));
+            const avgInt=Math.round(intervals.reduce((s,v)=>s+v,0)/intervals.length);
+            return(<>
+              <div style={{fontSize:17,fontWeight:800,color:"#2563eb",lineHeight:1,marginBottom:2}}>{avgInt}<span style={{fontSize:10,fontWeight:400,color:"#64748b"}}>日周期</span></div>
+              <div style={{fontSize:8,color:"#94a3b8",marginBottom:4}}>平均利用間隔</div>
+              <div style={{fontSize:9,color:"#64748b"}}>最終：{fmtD2(lastDate)}</div>
+            </>);
+          })():(<>
+            <div style={{fontSize:17,fontWeight:800,color:"#94a3b8",marginBottom:2}}>―</div>
+            <div style={{fontSize:9,color:"#94a3b8"}}>{custRecords.length===0?"履歴なし":"データ不足"}</div>
+          </>)}
+        </div>
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
+          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>繁忙月</div>
           {topMonths.length===0
             ?<div style={{fontSize:11,color:"#94a3b8"}}>データなし</div>
-            :<div>
-              <div style={{fontSize:14,fontWeight:800,color:"#2563eb",marginBottom:3}}>{topMonths.slice(0,2).map(x=>monthNames[x.m]).join("・")}</div>
-              <div style={{fontSize:9,color:"#94a3b8"}}>この月は多い</div>
-              {topMonths[2]&&<div style={{fontSize:9,color:"#94a3b8",marginTop:2}}>次いで{monthNames[topMonths[2].m]}</div>}
-            </div>
+            :<>
+              <div style={{fontSize:17,fontWeight:800,color:"#7c3aed",lineHeight:1,marginBottom:2}}>{monthNames[topMonths[0].m]}</div>
+              <div style={{fontSize:8,color:"#94a3b8",marginBottom:4}}>{topMonths[0].cnt}件（最多）</div>
+              {topMonths.slice(1,3).map(x=>(
+                <div key={x.m} style={{fontSize:10,color:"#64748b"}}>{monthNames[x.m]} <span style={{color:"#94a3b8",fontSize:9}}>{x.cnt}件</span></div>
+              ))}
+            </>
           }
         </div>
       </div>
 
+      {/* LAYER3: 折りたたみ詳細 */}
       {[
-        {key:"suggest",icon:"💡",label:"提案できる機材を見る",count:suggestions.length},
-        {key:"equip",icon:"🏆",label:"よく使う機材を見る",count:topProds.length},
-        {key:"tree",icon:"📋",label:"案件の履歴を見る",count:custRecords.length},
+        {key:"suggest",icon:"💡",label:"提案できる機材",count:suggestions.length},
+        {key:"equip",icon:"🏆",label:"よく使う機材",count:topProds.length},
+        {key:"tree",icon:"📋",label:"案件履歴",count:custRecords.length},
       ].map(({key,icon,label,count})=>(
-        <div key={key} style={{marginBottom:8}}>
-          <button onClick={()=>toggleDetail(key)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,padding:"10px 14px",cursor:"pointer",textAlign:"left"}}>
+        <div key={key} style={{marginBottom:6}}>
+          <button onClick={()=>toggleDetail(key)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"#fff",border:"1px solid #e2e8f0",borderRadius:detailOpen[key]?"8px 8px 0 0":8,padding:"9px 14px",cursor:"pointer",textAlign:"left"}}>
             <span style={{fontSize:13}}>{icon}</span>
             <span style={{fontSize:12,fontWeight:600,color:"#475569",flex:1}}>{label}</span>
-            <span style={{fontSize:10,color:"#94a3b8"}}>{count}件</span>
-            <span style={{fontSize:11,color:"#94a3b8"}}>{detailOpen[key]?"▾":"▸"}</span>
+            <span style={{fontSize:10,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{count}件</span>
+            <span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>{detailOpen[key]?"▾":"▸"}</span>
           </button>
           {key==="suggest"&&detailOpen.suggest&&(
             <div style={{background:"#fff",border:"1px solid #e2e8f0",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"12px 14px"}}>
@@ -3470,16 +3503,17 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
               {topProds.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
                 :topProds.map(([name,cnt],idx)=>{
                   const bar=Math.round((cnt/topProds[0][1])*100);
+                  const barColor=idx===0?"#f59e0b":idx===1?"#94a3b8":idx===2?"#b45309":"#2563eb";
                   return(
-                    <div key={name} style={{marginBottom:6}}>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+                    <div key={name} style={{marginBottom:8}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
                         <span style={{color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                          <span style={{color:"#94a3b8",fontWeight:700,marginRight:4}}>#{idx+1}</span>{name}
+                          <span style={{color:barColor,fontWeight:800,marginRight:4}}>#{idx+1}</span>{name}
                         </span>
-                        <span style={{color:"#64748b",marginLeft:8,whiteSpace:"nowrap"}}>{cnt}回</span>
+                        <span style={{color:"#64748b",marginLeft:8,whiteSpace:"nowrap",fontWeight:600}}>{cnt}回</span>
                       </div>
-                      <div style={{height:4,background:"#f1f5f9",borderRadius:2}}>
-                        <div style={{height:4,width:`${bar}%`,background:idx===0?"#f59e0b":idx===1?"#94a3b8":idx===2?"#b45309":"#2563eb",borderRadius:2}}/>
+                      <div style={{height:5,background:"#f1f5f9",borderRadius:3}}>
+                        <div style={{height:5,width:`${bar}%`,background:barColor,borderRadius:3,transition:"width 0.3s"}}/>
                       </div>
                     </div>
                   );
@@ -3488,35 +3522,21 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
             </div>
           )}
           {key==="tree"&&detailOpen.tree&&(
-            <div style={{background:"#fff",border:"1px solid #e2e8f0",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"12px 14px"}}>
+            <div style={{background:"#fff",border:"1px solid #e2e8f0",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"12px 14px",maxHeight:320,overflowY:"auto"}}>
               {treeYears.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
                 :treeYears.map(y=>(
-                  <div key={y} style={{marginBottom:4}}>
-                    <button onClick={()=>setTreeOpen(t=>({...t,[y]:!t[y]}))} style={{display:"flex",alignItems:"center",gap:6,background:"#f1f5f9",border:"none",borderRadius:6,padding:"5px 10px",cursor:"pointer",width:"100%",textAlign:"left"}}>
-                      <span style={{fontSize:11,color:"#64748b"}}>{treeOpen[y]?"▾":"▸"}</span>
-                      <span style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{y}年</span>
-                      <span style={{fontSize:10,color:"#94a3b8"}}>{Object.values(tree[y]).flat().length}件　{fmt(Object.values(tree[y]).flat().reduce((s,r)=>s+(r.amount||0),0))}</span>
-                    </button>
-                    {treeOpen[y]&&Object.keys(tree[y]).sort().reverse().map(ym=>(
-                      <div key={ym} style={{marginLeft:16,marginTop:2}}>
-                        <button onClick={()=>setTreeOpen(t=>({...t,[ym]:!t[ym]}))} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",padding:"3px 8px",cursor:"pointer",width:"100%",textAlign:"left"}}>
-                          <span style={{fontSize:10,color:"#94a3b8"}}>{treeOpen[ym]?"▾":"▸"}</span>
-                          <span style={{fontSize:11,fontWeight:600,color:"#475569"}}>{ym.slice(5)}月</span>
-                          <span style={{fontSize:10,color:"#94a3b8"}}>{tree[y][ym].length}件　{fmt(tree[y][ym].reduce((s,r)=>s+(r.amount||0),0))}</span>
-                        </button>
-                        {treeOpen[ym]&&tree[y][ym].map(r=>{
-                          const lines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice}];
-                          return(
-                            <div key={r.id} style={{marginLeft:20,marginTop:2,padding:"8px 10px",background:"#f8fafc",borderRadius:6,borderLeft:"2px solid #e2e8f0",marginBottom:4}}>
-                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                                <span style={{fontSize:11,fontWeight:700,color:"#0f172a"}}>{r.projectName||"案件名なし"}</span>
-                                <span style={{fontSize:11,fontWeight:700,color:"#16a34a"}}>{fmt(r.amount)}</span>
-                              </div>
-                              <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>{fmtD2(r.startDate)}〜{fmtD2(r.endDate)}　{r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)+"日"}</div>
-                              {lines.map((ln,li)=>(<div key={li} style={{fontSize:10,color:"#475569"}}>・{ln.equipmentName||"―"}　×{ln.quantity||1}</div>))}
-                            </div>
-                          );
-                        })}
+                  <div key={y} style={{marginBottom:10}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:4,padding:"2px 0",borderBottom:"1px solid #f1f5f9"}}>{y}年</div>
+                    {Object.keys(tree[y]).sort().reverse().map(ym=>(
+                      <div key={ym} style={{marginBottom:6,paddingLeft:8}}>
+                        <div style={{fontSize:10,color:"#64748b",marginBottom:3,fontWeight:600}}>{ym.slice(5)}月（{tree[y][ym].length}件）</div>
+                        {tree[y][ym].map(r=>(
+                          <div key={r.id} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",background:"#f8fafc",borderRadius:4,marginBottom:2}}>
+                            <span style={{fontSize:9,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
+                            <span style={{fontSize:10,color:"#334155",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName||"（案件名なし）"}</span>
+                            <span style={{fontSize:10,fontWeight:600,color:"#475569",whiteSpace:"nowrap"}}>{fmt(r.amount||0)}</span>
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
@@ -3526,7 +3546,6 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
           )}
         </div>
       ))}
-
     </div>
   );
 }
