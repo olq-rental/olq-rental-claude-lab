@@ -3298,216 +3298,238 @@ function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, show
 }
 
 
-function CustomerAnalysis({c, custRecords, products}){
-  const [period, setPeriod] = useState("month"); // "month"|"quarter"
-  const [chartView, setChartView] = useState("total"); // "total"|"project"
+function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
+  const [treeOpen, setTreeOpen] = useState({});
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const fmtD2 = d => d ? new Date(d).toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}) : "―";
 
-  // =========================================================
-  // 売上推移データ（全体）
-  // =========================================================
-  const salesByPeriod = {};
-  custRecords.forEach(r=>{
-    if(!r.startDate) return;
-    const d = new Date(r.startDate);
-    const key = period==="month"
-      ? r.startDate.slice(0,7)
-      : `${d.getFullYear()}Q${Math.ceil((d.getMonth()+1)/3)}`;
-    salesByPeriod[key] = (salesByPeriod[key]||0) + (r.amount||0);
-  });
-  const periodKeys = Object.keys(salesByPeriod).sort();
-  const maxSales = Math.max(...Object.values(salesByPeriod), 1);
+  // === サマリー計算 ===
   const totalSales = custRecords.reduce((s,r)=>s+(r.amount||0), 0);
+  const sorted = [...custRecords].sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
+  const lastDate = sorted[0]?.startDate;
+  const daysSince = lastDate ? Math.floor((Date.now()-new Date(lastDate).getTime())/(1000*60*60*24)) : 999;
+  const health = daysSince<90 ? {label:"アクティブ",color:"#16a34a",bg:"#dcfce7",icon:"🟢"}
+               : daysSince<180 ? {label:"要フォロー",color:"#d97706",bg:"#fef3c7",icon:"🟡"}
+               : {label:"休眠",color:"#dc2626",bg:"#fee2e2",icon:"🔴"};
+  const avgAmt = custRecords.length ? Math.round(totalSales/custRecords.length) : 0;
+  const avgDays = custRecords.length ? Math.round(custRecords.reduce((s,r)=>s+(r.billingDays||r.days||0),0)/custRecords.length) : 0;
 
-  // =========================================================
-  // 案件別売上推移データ
-  // =========================================================
-  const projectNames = [...new Set(custRecords.map(r=>r.projectName||"案件名なし").filter(Boolean))];
-  const COLORS = ["#2563eb","#16a34a","#9333ea","#ea580c","#0891b2","#65a30d","#dc2626","#7c3aed"];
-  const salesByProject = {}; // {projectName: {period: amount}}
+  // === 売上推移（月別・前年比） ===
+  const currentYear = new Date().getFullYear();
+  const salesByYearMonth = {};
   custRecords.forEach(r=>{
     if(!r.startDate) return;
     const d = new Date(r.startDate);
-    const pKey = period==="month" ? r.startDate.slice(0,7) : `${d.getFullYear()}Q${Math.ceil((d.getMonth()+1)/3)}`;
-    const proj = r.projectName||"案件名なし";
-    if(!salesByProject[proj]) salesByProject[proj] = {};
-    salesByProject[proj][pKey] = (salesByProject[proj][pKey]||0) + (r.amount||0);
+    const y = d.getFullYear();
+    const m = d.getMonth()+1;
+    if(!salesByYearMonth[y]) salesByYearMonth[y]={};
+    salesByYearMonth[y][m]=(salesByYearMonth[y][m]||0)+(r.amount||0);
   });
-  const allPeriodKeys = [...new Set(Object.values(salesByProject).flatMap(v=>Object.keys(v)))].sort();
+  const months = [1,2,3,4,5,6,7,8,9,10,11,12];
+  const curYear = salesByYearMonth[currentYear]||{};
+  const prevYear = salesByYearMonth[currentYear-1]||{};
+  const maxBar = Math.max(...months.map(m=>Math.max(curYear[m]||0,prevYear[m]||0)),1);
 
-  // =========================================================
-  // よく使う製品ランキング
-  // =========================================================
-  const prodCount = {};
-  const prodAmount = {};
+  // === 繁忙期分析（月別利用頻度） ===
+  const monthFreq = Array(12).fill(0);
+  custRecords.forEach(r=>{ if(r.startDate) monthFreq[new Date(r.startDate).getMonth()]++; });
+  const maxFreq = Math.max(...monthFreq,1);
+  const monthLabels=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+
+  // === 案件ツリー（年→月→案件） ===
+  const tree = {};
   custRecords.forEach(r=>{
-    const name = r.equipmentName||"不明";
-    prodCount[name] = (prodCount[name]||0) + 1;
-    prodAmount[name] = (prodAmount[name]||0) + (r.amount||0);
+    if(!r.startDate) return;
+    const y = r.startDate.slice(0,4);
+    const m = r.startDate.slice(0,7);
+    if(!tree[y]) tree[y]={};
+    if(!tree[y][m]) tree[y][m]=[];
+    tree[y][m].push(r);
   });
-  const topProds = Object.entries(prodCount)
-    .sort((a,b)=>b[1]-a[1])
-    .slice(0, 8);
+  const treeYears = Object.keys(tree).sort().reverse();
 
-  // =========================================================
-  // 利用履歴（新しい順、最大20件）
-  // =========================================================
-  const history = [...custRecords]
-    .sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""))
-    .slice(0, 20);
+  // === よく使う製品ランキング ===
+  const prodCount={}, prodAmount={};
+  custRecords.forEach(r=>{
+    const lines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName}];
+    lines.forEach(ln=>{
+      const name=ln.equipmentName||r.equipmentName||"";
+      if(name){prodCount[name]=(prodCount[name]||0)+1;prodAmount[name]=(prodAmount[name]||0)+(r.amount||0);}
+    });
+  });
+  const topProds=Object.entries(prodCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const usedNames=new Set(Object.keys(prodCount));
+
+  // === 提案機材（他の顧客が使っているがこの顧客が未使用の人気機材） ===
+  const allProdCount={};
+  allRecords.forEach(r=>{
+    if(r.customerId===c.id) return;
+    const lines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName}];
+    lines.forEach(ln=>{ const name=ln.equipmentName||r.equipmentName||""; if(name) allProdCount[name]=(allProdCount[name]||0)+1; });
+  });
+  const suggestions=Object.entries(allProdCount).filter(([n])=>!usedNames.has(n)&&n).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
   return(
     <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"16px 16px 16px 62px"}}>
-      {/* サマリー */}
-      <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+
+      {/* === サマリーカード === */}
+      <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+        <div style={{background:health.bg,borderRadius:8,padding:"6px 14px",border:`1.5px solid ${health.color}`,display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:14}}>{health.icon}</span>
+          <span style={{fontSize:12,fontWeight:800,color:health.color}}>{health.label}</span>
+          <span style={{fontSize:10,color:health.color,opacity:0.8}}>{lastDate?`最終利用 ${daysSince}日前`:"利用履歴なし"}</span>
+        </div>
         {[
-          {l:"累計売上（税抜）", v:fmt(totalSales), c:"#16a34a"},
-          {l:"案件数", v:`${custRecords.length}件`, c:"#2563eb"},
-          {l:"平均単価", v:custRecords.length?fmt(Math.round(totalSales/custRecords.length)):"―", c:"#9333ea"},
-          {l:"最終利用", v:history[0]?.startDate?.slice(0,7)||"―", c:"#64748b"},
+          {l:"累計売上（税抜）",v:fmt(totalSales),c:"#16a34a"},
+          {l:"案件数",v:`${custRecords.length}件`,c:"#2563eb"},
+          {l:"平均単価",v:custRecords.length?fmt(avgAmt):"―",c:"#9333ea"},
+          {l:"平均日数",v:custRecords.length?`${avgDays}日`:"―",c:"#0891b2"},
         ].map(s=>(
-          <div key={s.l} style={{background:"#fff",borderRadius:8,padding:"8px 14px",border:"1px solid #e2e8f0",minWidth:110}}>
-            <div style={{fontSize:9,color:"#94a3b8",marginBottom:2}}>{s.l}</div>
-            <div style={{fontSize:15,fontWeight:800,color:s.c}}>{s.v}</div>
+          <div key={s.l} style={{background:"#fff",borderRadius:8,padding:"6px 12px",border:"1px solid #e2e8f0",minWidth:100}}>
+            <div style={{fontSize:9,color:"#94a3b8",marginBottom:1}}>{s.l}</div>
+            <div style={{fontSize:14,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        {/* 売上推移グラフ */}
+      {/* === 売上推移（前年比） + 繁忙期 === */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
         <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:4}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#475569"}}>📈 売上推移</div>
-            <div style={{display:"flex",gap:4}}>
-              <div style={{display:"flex",gap:2,background:"#f1f5f9",borderRadius:5,padding:2}}>
-                {[{k:"total",l:"全体"},{k:"project",l:"案件別"}].map(t=>(
-                  <button key={t.k} onClick={()=>setChartView(t.k)} style={{
-                    background:chartView===t.k?"#fff":"transparent",border:"none",borderRadius:4,
-                    padding:"2px 8px",fontSize:10,fontWeight:chartView===t.k?700:500,
-                    color:chartView===t.k?"#0f172a":"#94a3b8",cursor:"pointer"
-                  }}>{t.l}</button>
-                ))}
-              </div>
-              <div style={{display:"flex",gap:2,background:"#f1f5f9",borderRadius:5,padding:2}}>
-                {[{k:"month",l:"月別"},{k:"quarter",l:"四半期"}].map(t=>(
-                  <button key={t.k} onClick={()=>setPeriod(t.k)} style={{
-                    background:period===t.k?"#fff":"transparent",border:"none",borderRadius:4,
-                    padding:"2px 8px",fontSize:10,fontWeight:period===t.k?700:500,
-                    color:period===t.k?"#0f172a":"#94a3b8",cursor:"pointer"
-                  }}>{t.l}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* 全体グラフ */}
-          {chartView==="total"&&(periodKeys.length===0
-            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"20px 0"}}>データなし</div>
-            :<div style={{display:"flex",alignItems:"flex-end",gap:4,height:80,overflowX:"auto"}}>
-              {periodKeys.map(k=>{
-                const h = Math.max(4, Math.round((salesByPeriod[k]/maxSales)*80));
-                return(
-                  <div key={k} style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0,minWidth:period==="month"?28:44}}>
-                    <div style={{fontSize:8,color:"#94a3b8",marginBottom:2}}>{fmt(salesByPeriod[k]).replace("¥","")}</div>
-                    <div style={{width:"100%",height:h,background:"#2563eb",borderRadius:"3px 3px 0 0",opacity:0.8}} title={`${k}: ${fmt(salesByPeriod[k])}`}/>
-                    <div style={{fontSize:8,color:"#64748b",marginTop:2,transform:"rotate(-30deg)",whiteSpace:"nowrap"}}>{period==="month"?k.slice(2):k}</div>
+          <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>📈 月別売上（今年 vs 前年）</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:3,height:70}}>
+            {months.map(m=>{
+              const cur=curYear[m]||0, prev=prevYear[m]||0;
+              const hCur=Math.max(cur?2:0,Math.round((cur/maxBar)*70));
+              const hPrev=Math.max(prev?2:0,Math.round((prev/maxBar)*70));
+              return(
+                <div key={m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
+                  <div style={{display:"flex",alignItems:"flex-end",gap:1,height:70}}>
+                    <div style={{width:6,height:hPrev,background:"#cbd5e1",borderRadius:"2px 2px 0 0"}} title={`${currentYear-1}年${m}月: ${fmt(prev)}`}/>
+                    <div style={{width:6,height:hCur,background:"#2563eb",borderRadius:"2px 2px 0 0"}} title={`${currentYear}年${m}月: ${fmt(cur)}`}/>
                   </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* 案件別グラフ */}
-          {chartView==="project"&&(allPeriodKeys.length===0
-            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"20px 0"}}>データなし</div>
-            :<div>
-              <div style={{display:"flex",alignItems:"flex-end",gap:4,height:80,overflowX:"auto"}}>
-                {allPeriodKeys.map(k=>{
-                  const maxV = Math.max(...allPeriodKeys.map(pk=>projectNames.reduce((s,pj)=>s+(salesByProject[pj]?.[pk]||0),0)),1);
-                  const total = projectNames.reduce((s,pj)=>s+(salesByProject[pj]?.[k]||0),0);
-                  const h = Math.max(4, Math.round((total/maxV)*80));
-                  let cumH = 0;
-                  return(
-                    <div key={k} style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0,minWidth:period==="month"?28:44}}>
-                      <div style={{width:"100%",height:h,position:"relative",display:"flex",flexDirection:"column-reverse"}}>
-                        {projectNames.map((pj,pi)=>{
-                          const v = salesByProject[pj]?.[k]||0;
-                          if(!v) return null;
-                          const ph = Math.round((v/maxV)*80);
-                          return <div key={pj} style={{width:"100%",height:ph,background:COLORS[pi%COLORS.length],opacity:0.85}} title={`${pj}: ${fmt(v)}`}/>;
-                        })}
-                      </div>
-                      <div style={{fontSize:8,color:"#64748b",marginTop:2,transform:"rotate(-30deg)",whiteSpace:"nowrap"}}>{period==="month"?k.slice(2):k}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* 凡例 */}
-              <div style={{display:"flex",flexWrap:"wrap",gap:"4px 10px",marginTop:8}}>
-                {projectNames.map((pj,pi)=>(
-                  <span key={pj} style={{fontSize:9,display:"flex",alignItems:"center",gap:3}}>
-                    <span style={{width:8,height:8,borderRadius:2,background:COLORS[pi%COLORS.length],display:"inline-block"}}/>
-                    {pj}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div style={{fontSize:7,color:"#94a3b8",marginTop:2}}>{m}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:6}}>
+            <span style={{fontSize:9,display:"flex",alignItems:"center",gap:3}}><span style={{width:8,height:8,background:"#2563eb",borderRadius:1,display:"inline-block"}}/>{currentYear}年</span>
+            <span style={{fontSize:9,display:"flex",alignItems:"center",gap:3}}><span style={{width:8,height:8,background:"#cbd5e1",borderRadius:1,display:"inline-block"}}/>{currentYear-1}年</span>
+          </div>
         </div>
 
-        {/* よく使う製品ランキング */}
         <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:10}}>🏆 よく使う製品</div>
-          {topProds.length===0
-            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"20px 0"}}>データなし</div>
-            :topProds.map(([name, cnt], idx)=>{
-              const bar = Math.round((cnt/topProds[0][1])*100);
+          <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>🌡️ 繁忙期ヒートマップ</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:4}}>
+            {monthLabels.map((ml,i)=>{
+              const v=monthFreq[i], ratio=v/maxFreq;
+              const bg=v===0?"#f1f5f9":ratio>0.8?"#1d4ed8":ratio>0.5?"#3b82f6":ratio>0.3?"#93c5fd":"#dbeafe";
+              const tc=ratio>0.5?"#fff":"#1e40af";
               return(
-                <div key={name} style={{marginBottom:6}}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+                <div key={ml} style={{background:bg,borderRadius:5,padding:"4px 2px",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:tc,fontWeight:600}}>{ml}</div>
+                  <div style={{fontSize:11,fontWeight:800,color:tc}}>{v}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{fontSize:9,color:"#94a3b8",marginTop:6}}>※ 数値は利用案件数</div>
+        </div>
+      </div>
+
+      {/* === よく使う製品 + 提案機材 === */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>🏆 よく使う機材</div>
+          {topProds.length===0
+            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"16px 0"}}>データなし</div>
+            :topProds.map(([name,cnt],idx)=>{
+              const bar=Math.round((cnt/topProds[0][1])*100);
+              return(
+                <div key={name} style={{marginBottom:5}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:1}}>
                     <span style={{color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       <span style={{color:"#94a3b8",fontWeight:700,marginRight:4}}>#{idx+1}</span>{name}
                     </span>
-                    <span style={{color:"#64748b",marginLeft:8,whiteSpace:"nowrap"}}>{cnt}回　{fmt(prodAmount[name])}</span>
+                    <span style={{color:"#64748b",marginLeft:6,whiteSpace:"nowrap"}}>{cnt}回</span>
                   </div>
-                  <div style={{height:4,background:"#f1f5f9",borderRadius:2}}>
-                    <div style={{height:4,width:`${bar}%`,background:idx===0?"#f59e0b":idx===1?"#94a3b8":idx===2?"#b45309":"#2563eb",borderRadius:2}}/>
+                  <div style={{height:3,background:"#f1f5f9",borderRadius:2}}>
+                    <div style={{height:3,width:`${bar}%`,background:idx===0?"#f59e0b":idx===1?"#94a3b8":idx===2?"#b45309":"#2563eb",borderRadius:2}}/>
                   </div>
                 </div>
               );
             })
           }
         </div>
+
+        <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:4}}>💡 提案機材</div>
+          <div style={{fontSize:9,color:"#94a3b8",marginBottom:8}}>他の顧客が使っているがこの顧客が未使用の人気機材</div>
+          {suggestions.length===0
+            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"16px 0"}}>データなし</div>
+            :suggestions.map(([name,cnt],idx)=>(
+              <div key={name} style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,padding:"4px 8px",background:"#f0fdf4",borderRadius:6,border:"1px solid #bbf7d0"}}>
+                <span style={{fontSize:12}}>📦</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:10,fontWeight:600,color:"#166534",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
+                  <div style={{fontSize:9,color:"#4ade80"}}>{cnt}件の案件で利用実績あり</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
       </div>
 
-      {/* 利用履歴 */}
-      <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px",marginTop:14}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>📋 利用履歴（直近20件）</div>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-          <thead>
-            <tr style={{background:"#f8fafc",color:"#94a3b8"}}>
-              {["開始日","案件名","機材","日数","金額（税抜）"].map(h=>(
-                <th key={h} style={{padding:"4px 8px",textAlign:"left",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>{h}</th>
+      {/* === 案件ツリー === */}
+      <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:12}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>🌳 案件ツリー</div>
+        {treeYears.length===0
+          ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"16px 0"}}>データなし</div>
+          :treeYears.map(y=>(
+            <div key={y} style={{marginBottom:4}}>
+              <button onClick={()=>setTreeOpen(t=>({...t,[y]:!t[y]}))}
+                style={{display:"flex",alignItems:"center",gap:6,background:"#f1f5f9",border:"none",borderRadius:6,padding:"5px 10px",cursor:"pointer",width:"100%",textAlign:"left"}}>
+                <span style={{fontSize:11,color:"#64748b"}}>{treeOpen[y]?"▾":"▸"}</span>
+                <span style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{y}年</span>
+                <span style={{fontSize:10,color:"#94a3b8"}}>
+                  {Object.values(tree[y]).flat().length}件　{fmt(Object.values(tree[y]).flat().reduce((s,r)=>s+(r.amount||0),0))}
+                </span>
+              </button>
+              {treeOpen[y]&&Object.keys(tree[y]).sort().reverse().map(ym=>(
+                <div key={ym} style={{marginLeft:16,marginTop:2}}>
+                  <button onClick={()=>setTreeOpen(t=>({...t,[ym]:!t[ym]}))}
+                    style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",padding:"3px 8px",cursor:"pointer",width:"100%",textAlign:"left"}}>
+                    <span style={{fontSize:10,color:"#94a3b8"}}>{treeOpen[ym]?"▾":"▸"}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:"#475569"}}>{ym.slice(5)}月</span>
+                    <span style={{fontSize:10,color:"#94a3b8"}}>{tree[y][ym].length}件　{fmt(tree[y][ym].reduce((s,r)=>s+(r.amount||0),0))}</span>
+                  </button>
+                  {treeOpen[ym]&&tree[y][ym].map(r=>{
+                    const lines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice}];
+                    return(
+                      <div key={r.id} style={{marginLeft:20,marginTop:2,padding:"6px 10px",background:"#f8fafc",borderRadius:6,borderLeft:"2px solid #e2e8f0",marginBottom:3}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                          <span style={{fontSize:11,fontWeight:600,color:"#0f172a"}}>{r.projectName||"案件名なし"}</span>
+                          <span style={{fontSize:11,fontWeight:700,color:"#16a34a"}}>{fmt(r.amount)}</span>
+                        </div>
+                        <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>
+                          {fmtD2(r.startDate)}〜{fmtD2(r.endDate)}　{r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)+"日"}
+                        </div>
+                        {lines.map((ln,li)=>(
+                          <div key={li} style={{fontSize:10,color:"#475569",display:"flex",gap:8}}>
+                            <span>・{ln.equipmentName||"―"}</span>
+                            <span style={{color:"#94a3b8"}}>×{ln.quantity||1}　{fmt(ln.unitPrice)}/日</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {history.map((r,i)=>(
-              <tr key={r.id} style={{borderBottom:"1px solid #f8fafc",background:i%2?"#fcfcfc":"#fff"}}>
-                <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}</td>
-                <td style={{padding:"4px 8px",color:"#64748b",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {r.projectName||"―"}
-                  {r.ecOrderNo&&<span style={{marginLeft:4,fontSize:9,color:"#0369a1"}}>EC:{r.ecOrderNo}</span>}
-                </td>
-                <td style={{padding:"4px 8px",color:"#475569",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.equipmentName||"―"}</td>
-                <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap",textAlign:"center"}}>
-                  {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)}
-                </td>
-                <td style={{padding:"4px 8px",fontWeight:600,color:"#16a34a",textAlign:"right"}}>{fmt(r.amount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </div>
+          ))
+        }
       </div>
+
     </div>
   );
 }
@@ -3802,7 +3824,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
               )}
             </div>
           )}
-          <CustomerAnalysis c={c} custRecords={custRecords} products={products}/>
+          <CustomerAnalysis c={c} custRecords={custRecords} products={products} allRecords={records}/>
         </div>
       );
     }
