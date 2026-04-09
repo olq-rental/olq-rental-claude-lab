@@ -1028,6 +1028,8 @@ export default function App() {
         </div>
       </header>
 
+      {newsFeed.length>0&&(<div style={{background:"#0f172a",borderBottom:"1px solid #1e293b",padding:"5px 18px",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}><span style={{color:"#475569",fontSize:9,fontWeight:700,marginRight:4,whiteSpace:"nowrap"}}>業界NEWS</span>{newsFeed.map((n,i)=><a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{color:"#94a3b8",fontSize:10,textDecoration:"none",background:"#1e293b",borderRadius:4,padding:"2px 8px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:260,display:"inline-block"}}><span style={{color:n.source==="pronews"?"#60a5fa":"#34d399",marginRight:3}}>{n.source==="pronews"?"📹":"🎵"}</span>{n.title}</a>)}</div>)}
+
       <div className="app-tabs" style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"0 18px",display:"flex"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
