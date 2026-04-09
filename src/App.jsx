@@ -1882,7 +1882,7 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
           <div>東京都港区新橋6-10-2</div>
           <div>第二新洋ビル 1F</div>
           <div>TEL: 03-5777-1100</div>
-          <div>FAX: 03-5777-1101</div>
+          <div>MAIL: rental@olq.co.jp</div>
         </div>
       </div>
       <div style={{fontSize:10*fs,color:"#444",marginBottom:10*fs}}>毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>
@@ -1975,7 +1975,7 @@ function DeliveryCopy({r, g, no, forPrint}){
           <div>東京都港区新橋6-10-2</div>
           <div>第二新洋ビル 1F</div>
           <div>TEL: 03-5777-1100</div>
-          <div>FAX: 03-5777-1101</div>
+          <div>MAIL: rental@olq.co.jp</div>
         </div>
       </div>
       {/* テーブル（機材No・単価あり） */}
@@ -2456,7 +2456,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const olqBlock = `<div class="olq" style="position:relative"><div style="font-weight:bold;font-size:12px">オルク株式会社</div>
         <div>担当　${staff}</div><div>〒105-0004</div>
         <div>東京都港区新橋6-10-2</div><div>第二新洋ビル 1F</div>
-        <div>TEL: 03-5777-1100</div><div>FAX: 03-5777-1101</div>
+        <div>TEL: 03-5777-1100</div><div>MAIL: rental@olq.co.jp</div>
         </div>`;
 
       // 納品書（お客様用）
@@ -2520,7 +2520,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           if(pageNo===totalPages){
             body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
               <div class="note"><div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div></div>
-              <div style="text-align:right;margin-top:6px"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div>`;
+              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://rental.olq.co.jp&ecc=H" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>`;
           }
           if(!isFirstPage){
             body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPages}</div>`;
@@ -2677,7 +2677,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               </tr>
             </tfoot>
           </table>
-          <div style="text-align:right;margin-top:8px"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://rental.olq.co.jp&ecc=H" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>
 
         </div>`;
       }
