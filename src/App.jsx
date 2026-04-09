@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from './supabaseClient';
 
+const DEFAULT_INDUSTRY_TAGS = ["テレビ","ストリーミング","SNS","広告代理店","映画","ドラマ","スチル","カメラマン","照明","音声","制作","フリーランス","音響"];
+const INDUSTRY_HINTS = {
+  "テレビ":["4K/8K対応カメラの需要が増加中","ライブ配信・リモート収録の需要が拡大","ワイヤレスマイクシステムの需要が高い"],
+  "ストリーミング":["配信用スイッチャー・エンコーダーの需要増","グリーンバック・クロマキー機材が人気","高品質マイク・音響機材の需要が増加"],
+  "SNS":["縦型動画用ジンバルの需要が急増","ショート動画向け小型・軽量機材が人気","リング照明・LEDパネルの需要が増加"],
+  "広告代理店":["高解像度シネマカメラの需要が増加","ドローン撮影機材の引き合いが多い","カラーグレーディング対応モニターが人気"],
+  "映画":["シネマレンズの需要が増加","大型照明機材・DIT対応機材が人気","高品質録音機材・ブームマイクの需要が高い"],
+  "ドラマ":["多カメラ収録システムの需要が増加","長期レンタルの傾向がある","照明・音声機材のセット提案が効果的"],
+  "スチル":["高解像度ミラーレスカメラの需要が増加","大型ストロボ・スタジオ照明の需要が高い","バック紙・スタンド類が人気"],
+  "カメラマン":["最新ミラーレス・シネマカメラの試用需要が高い","軽量三脚・一脚の需要が増加","NDフィルター・レンズアクセサリーの需要あり"],
+  "照明":["RGBWW LEDライトの需要が急増","バッテリー駆動型ライトの人気が高い","小型・軽量な照明のセット提案が効果的"],
+  "音声":["ワイヤレスマイクシステムの高需要が続く","32ビットフロートレコーダーの需要が増加","ノイズキャンセリング機材が人気"],
+  "制作":["プロダクション向けオールインワンパッケージが人気","長期・月極契約の提案が効果的","現場監督向けモニター・通話システムの需要あり"],
+  "フリーランス":["軽量・コンパクト機材の需要が高い","バッテリー駆動型機材の人気が増加","スターターパッケージ提案が効果的"],
+  "音響":["PA機材・スピーカーシステムの需要が増加","デジタルミキサーの需要が拡大","イベント向け音響パッケージ提案が効果的"],
+};
+
 const ALL_PRODUCTS = [
   {id:"575",brand:"SHURE",name:"MV88+ Video Kit",priceIn:990,priceEx:900},
   {id:"572",brand:"AVALON DESIGN",name:"VT-747SP",priceIn:19800,priceEx:18000},
@@ -3298,6 +3315,33 @@ function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, show
 }
 
 
+function IndustryTagSelector({value, onChange}){
+  const [tagMaster, setTagMaster] = React.useState(()=>{ try{const s=localStorage.getItem("olq_industry_tags"); return s?JSON.parse(s):DEFAULT_INDUSTRY_TAGS;}catch{return DEFAULT_INDUSTRY_TAGS;} });
+  const [newTag, setNewTag] = React.useState("");
+  const toggle = t => onChange(value.includes(t)?value.filter(x=>x!==t):[...value,t]);
+  const addTag = () => { const t=newTag.trim(); if(!t||tagMaster.includes(t))return; const m=[...tagMaster,t]; setTagMaster(m); try{localStorage.setItem("olq_industry_tags",JSON.stringify(m));}catch{} setNewTag(""); };
+  const removeFromMaster = t => { const m=tagMaster.filter(x=>x!==t); setTagMaster(m); try{localStorage.setItem("olq_industry_tags",JSON.stringify(m));}catch{} onChange(value.filter(x=>x!==t)); };
+  return(
+    <div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+        {tagMaster.map(t=>(
+          <div key={t} style={{display:"flex",alignItems:"center",gap:1}}>
+            <button type="button" onClick={()=>toggle(t)} style={{background:value.includes(t)?"#2563eb":"#f1f5f9",color:value.includes(t)?"#fff":"#475569",border:"none",borderRadius:"4px 0 0 4px",padding:"3px 10px",fontSize:11,fontWeight:value.includes(t)?700:400,cursor:"pointer"}}>
+              {t}
+            </button>
+            <button type="button" onClick={()=>removeFromMaster(t)} title="このタグを削除" style={{background:value.includes(t)?"#1d4ed8":"#e2e8f0",color:value.includes(t)?"#fff":"#94a3b8",border:"none",borderRadius:"0 4px 4px 0",padding:"3px 5px",fontSize:9,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <input value={newTag} onChange={e=>setNewTag(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()} placeholder="新しいタグを追加..." style={{fontSize:11,padding:"3px 8px",border:"1px solid #e2e8f0",borderRadius:5,outline:"none",width:150}}/>
+        <button type="button" onClick={addTag} style={{background:"#0f172a",color:"#fff",border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer"}}>追加</button>
+      </div>
+      <div style={{fontSize:9,color:"#94a3b8",marginTop:4}}>タグ名の右の × でマスターから削除できます</div>
+    </div>
+  );
+}
+
 function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   const [detailOpen, setDetailOpen] = useState({tree:false,equip:false,suggest:false,memo:false});
   const [salesNote, setSalesNote] = useState(()=>{ try{return localStorage.getItem(`olq_snote_${c.id}`)||"";}catch{return "";} });
@@ -3370,8 +3414,29 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   custRecords.forEach(r=>{ if(!r.startDate)return; const y=r.startDate.slice(0,4),m=r.startDate.slice(0,7); if(!tree[y])tree[y]={}; if(!tree[y][m])tree[y][m]=[]; tree[y][m].push(r); });
   const treeYears=Object.keys(tree).sort().reverse();
 
+  const custTags = c.industryTags||[];
+  const tagHints = custTags.flatMap(t=>INDUSTRY_HINTS[t]||[]);
+
   return(
     <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"20px 20px 20px 62px"}}>
+
+      {custTags.length>0&&tagHints.length>0&&(
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+            <span style={{fontSize:13}}>🌍</span>
+            <span style={{fontSize:12,fontWeight:700,color:"#475569"}}>業界トレンド</span>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginLeft:4}}>
+              {custTags.map(t=><span key={t} style={{fontSize:9,background:"#eff6ff",color:"#2563eb",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{t}</span>)}
+            </div>
+          </div>
+          {tagHints.map((h,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:5,padding:"5px 8px",background:"#f8fafc",borderRadius:6}}>
+              <span style={{fontSize:10,marginTop:1}}>📌</span>
+              <span style={{fontSize:11,color:"#475569",lineHeight:1.5}}>{h}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{background:"#fff",borderRadius:12,border:`2px solid ${health.color}`,padding:"16px 20px",marginBottom:14}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
@@ -3528,7 +3593,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
 }
 
 function CustomersTab({customers,products,records,onSave,showToast,presetCustomers,openCustomerId,onOpenHandled}){
-  const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false};
+  const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false,industryTags:[]};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
@@ -3590,7 +3655,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
     if(!openCustomerId) return;
     const c = customers.find(x=>x.id===openCustomerId);
     if(!c) return;
-    setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});
+    setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,industryTags:c.industryTags||[]});
     setEditId(c.id);
     setOpen(true);
     onOpenHandled&&onOpenHandled();
@@ -3654,7 +3719,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
     if(c){
       const custRecords=(records||[]).filter(r=>r.customerId===c.id);
       const openEdit=()=>{
-        setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});
+        setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,industryTags:c.industryTags||[]});
         setEditId(c.id); setOpen(true);
       };
       return(
@@ -3723,6 +3788,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
                   <span style={{fontSize:10,color:"#64748b"}}>{form.showDeliveryPrice?"納品書（お客様用）に単価・機材Noを表示します":"デフォルト：納品書には金額を記載しません"}</span>
                 </div>
                 <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>請求書 担当者名</label><input value={form.staff||""} onChange={e=>setForm(f=>({...f,staff:e.target.value}))} style={S.inp} placeholder="例: 井上 雄太（請求書PDFに表示）"/></div>
+                <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>業種タグ（複数選択可）</label><IndustryTagSelector value={form.industryTags||[]} onChange={v=>setForm(f=>({...f,industryTags:v}))}/></div>
                 <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>備考</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.inp}/></div>
               </div>
               {/* 案件名リスト */}
@@ -3877,6 +3943,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
               <span style={{fontSize:10,color:"#64748b"}}>{form.consolidateMonth?"月またぎ案件は実日数が多い月にまとめて請求":"月末で切り分けて各月に請求（デフォルト）"}</span>
             </div>
             <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>請求書 担当者名</label><input value={form.staff||""} onChange={e=>setForm(f=>({...f,staff:e.target.value}))} style={S.inp} placeholder="例: 井上 雄太（請求書PDFに表示）"/></div>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>業種タグ（複数選択可）</label><IndustryTagSelector value={form.industryTags||[]} onChange={v=>setForm(f=>({...f,industryTags:v}))}/></div>
             <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>備考</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.inp}/></div>
           </div>
           {/* 案件名リスト */}
@@ -4003,7 +4070,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
 
                 <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
                   {syncSPs(c.specialPrices,products).length>0&&<button onClick={()=>setExp(isSpOpen?null:c.id)} style={S.ib("#64748b")}><Ico d={I.star} size={12}/></button>}
-                  <button onClick={()=>{setDetailId(c.id);setTimeout(()=>{setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});setEditId(c.id);setOpen(true);},0);}} style={S.ib("#92400e")}><Ico d={I.edit} size={12}/>編集</button>
+                  <button onClick={()=>{setDetailId(c.id);setTimeout(()=>{setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,industryTags:c.industryTags||[]});setEditId(c.id);setOpen(true);},0);}} style={S.ib("#92400e")}><Ico d={I.edit} size={12}/>編集</button>
                   <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(customers.filter(x=>x.id!==c.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                 </div>
               </div>
