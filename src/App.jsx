@@ -2314,21 +2314,22 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
 
     body += `<div style="padding:0px 38px;max-width:760px;margin:0 auto;font-size:10px">
-      <div style="text-align:center;font-size:14px;font-weight:bold;margin-bottom:14px">ご請求書</div>
-      <!-- grid 2列×2行（ヘッダー固定高さ：窓付き封筒対応） -->
-      <div style="display:grid;grid-template-columns:1fr auto;align-items:stretch;gap:4px 0;margin-bottom:8px">
-        <!-- 左上: 顧客名・住所 -->
-        <div style="grid-column:1;grid-row:1;padding-bottom:6px">
+      <!-- grid 3列: 左=顧客, 中=タイトル, 右=管理情報 -->
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:4px 0;margin-bottom:8px">
+        <!-- 左: 顧客名・住所 -->
+        <div style="padding-bottom:6px">
           <div style="font-size:14px;font-weight:bold;margin-bottom:6px">${g.customerName}　御中</div>
           ${g.projectName?`<div style="font-size:12px;font-weight:bold;margin-bottom:4px">${g.projectName}</div>`:""}
           ${g.customer?.zipCode?`<div style="margin-bottom:1px">〒${g.customer.zipCode}</div>`:""}
           ${(g.customer?.address||"").split("\n").map(l=>`<div style="margin-bottom:1px">${l}</div>`).join("")}
         </div>
-        <!-- 右列（2行分）: 管理No〜MAIL -->
-        <div style="grid-column:2;grid-row:1/3;font-size:10px;line-height:1.9;white-space:nowrap;padding-left:16px;display:flex;flex-direction:column;justify-content:space-between">
+        <!-- 中央: タイトル -->
+        <div style="text-align:center;font-size:14px;font-weight:bold;padding:0 24px">ご請求書</div>
+        <!-- 右: 管理No〜MAIL -->
+        <div style="font-size:10px;line-height:1.9;white-space:nowrap;text-align:right">
           <div>
-            <div style="display:flex;gap:6px"><span style="min-width:52px">管理No</span><strong>${invNo}</strong></div>
-            <div style="display:flex;gap:6px"><span style="min-width:52px">日付</span><span>${issueDateStr}</span></div>
+            <div>管理No　<strong>${invNo}</strong></div>
+            <div>日付　${issueDateStr}</div>
             <div style="margin-bottom:8px">登録番号 T5-0104-0109-2630</div>
             <div style="font-weight:bold;font-size:10px;margin-bottom:2px">オルク株式会社</div>
             <div style="position:relative">
@@ -2344,7 +2345,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </div>
         </div>
         <!-- 左下: 挨拶文・ご請求金額 -->
-        <div style="grid-column:1;grid-row:2;padding-top:4em">
+        <div style="grid-column:1/3;grid-row:2;padding-top:2em">
           <div style="font-size:10px;margin-bottom:4px">毎度ありがとうございます。下記の通りご請求申し上げます。</div>
           <div style="display:flex;align-items:baseline;gap:14px">
             <span style="font-size:12px;font-weight:bold">ご請求金額</span>
