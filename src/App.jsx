@@ -1230,7 +1230,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
       productId:lines[0]?.productId||"",
       id:editId||uid(),updatedAt:Date.now(),createdAt:editId?records.find(r=>r.id===editId)?.createdAt:Date.now()};
     if(!editId && !rec.deliveryNo) { rec.deliveryNo = await nextDeliveryNo(); }
-    await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records]);
+    const custName=customers.find(x=>x.id===form.customerId)?.name||"";
+    await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName});
     const wasNew=!editId;
     showToast(editId?"更新しました":"登録しました");setForm(E);setEditId(null);setOpen(false);setLineSearches([""]);
     if(wasNew&&onAfterSubmit) onAfterSubmit(rec);
@@ -1763,7 +1764,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                         )}
                                         {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>計上終了:{r.returnDate}</span>}
                                         <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"編集"))return;const rLns=getLines(r);setForm({customerId:r.customerId,projectName:r.projectName||"",projectDetail:r.projectDetail||"",ecOrderNo:r.ecOrderNo||"",ordererName:r.ordererName||"",ourStaff:r.ourStaff||"",billingType:r.billingType||"daily",months:String(r.months||1),startDate:r.startDate,endDate:r.endDate||today(),endDateOpen:!!r.endDateOpen,notes:r.notes||"",issueReceipt:!!r.issueReceipt,receiptDate:r.receiptDate||today(),paymentMethod:r.paymentMethod||"credit",includeInsurance:!!r.includeInsurance,lines:rLns.map(ln=>({productId:ln.productId||"",equipNo:ln.equipNo||"",unitPrice:String(ln.unitPrice||""),quantity:String(ln.quantity||1),lineNote:ln.lineNote||"",subItems:ln.subItems||[],equipmentName:ln.equipmentName||"",expandRows:!!ln.expandRows}))});setLineSearches(rLns.map(()=>""));setEditId(r.id);setOpen(true);}} style={{...S.ib(locked?"#64748b":"#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/></button>
-                                        <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"削除"))return;await onSave(records.filter(x=>x.id!==r.id));showToast("削除しました");}} style={S.ib(locked?"#64748b":"#991b1b")}><Ico d={I.trash} size={12}/></button>
+                                        <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"削除"))return;await onSave(records.filter(x=>x.id!==r.id),{action:"削除",name:r.projectName||customers.find(x=>x.id===r.customerId)?.name||""});showToast("削除しました");}} style={S.ib(locked?"#64748b":"#991b1b")}><Ico d={I.trash} size={12}/></button>
                                       </td>
                                     </tr>
                                   );
@@ -3671,7 +3672,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
     if(!updatedForm.name){showToast("顧客名は必須",false);return;}
     const synced=syncSPs(updatedForm.specialPrices,products);
     const c={...updatedForm,specialPrices:synced,id:editId||uid(),discountRate:Number(updatedForm.discountRate)||0,staff:updatedForm.staff||"",updatedAt:Date.now(),createdAt:editId?customers.find(x=>x.id===editId)?.createdAt:Date.now()};
-    await onSave(editId?customers.map(x=>x.id===editId?c:x):[...customers,c]);
+    await onSave(editId?customers.map(x=>x.id===editId?c:x):[...customers,c],{action:editId?"更新":"作成",name:c.name});
     showToast("更新しました");
   };
 
