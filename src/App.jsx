@@ -895,7 +895,7 @@ export default function App() {
   }, [session]);
 
   const logActivity = async (action, targetType, targetName, detail="") => {
-    if (!session?.user?.id) return;
+    if (!session?.user) return;
     try {
       await supabase.from('activity_logs').insert({
         user_id: session.user.id,
