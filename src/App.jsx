@@ -1021,7 +1021,7 @@ export default function App() {
             {" / "}
             <span onClick={()=>setTab("records")}   style={{cursor:"pointer"}} onMouseEnter={e=>e.target.style.textDecoration="underline"} onMouseLeave={e=>e.target.style.textDecoration="none"}>案件{records.length}件</span>
           </span>
-          <span style={{fontSize:11,color:"#64748b"}}>{session.user.email}</span>
+          <span style={{fontSize:11,color:"#64748b"}}>{session.user.user_metadata?.name||session.user.email}</span>
           <button onClick={()=>supabase.auth.signOut()} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#f87171",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>ログアウト</button>
         </div>
       </header>
@@ -1056,7 +1056,7 @@ export default function App() {
       )}
 
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
-        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ}/>}
+        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
         {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
@@ -1067,7 +1067,7 @@ export default function App() {
   );
 }
 
-function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ}){
+function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ,session}){
   // 締め済みの案件月セット
   const lockedMonths = new Set(
     Object.entries(invoiceData||{}).filter(([,d])=>d.status==="locked").map(([k])=>k.split("__")[1]).filter(Boolean)
@@ -1092,7 +1092,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   });
   const emptyLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false};
   const emptyManualLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false,isManual:true,isFee:false,noBillingDiscount:false};
-  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false,isExtension:false,extendedFrom:"",extendedFromNo:""};
+  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:session?.user?.user_metadata?.name?.split(/[\s　]/)[0]||"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false,isExtension:false,extendedFrom:"",extendedFromNo:""};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
@@ -1862,7 +1862,7 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
         <div style={{fontSize:22*fs,fontWeight:800,letterSpacing:8}}>納 品 書</div>
         <div style={{textAlign:"right",fontSize:10.5*fs,lineHeight:2}}>
           <div>納品書No.　<strong>{no}</strong></div>
-          <div>日付　{fmtD(r.startDate)}</div>
+          <div>日付　{fmtD(r.createdAt||r.startDate)}</div>
         </div>
       </div>
       {/* 宛名 + 自社 */}
@@ -1942,7 +1942,7 @@ function DeliveryCopy({r, g, no, forPrint}){
         <div style={{fontSize:22*fs,fontWeight:800,letterSpacing:4}}>納品書控</div>
         <div style={{textAlign:"right",fontSize:10.5*fs,lineHeight:2}}>
           <div>納品書No.　<strong>{no}</strong></div>
-          <div>日付　{fmtD(r.startDate)}</div>
+          <div>日付　{fmtD(r.createdAt||r.startDate)}</div>
         </div>
       </div>
       {/* 宛名 + 自社 */}
@@ -2485,7 +2485,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             body += `<div style="position:relative">
               <div class="title">納 品 書</div>
               ${r.isExtension?`<div style="font-size:11px;color:#2563eb;font-weight:700;text-align:center;margin-top:2px">${r.extendedFromNo?"元伝票No."+r.extendedFromNo+" ":""}ご延長分</div>`:""}
-              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
             </div>
             <div class="hdr"><div>
               <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
@@ -2497,7 +2497,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           } else {
             body += `<div style="position:relative;margin-bottom:10px">
               <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納 品 書　${pageNo}/${totalPages}</div>
-              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
             </div>`;
           }
           body += `<table><thead><tr><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}<th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
@@ -2553,7 +2553,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           if(isFirstPage){
             body += `<div style="position:relative">
               <div class="title" style="letter-spacing:4px">納品書控</div>
-              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
             </div>
             <div class="hdr"><div>
               <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
@@ -2568,7 +2568,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           } else {
             body += `<div style="position:relative;margin-bottom:14px">
               <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center;margin-bottom:10px">納品書控　${pageNo}/${totalPagesC}</div>
-              <div style="text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div>
+              <div style="text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
             </div>`;
           }
           body += `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:339px"><col style="width:36px"><col style="width:56px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col></colgroup><thead><tr><th>機材名</th><th>No</th><th>単価</th><th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
