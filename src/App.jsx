@@ -1034,13 +1034,8 @@ export default function App() {
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
       <header className="app-header" style={{background:"#0f172a",color:"#fff",padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{background:"#fff",borderRadius:"50%",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:3}}>
-            <svg width="28" height="20" viewBox="0 0 140 100" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="22" cy="50" r="18" fill="none" stroke="#231815" strokeWidth="9"/>
-              <rect x="52" y="8" width="9" height="75" rx="4" fill="#231815"/>
-              <rect x="70" y="8" width="9" height="84" rx="4" fill="#231815"/>
-              <path d="M79 8 A32 32 0 0 1 79 72" fill="none" stroke="#231815" strokeWidth="9" strokeLinecap="round"/>
-            </svg>
+          <div style={{background:"#fff",borderRadius:"50%",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:4}}>
+            <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
           <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.0</span>
         </div>
@@ -4363,13 +4358,8 @@ function LoginScreen() {
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:'#f1f5f9',fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif"}}>
       <div style={{background:'#fff',borderRadius:16,boxShadow:'0 4px 32px rgba(0,0,0,0.10)',padding:'40px 36px',width:360}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:28}}>
-          <div style={{background:"#0f172a",borderRadius:"50%",width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:4}}>
-            <svg width="36" height="26" viewBox="0 0 140 100" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="22" cy="50" r="18" fill="none" stroke="#fff" strokeWidth="9"/>
-              <rect x="52" y="8" width="9" height="75" rx="4" fill="#fff"/>
-              <rect x="70" y="8" width="9" height="84" rx="4" fill="#fff"/>
-              <path d="M79 8 A32 32 0 0 1 79 72" fill="none" stroke="#fff" strokeWidth="9" strokeLinecap="round"/>
-            </svg>
+          <div style={{background:"#fff",borderRadius:"50%",width:48,height:48,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:6}}>
+            <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
           <span style={{fontWeight:800,fontSize:17,letterSpacing:2,color:'#0f172a'}}>オルク レンタル伝票管理</span>
         </div>
