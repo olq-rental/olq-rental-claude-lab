@@ -4358,8 +4358,8 @@ function LoginScreen() {
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:'#f1f5f9',fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif"}}>
       <div style={{background:'#fff',borderRadius:16,boxShadow:'0 4px 32px rgba(0,0,0,0.10)',padding:'40px 36px',width:360}}>
         <div style={{display:'flex',flexDirection:'column',alignItems:'center',marginBottom:28}}>
-          <div style={{background:"#0f172a",borderRadius:"50%",width:56,height:56,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",padding:6,marginBottom:14}}>
-            <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain",filter:"invert(1)"}}/>
+          <div style={{background:"#fff",borderRadius:"50%",width:56,height:56,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",padding:6,marginBottom:14,boxShadow:"0 2px 12px rgba(0,0,0,0.10)"}}>
+            <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
           <span style={{fontWeight:800,fontSize:17,letterSpacing:2,color:'#0f172a'}}>オルク レンタル伝票管理</span>
         </div>
