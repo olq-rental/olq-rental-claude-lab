@@ -1034,7 +1034,13 @@ export default function App() {
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
       <header className="app-header" style={{background:"#0f172a",color:"#fff",padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <Ico d={I.box} size={20}/>
+          <div style={{background:"#fff",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="22" cy="50" r="16" fill="none" stroke="#231815" strokeWidth="10"/>
+              <rect x="46" y="10" width="10" height="65" fill="#231815"/>
+              <path d="M62 10 L62 70 Q62 90 80 90 Q98 90 98 70 L98 40" fill="none" stroke="#231815" strokeWidth="10" strokeLinecap="round"/>
+            </svg>
+          </div>
           <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.0</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -4356,8 +4362,12 @@ function LoginScreen() {
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:'#f1f5f9',fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif"}}>
       <div style={{background:'#fff',borderRadius:16,boxShadow:'0 4px 32px rgba(0,0,0,0.10)',padding:'40px 36px',width:360}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:28}}>
-          <div style={{background:'#0f172a',borderRadius:8,padding:'6px 10px'}}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          <div style={{background:"#0f172a",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <svg width="28" height="28" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="22" cy="50" r="16" fill="none" stroke="#fff" strokeWidth="10"/>
+              <rect x="46" y="10" width="10" height="65" fill="#fff"/>
+              <path d="M62 10 L62 70 Q62 90 80 90 Q98 90 98 70 L98 40" fill="none" stroke="#fff" strokeWidth="10" strokeLinecap="round"/>
+            </svg>
           </div>
           <span style={{fontWeight:800,fontSize:17,letterSpacing:2,color:'#0f172a'}}>オルク レンタル伝票管理</span>
         </div>
