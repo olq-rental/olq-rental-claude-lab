@@ -2605,7 +2605,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             } else if(row.type==='sub'){
               body += `<tr class="sub-row"><td style="padding-left:16px">└ No.${row.si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px">${row.si.note||""}</td></tr>`;
             } else if(row.type==='insurance'){
-              body += showDPrice?`<tr><td></td><td>補償料（機材合計の10%）</td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td></tr>`:`<tr><td colspan="4" style="text-align:right;padding:3px 6px">補償料（機材合計の10%）</td><td></td></tr>`;
+              body += showDPrice
+                ? `<tr><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td></tr>`
+                : `<tr><td>補償料（機材合計の10%）</td><td></td><td></td><td></td><td></td></tr>`;
             }
           });
           const pageLimit = isFirstPage ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST;
@@ -2678,7 +2680,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               const ln=row.ln; const si=row.si;
               body += `<tr class="sub-row"><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
             } else if(row.type==='insurance'){
-              body += `<tr><td colspan="5" style="text-align:right;padding:3px 6px">補償料（機材合計の10%）</td><td class="r">${fm(r.insuranceAmount)}</td><td></td></tr>`;
+              body += `<tr><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
             }
           });
           const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
