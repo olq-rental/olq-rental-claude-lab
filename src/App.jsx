@@ -3964,14 +3964,18 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10,minHeight:32}}>
               {(form.projects||[]).length===0
                 ?<span style={{fontSize:12,color:"#94a3b8"}}>案件名がありません</span>
-                :(form.projects||[]).map((p,i)=>(
-                  <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
-                    {p}
-                    <button onClick={()=>removeProj(i)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",color:"#3b82f6"}}>
-                      <Ico d={I.x} size={12}/>
-                    </button>
-                  </span>
-                ))
+                :(form.projects||[]).map((p,i)=>{
+                  const useCount=(records||[]).filter(r=>r.customerId===editId&&r.projectName===p).length;
+                  return(
+                    <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
+                      {p}
+                      {useCount>0
+                        ?<><button type="button" disabled style={{background:"none",border:"none",cursor:"not-allowed",padding:0,display:"flex",alignItems:"center",color:"#94a3b8",opacity:0.4}}><Ico d={I.x} size={12}/></button><span style={{color:"#dc2626",fontSize:10,marginLeft:2}}>{useCount}件使用中</span></>
+                        :<button type="button" onClick={e=>{e.stopPropagation();setConfirmModal({msg:`「${p}」を削除しますか？`,onOk:()=>removeProj(i)});}} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",color:"#3b82f6"}}><Ico d={I.x} size={12}/></button>
+                      }
+                    </span>
+                  );
+                })
               }
             </div>
             <div style={{display:"flex",gap:8}}>
