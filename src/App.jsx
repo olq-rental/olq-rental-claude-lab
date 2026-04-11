@@ -3610,7 +3610,6 @@ function CustomersTab({customers,products,records,onSave,onSaveRec,showToast,pre
   const [projInput,setProjInput]=useState("");
   const [confirmModal,setConfirmModal]=useState(null); // {msg, onOk}
   const [renameModal,setRenameModal]=useState(null); // {index, oldName, newName, useCount}
-  const renameInputRef=useRef(null);
   const ConfirmModalPortal = confirmModal ? createPortal(
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}
       onClick={()=>setConfirmModal(null)}>
@@ -3635,20 +3634,23 @@ function CustomersTab({customers,products,records,onSave,onSaveRec,showToast,pre
           </div>
         )}
         <input
-          ref={renameInputRef}
-          defaultValue={renameModal.oldName}
+          value={renameModal.newName}
+          onChange={e=>setRenameModal(m=>({...m,newName:e.target.value}))}
           style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}
+          onKeyDown={e=>{
+            if(e.key==="Enter"&&renameModal.newName.trim())e.target.closest("[data-rename-ok]")?.click();
+            if(e.key==="Escape")setRenameModal(null);
+          }}
         />
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
           <button type="button" onClick={()=>setRenameModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 18px",cursor:"pointer"}}>キャンセル</button>
-          <button type="button" onClick={()=>{
-            const trimmed=(renameInputRef.current?.value||"").trim();
+          <button type="button" data-rename-ok onClick={async()=>{
+            const {index,oldName,newName,useCount}=renameModal;
+            const trimmed=newName.trim();
             if(!trimmed)return;
-            const {index,oldName,useCount}=renameModal;
-            const updatedProjects=(form.projects||[]).map((p,j)=>j===index?trimmed:p);
-            setForm(f=>({...f,projects:updatedProjects}));
+            setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===index?trimmed:p)}));
             if(useCount>0&&onSaveRec){
-              onSaveRec(records.map(r=>r.customerId===editId&&r.projectName===oldName?{...r,projectName:trimmed}:r));
+              await onSaveRec(records.map(r=>r.customerId===editId&&r.projectName===oldName?{...r,projectName:trimmed}:r));
             }
             setRenameModal(null);
           }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 18px",cursor:"pointer",fontWeight:700}}>変更する</button>
