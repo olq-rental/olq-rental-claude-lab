@@ -2423,7 +2423,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       rLines.forEach((ln,li)=>{
         const lineAmt = ln.amount!==undefined ? ln.amount : Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1)));
         const equipName = ln.equipmentName||r.equipmentName||"";
-        const nameExtra = li===0?(r.projectDetail?`<span style="color:#555;font-size:10px">　[${r.projectDetail}]</span>`:""):"";
+        const isSplit = g.split !== false;
+        const projInfo = !isSplit && r.projectName
+          ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
+          : (r.projectDetail || "");
+        const nameExtra = li===0 && projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
         body += `<tr>
           ${li===0?`<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:top" rowspan="${lineCount}">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:top" rowspan="${lineCount}">${days}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:top" rowspan="${lineCount}">${orderer}</td>`:""}
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
