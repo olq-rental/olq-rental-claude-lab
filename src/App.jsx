@@ -847,6 +847,43 @@ export default function App() {
 
   const isAdmin = session?.user?.user_metadata?.role === 'admin';
 
+  // ---- 自動バックアップ（1日1回）----
+  useEffect(() => {
+    if (!session) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('olqLastBackup') === today) return;
+    (async () => {
+      try {
+        const [pRes, cRes, rRes, invRes, dnoRes, inoRes] = await Promise.all([
+          supabase.from('products').select('data'),
+          supabase.from('customers').select('data'),
+          supabase.from('cases').select('data'),
+          supabase.from('invoices').select('id,data'),
+          supabase.from('settings').select('value').eq('key','olqDNo7').maybeSingle(),
+          supabase.from('settings').select('value').eq('key','olqINo7').maybeSingle(),
+        ]);
+        const invMap = {};
+        (invRes.data||[]).forEach(row => { invMap[row.id] = row.data; });
+        const payload = {
+          backupDate: today,
+          olqP7: (pRes.data||[]).map(r=>r.data),
+          olqC7: (cRes.data||[]).map(r=>r.data),
+          olqR7: (rRes.data||[]).map(r=>r.data),
+          olqInv7: invMap,
+          olqDNo7: dnoRes.data?.value ?? "",
+          olqINo7: inoRes.data?.value ?? "",
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `olq-backup-${today}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        localStorage.setItem('olqLastBackup', today);
+      } catch(e) { console.warn('自動バックアップ失敗:', e); }
+    })();
+  }, [session]);
+
   // ---- App state ----
   const [products,  setProducts]  = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -1043,7 +1080,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.02</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.03</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -4600,8 +4637,8 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
         await supabase.from('settings').upsert({ key: 'olqINo7', value: String(ino) }, { onConflict: 'key' });
         addLog(`✅ 請求書連番: ${ino}`);
       }
-      addLog('🎉 移行完了！');
-      showToast('データ移行が完了しました');
+      addLog('🎉 復元完了！');
+      showToast('復元が完了しました');
     } catch(e) {
       addLog('❌ エラー: ' + e.message);
       showToast('移行に失敗しました: ' + e.message, false);
@@ -4612,16 +4649,19 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
   return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'40px 20px',fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif"}}>
       <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 16px rgba(0,0,0,0.07)',padding:32}}>
-        <h2 style={{margin:'0 0 6px',fontSize:18,fontWeight:800}}>📥 旧データ移行ツール</h2>
+        <h2 style={{margin:'0 0 6px',fontSize:18,fontWeight:800}}>📥 バックアップから復元</h2>
         <p style={{fontSize:12,color:'#64748b',margin:'0 0 20px'}}>
-          旧OLQのブラウザコンソールで以下を実行してJSONをコピーし、下に貼り付けてください。
+          バックアップファイル（olq-backup-YYYY-MM-DD.json）を選択するか、JSONを貼り付けてください。
         </p>
-        <pre style={{background:'#0f172a',color:'#86efac',borderRadius:8,padding:'12px 16px',fontSize:11,marginBottom:20,overflowX:'auto',lineHeight:1.6}}>
-{`const keys=['olqP7','olqC7','olqR7','olqInv7','olqDNo7','olqINo7']
-const d={}
-keys.forEach(k=>{try{d[k]=JSON.parse(localStorage.getItem(k))}catch{d[k]=localStorage.getItem(k)}})
-console.log(JSON.stringify(d))`}
-        </pre>
+        <div style={{marginBottom:14}}>
+          <input type="file" accept=".json" onChange={e=>{
+            const file=e.target.files[0];
+            if(!file)return;
+            const reader=new FileReader();
+            reader.onload=ev=>setJson(ev.target.result);
+            reader.readAsText(file);
+          }}/>
+        </div>
         <textarea
           value={json}
           onChange={e=>setJson(e.target.value)}
@@ -4631,7 +4671,7 @@ console.log(JSON.stringify(d))`}
         <div style={{display:'flex',gap:10,marginBottom:20}}>
           <button onClick={handleImport} disabled={loading||!json.trim()}
             style={{background:'#2563eb',color:'#fff',border:'none',borderRadius:8,padding:'10px 24px',fontSize:13,fontWeight:700,cursor:loading||!json.trim()?'not-allowed':'pointer',opacity:loading||!json.trim()?0.5:1}}>
-            {loading ? '移行中...' : '移行を実行'}
+            {loading ? '復元中...' : '復元を実行'}
           </button>
           <button onClick={onDone}
             style={{background:'none',border:'1.5px solid #e2e8f0',borderRadius:8,padding:'10px 20px',fontSize:13,color:'#64748b',cursor:'pointer'}}>
