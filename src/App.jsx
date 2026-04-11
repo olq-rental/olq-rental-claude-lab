@@ -2326,7 +2326,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
-.sign-label{font-weight:bold;font-size:11px;margin-bottom:4px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:3px 7px}
+.sign-label{font-weight:bold;font-size:9px;margin-bottom:2px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:3px 7px}
 .empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}`;
 
   let body = "";
@@ -2615,8 +2615,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
               ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
               <div style="display:flex;gap:14px;margin-top:12px">
-                <div class="sign-box"><div class="sign-label">納品確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span style="font-size:9px;color:#555;white-space:nowrap">担当</span><div style="border-bottom:1px solid #999;flex:1;min-height:16px"></div></div></div>
-                <div class="sign-box"><div class="sign-label">返却確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span style="font-size:9px;color:#555;white-space:nowrap">担当</span><div style="border-bottom:1px solid #999;flex:1;min-height:16px"></div></div></div>
+                <div class="sign-box"><div class="sign-label">納品確認</div><div class="sign-date">Date　　／</div><div style="min-height:18px;border-bottom:1px solid #ccc;margin-bottom:3px"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:#555;white-space:nowrap">担当</span><div style="border-bottom:1px solid #999;flex:1;min-height:12px"></div></div></div>
+                <div class="sign-box"><div class="sign-label">返却確認</div><div class="sign-date">Date　　／</div><div style="min-height:18px;border-bottom:1px solid #ccc;margin-bottom:3px"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:#555;white-space:nowrap">担当</span><div style="border-bottom:1px solid #999;flex:1;min-height:12px"></div></div></div>
               </div>
             </div>${olqBlock}</div>`;
           } else {
