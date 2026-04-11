@@ -3608,6 +3608,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
   const [custQ,setCustQ]=useState("");
   const [sortKey,setSortKey]=useState("name"); // "name" | "sales"
   const [projInput,setProjInput]=useState("");
+  const [confirmModal,setConfirmModal]=useState(null); // {msg, onOk}
   const xlsxInputRef=useRef(null);
   const importFromXlsx=async(file)=>{
     try{
@@ -3802,12 +3803,18 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
                 <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10,minHeight:32}}>
                   {(form.projects||[]).length===0
                     ?<span style={{fontSize:12,color:"#94a3b8"}}>案件名がありません</span>
-                    :(form.projects||[]).map((p,i)=>(
-                      <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
-                        {p}
-                        <button onClick={()=>removeProj(i)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",color:"#3b82f6"}}><Ico d={I.x} size={12}/></button>
-                      </span>
-                    ))
+                    :(form.projects||[]).map((p,i)=>{
+                      const useCount=(records||[]).filter(r=>r.customerId===editId&&r.projectName===p).length;
+                      return(
+                        <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
+                          {p}
+                          {useCount>0
+                            ?<><button type="button" disabled style={{background:"none",border:"none",cursor:"not-allowed",padding:0,display:"flex",alignItems:"center",color:"#94a3b8",opacity:0.4}}><Ico d={I.x} size={12}/></button><span style={{color:"#dc2626",fontSize:10,marginLeft:2}}>{useCount}件使用中</span></>
+                            :<button type="button" onClick={e=>{e.stopPropagation();setConfirmModal({msg:`「${p}」を削除しますか？`,onOk:()=>removeProj(i)});}} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",color:"#3b82f6"}}><Ico d={I.x} size={12}/></button>
+                          }
+                        </span>
+                      );
+                    })
                   }
                 </div>
                 <div style={{display:"flex",gap:8}}>
@@ -4095,6 +4102,19 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
 
         })()}
       </div>
+      {/* 案件名削除確認モーダル */}
+      {confirmModal&&(
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
+          onClick={()=>setConfirmModal(null)}>
+          <div style={{background:"#fff",borderRadius:12,padding:28,width:320,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:20,color:"#1e293b"}}>{confirmModal.msg}</div>
+            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+              <button type="button" onClick={()=>setConfirmModal(null)} style={{...S.ib("#64748b"),padding:"6px 20px"}}>キャンセル</button>
+              <button type="button" onClick={()=>{confirmModal.onOk();setConfirmModal(null);}} style={{...S.ib("#dc2626"),padding:"6px 20px"}}>削除</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
