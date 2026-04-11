@@ -850,6 +850,7 @@ export default function App() {
   // ---- 自動バックアップ（1日1回）----
   useEffect(() => {
     if (!session) return;
+    if (session.user.email !== 'y_inoue@olq.co.jp') return;
     const today = new Date().toISOString().slice(0, 10);
     if (localStorage.getItem('olqLastBackup') === today) return;
     (async () => {
