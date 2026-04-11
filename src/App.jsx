@@ -1043,7 +1043,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.0</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.01</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -2615,8 +2615,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
               ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
               <div style="display:flex;gap:14px;margin-top:12px">
-                <div class="sign-box"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span class="sign-label">納品確認</span><span class="sign-date">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
-                <div class="sign-box"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span class="sign-label">返却確認</span><span class="sign-date">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
+                <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">納品確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
+                <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">返却確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
               </div>
             </div>${olqBlock}</div>`;
           } else {
