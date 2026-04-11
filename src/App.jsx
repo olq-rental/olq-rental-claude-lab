@@ -1089,7 +1089,7 @@ export default function App() {
         {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
-        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
+        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onSaveRec={saveRec} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
       </div>
@@ -3595,7 +3595,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   );
 }
 
-function CustomersTab({customers,products,records,onSave,showToast,presetCustomers,openCustomerId,onOpenHandled}){
+function CustomersTab({customers,products,records,onSave,onSaveRec,showToast,presetCustomers,openCustomerId,onOpenHandled}){
   const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
@@ -3609,6 +3609,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
   const [sortKey,setSortKey]=useState("name"); // "name" | "sales"
   const [projInput,setProjInput]=useState("");
   const [confirmModal,setConfirmModal]=useState(null); // {msg, onOk}
+  const [renameModal,setRenameModal]=useState(null); // {index, oldName, newName, useCount}
   const ConfirmModalPortal = confirmModal ? createPortal(
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}
       onClick={()=>setConfirmModal(null)}>
@@ -3617,6 +3618,43 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
         <div style={{display:"flex",gap:10,justifyContent:"center"}}>
           <button type="button" onClick={()=>setConfirmModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 20px",cursor:"pointer"}}>キャンセル</button>
           <button type="button" onClick={()=>{confirmModal.onOk();setConfirmModal(null);}} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 20px",cursor:"pointer",fontWeight:700}}>削除</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
+  const RenameModalPortal = renameModal ? createPortal(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}
+      onClick={()=>setRenameModal(null)}>
+      <div style={{background:"#fff",borderRadius:12,padding:28,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>案件名を変更</div>
+        {renameModal.useCount>0&&(
+          <div style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#713f12"}}>
+            ⚠️ この案件名は既に{renameModal.useCount}件の案件で使用されています。変更してよろしいですか？
+          </div>
+        )}
+        <input
+          value={renameModal.newName}
+          onChange={e=>setRenameModal(m=>({...m,newName:e.target.value}))}
+          style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}
+          autoFocus
+          onKeyDown={e=>{
+            if(e.key==="Enter"&&renameModal.newName.trim())e.target.closest("[data-rename-ok]")?.click();
+            if(e.key==="Escape")setRenameModal(null);
+          }}
+        />
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button type="button" onClick={()=>setRenameModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 18px",cursor:"pointer"}}>キャンセル</button>
+          <button type="button" data-rename-ok onClick={async()=>{
+            const {index,oldName,newName,useCount}=renameModal;
+            const trimmed=newName.trim();
+            if(!trimmed)return;
+            setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===index?trimmed:p)}));
+            if(useCount>0&&onSaveRec){
+              await onSaveRec(records.map(r=>r.customerId===editId&&r.projectName===oldName?{...r,projectName:trimmed}:r));
+            }
+            setRenameModal(null);
+          }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 18px",cursor:"pointer",fontWeight:700}}>変更する</button>
         </div>
       </div>
     </div>,
@@ -3822,6 +3860,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
                       return(
                         <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
                           {p}
+                          <button type="button" onClick={e=>{e.stopPropagation();setRenameModal({index:i,oldName:p,newName:p,useCount});}} style={{background:"none",border:"none",cursor:"pointer",padding:"0 2px",display:"flex",alignItems:"center",color:"#64748b"}}><Ico d={I.edit} size={11}/></button>
                           {useCount>0
                             ?<span style={{fontSize:10,color:"#dc2626",fontWeight:700,marginLeft:4}}>🔒{useCount}件使用中</span>
                             :<button type="button" onClick={e=>{e.stopPropagation();setConfirmModal({msg:`「${p}」を削除しますか？`,onOk:()=>removeProj(i)});}} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",color:"#3b82f6"}}><Ico d={I.x} size={12}/></button>
@@ -3909,6 +3948,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
           <CustomerAnalysis c={c} custRecords={custRecords} products={products} allRecords={records}/>
         </div>
         {ConfirmModalPortal}
+        {RenameModalPortal}
       </>
       );
     }
@@ -3986,6 +4026,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
                   return(
                     <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
                       {p}
+                      <button type="button" onClick={e=>{e.stopPropagation();setRenameModal({index:i,oldName:p,newName:p,useCount});}} style={{background:"none",border:"none",cursor:"pointer",padding:"0 2px",display:"flex",alignItems:"center",color:"#64748b"}}><Ico d={I.edit} size={11}/></button>
                       {useCount>0
                         ?<span style={{fontSize:10,color:"#dc2626",fontWeight:700,marginLeft:4}}>🔒{useCount}件使用中</span>
                         :<button type="button" onClick={e=>{e.stopPropagation();setConfirmModal({msg:`「${p}」を削除しますか？`,onOk:()=>removeProj(i)});}} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",color:"#3b82f6"}}><Ico d={I.x} size={12}/></button>
@@ -4125,6 +4166,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
       </div>
     </div>
     {ConfirmModalPortal}
+    {RenameModalPortal}
     </>
   );
 }
