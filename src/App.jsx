@@ -2615,8 +2615,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
               ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
               <div style="display:flex;gap:14px;margin-top:12px">
-                <div class="sign-box"><div class="sign-label">納品確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:32px"></div></div>
-                <div class="sign-box"><div class="sign-label">返却確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:32px"></div></div>
+                <div class="sign-box"><div class="sign-label">納品確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span style="font-size:9px;color:#555;white-space:nowrap">担当</span><div style="border-bottom:1px solid #999;flex:1;min-height:16px"></div></div></div>
+                <div class="sign-box"><div class="sign-label">返却確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span style="font-size:9px;color:#555;white-space:nowrap">担当</span><div style="border-bottom:1px solid #999;flex:1;min-height:16px"></div></div></div>
               </div>
             </div>${olqBlock}</div>`;
           } else {
