@@ -2497,6 +2497,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const no = genDeliveryNo(r, idx);
       const lines = (r.lines && r.lines.length) ? r.lines.map(ln=>({...ln,unitPrice:Number(ln.unitPrice)||0,quantity:Number(ln.quantity)||1})) : [{equipmentName:r.equipmentName,equipNo:r.equipNo,unitPrice:Number(r.unitPrice)||0,quantity:Number(r.quantity)||1,lineNote:r.lineNote||"",subItems:r.subItems||[]}];
       const projText = r.projectName || g.projectName || "";
+      const projDisplay = projText ? `${projText}${r.projectDetail ? `　${r.projectDetail}` : ""}` : "";
       const orderer = r.ordererName || g.customer?.contact || "";
       const honorific = orderer ? "　様" : "";
       const staff = r.ourStaff || "―";
@@ -2537,7 +2538,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             </div>
             <div class="hdr"><div>
               <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
-              ${projText?`<div style="margin-top:4px"><strong>『${projText}』</strong></div>`:""}
+              ${projDisplay?`<div style="margin-top:4px"><strong>『${projDisplay}』</strong></div>`:""}
               ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
               ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
             </div>${olqBlock}</div>
@@ -2606,7 +2607,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             </div>
             <div class="hdr"><div>
               <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
-              ${projText?`<div style="margin-top:4px"><strong>『${projText}』</strong></div>`:""}
+              ${projDisplay?`<div style="margin-top:4px"><strong>『${projDisplay}』</strong></div>`:""}
               ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
               ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
               <div style="display:flex;gap:14px;margin-top:12px">
