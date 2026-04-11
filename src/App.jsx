@@ -2162,7 +2162,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
           })}
           {insurAmt>0&&(
             <tr style={{background:"#fff7ed"}}>
-              <td colSpan={4} style={{border:bdr,padding:`${3*fs}px ${4*fs}px`,color:"#92400e"}}>補償料（機材合計の10%）</td>
+              <td colSpan={4} style={{border:bdr,padding:`${3*fs}px ${4*fs}px`,color:"#92400e"}}>補償料</td>
               <td style={{border:bdr}}></td>
               <td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(insurAmt)}</td>
             </tr>
@@ -2273,7 +2273,7 @@ function InvoicePreview({type,g,forPrint}){
             })}
             {insurTot>0&&(
               <tr style={{background:"#fff7ed"}}>
-                <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#92400e"}}>補償料（機材合計の10%）</td>
+                <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#92400e"}}>補償料</td>
                 <td style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(insurTot)}</td>
               </tr>
             )}
@@ -2482,7 +2482,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     // 補償料行
     if(totIns>0){
       body += `<tr style="background:#fff7ed">
-        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e">補償料（機材合計の10%）</td>
+        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e">補償料</td>
         <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e;font-weight:bold">${fn(totIns)}</td>
       </tr>`;
     }
@@ -2606,8 +2606,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               body += `<tr class="sub-row"><td style="padding-left:16px">└ No.${row.si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px">${row.si.note||""}</td></tr>`;
             } else if(row.type==='insurance'){
               body += showDPrice
-                ? `<tr><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td></tr>`
-                : `<tr><td>補償料（機材合計の10%）</td><td></td><td></td><td></td><td></td></tr>`;
+                ? `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td></tr>`
+                : `<tr><td>補償料</td><td></td><td></td><td></td><td></td></tr>`;
             }
           });
           const pageLimit = isFirstPage ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST;
@@ -2680,7 +2680,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               const ln=row.ln; const si=row.si;
               body += `<tr class="sub-row"><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
             } else if(row.type==='insurance'){
-              body += `<tr><td>補償料（機材合計の10%）</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
+              body += `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
             }
           });
           const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
@@ -2755,7 +2755,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
                 </tr>`;
               }).join("")}
               ${(r.insuranceAmount||0)>0?`<tr>
-                <td colspan="5" style="border:1px solid #aaa;padding:4px 8px;text-align:right">補償料（機材合計の10%）</td>
+                <td colspan="5" style="border:1px solid #aaa;padding:4px 8px;text-align:right">補償料</td>
                 <td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fm(r.insuranceAmount)}</td>
               </tr>`:""}
             </tbody>
