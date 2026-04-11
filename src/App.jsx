@@ -3637,6 +3637,7 @@ function CustomersTab({customers,products,records,onSave,onSaveRec,showToast,pre
           value={renameModal.newName}
           onChange={e=>setRenameModal(m=>({...m,newName:e.target.value}))}
           style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}
+          autoFocus
           onKeyDown={e=>{
             if(e.key==="Enter"&&renameModal.newName.trim())e.target.closest("[data-rename-ok]")?.click();
             if(e.key==="Escape")setRenameModal(null);
@@ -3648,16 +3649,9 @@ function CustomersTab({customers,products,records,onSave,onSaveRec,showToast,pre
             const {index,oldName,newName,useCount}=renameModal;
             const trimmed=newName.trim();
             if(!trimmed)return;
-            // 1. formのprojectsを更新
-            const updatedProjects=(form.projects||[]).map((p,j)=>j===index?trimmed:p);
-            const updatedForm={...form,projects:updatedProjects};
-            setForm(updatedForm);
-            // 2. customerのprojectsをDBに保存
-            await saveCustomer(updatedForm);
-            // 3. 使用中案件のprojectNameも一括更新
+            setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===index?trimmed:p)}));
             if(useCount>0&&onSaveRec){
-              const updatedRecords=records.map(r=>r.customerId===editId&&r.projectName===oldName?{...r,projectName:trimmed}:r);
-              await onSaveRec(updatedRecords);
+              await onSaveRec(records.map(r=>r.customerId===editId&&r.projectName===oldName?{...r,projectName:trimmed}:r));
             }
             setRenameModal(null);
           }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 18px",cursor:"pointer",fontWeight:700}}>変更する</button>
