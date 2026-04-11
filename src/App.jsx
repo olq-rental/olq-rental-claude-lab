@@ -3930,9 +3930,14 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                     )}
                     <input value={editProjName} onChange={e=>setEditProjName(e.target.value)} style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}/>
                     <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
-                      <button type="button" onClick={()=>{
+                      <button type="button" onClick={async()=>{
                         if(editProjModal.useCount>0){showToast("使用中の案件名は削除できません",false);return;}
-                        setForm(f=>({...f,projects:(f.projects||[]).filter((_,j)=>j!==editProjModal.index)}));
+                        const deletedName=editProjModal.name;
+                        const updatedProjects=(form.projects||[]).filter((_,j)=>j!==editProjModal.index);
+                        const updatedForm={...form,projects:updatedProjects};
+                        setForm(updatedForm);
+                        await saveCustomer(updatedForm);
+                        await onLogActivity("案件名削除","customer",form.name,`「${deletedName}」を削除`);
                         setEditProjModal(null);
                       }} style={{background:"none",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12}}>削除</button>
                       <div style={{display:"flex",gap:8}}>
@@ -3942,7 +3947,10 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                           if(!trimmed)return;
                           const oldName=editProjModal.name;
                           const useCount=editProjModal.useCount;
-                          setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p)}));
+                          const updatedProjects=(form.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p);
+                          const updatedForm={...form,projects:updatedProjects};
+                          setForm(updatedForm);
+                          await saveCustomer(updatedForm);
                           await onLogActivity("案件名変更","customer",form.name,`「${oldName}」→「${trimmed}」${useCount>0?`（${useCount}件の案件を更新）`:""}`);
                           setEditProjModal(null);
                         }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>変更する</button>
@@ -4192,9 +4200,14 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                 )}
                 <input value={editProjName} onChange={e=>setEditProjName(e.target.value)} style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}/>
                 <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
-                  <button type="button" onClick={()=>{
+                  <button type="button" onClick={async()=>{
                     if(editProjModal.useCount>0){showToast("使用中の案件名は削除できません",false);return;}
-                    setForm(f=>({...f,projects:(f.projects||[]).filter((_,j)=>j!==editProjModal.index)}));
+                    const deletedName=editProjModal.name;
+                    const updatedProjects=(form.projects||[]).filter((_,j)=>j!==editProjModal.index);
+                    const updatedForm={...form,projects:updatedProjects};
+                    setForm(updatedForm);
+                    await saveCustomer(updatedForm);
+                    await onLogActivity("案件名削除","customer",form.name,`「${deletedName}」を削除`);
                     setEditProjModal(null);
                   }} style={{background:"none",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12}}>削除</button>
                   <div style={{display:"flex",gap:8}}>
@@ -4204,7 +4217,10 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                       if(!trimmed)return;
                       const oldName=editProjModal.name;
                       const useCount=editProjModal.useCount;
-                      setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p)}));
+                      const updatedProjects=(form.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p);
+                      const updatedForm={...form,projects:updatedProjects};
+                      setForm(updatedForm);
+                      await saveCustomer(updatedForm);
                       await onLogActivity("案件名変更","customer",form.name,`「${oldName}」→「${trimmed}」${useCount>0?`（${useCount}件の案件を更新）`:""}`);
                       setEditProjModal(null);
                     }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>変更する</button>
