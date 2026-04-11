@@ -938,6 +938,12 @@ export default function App() {
     await sSet(K.r, n);
     if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||"");
   };
+  const deleteCust = async (custId, custName) => {
+    const filtered = customers.filter(x => x.id !== custId);
+    setCustomers(filtered);
+    await supabase.from('customers').delete().eq('id', String(custId));
+    await logActivity("削除", "customer", custName, "顧客を削除しました");
+  };
   const saveInv  = async n => { setInvoiceData(n); await sSet(K.inv, n); };
 
   const invoiceGroups = {};
@@ -1089,7 +1095,7 @@ export default function App() {
         {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
-        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
+        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
       </div>
@@ -3595,7 +3601,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   );
 }
 
-function CustomersTab({customers,products,records,onSave,onLogActivity,showToast,presetCustomers,openCustomerId,onOpenHandled}){
+function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActivity,showToast,presetCustomers,openCustomerId,onOpenHandled}){
   const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
@@ -3908,9 +3914,8 @@ function CustomersTab({customers,products,records,onSave,onLogActivity,showToast
                     <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                       <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
                       <button type="button" onClick={async()=>{
-                        await onSave(customers.filter(x=>x.id!==editProjModal.id));
+                        await onDeleteCust(editProjModal.id,editProjModal.name);
                         if(detailId===editProjModal.id)setDetailId(null);
-                        await onLogActivity("削除","customer",editProjModal.name,"顧客を削除しました");
                         setEditProjModal(null);
                         showToast("削除しました");
                       }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
