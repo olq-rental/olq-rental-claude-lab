@@ -3700,10 +3700,14 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     const v=projInput.trim();
     if(!v)return;
     if((form.projects||[]).includes(v)){setProjInput("");return;}
-    const updated={...form,projects:[...(form.projects||[]),v]};
-    setForm(updated);
+    const updatedProjects=[...(form.projects||[]),v];
+    const updatedForm={...form,projects:updatedProjects};
+    setForm(updatedForm);
     setProjInput("");
-    await saveCustomer(updated);
+    const synced=syncSPs(updatedForm.specialPrices,products);
+    const c={...updatedForm,specialPrices:synced,id:editId||uid(),discountRate:Number(updatedForm.discountRate)||0,staff:updatedForm.staff||"",updatedAt:Date.now(),createdAt:editId?customers.find(x=>x.id===editId)?.createdAt:Date.now()};
+    await onSave(editId?customers.map(x=>x.id===editId?c:x):[...customers,c]);
+    await onLogActivity("案件名追加","customer",form.name,`「${v}」を追加`);
   };
   const removeProj=(i)=>setForm(f=>({...f,projects:(f.projects||[]).filter((_,j)=>j!==i)}));
 
