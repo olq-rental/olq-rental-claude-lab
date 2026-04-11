@@ -3637,7 +3637,6 @@ function CustomersTab({customers,products,records,onSave,onSaveRec,showToast,pre
           value={renameModal.newName}
           onChange={e=>setRenameModal(m=>({...m,newName:e.target.value}))}
           style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}
-          autoFocus
           onKeyDown={e=>{
             if(e.key==="Enter"&&renameModal.newName.trim())e.target.closest("[data-rename-ok]")?.click();
             if(e.key==="Escape")setRenameModal(null);
