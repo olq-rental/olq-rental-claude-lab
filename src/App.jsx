@@ -1089,7 +1089,7 @@ export default function App() {
         {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
-        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
+        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
       </div>
@@ -3595,7 +3595,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   );
 }
 
-function CustomersTab({customers,products,records,onSave,showToast,presetCustomers,openCustomerId,onOpenHandled}){
+function CustomersTab({customers,products,records,onSave,onLogActivity,showToast,presetCustomers,openCustomerId,onOpenHandled}){
   const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
@@ -3708,6 +3708,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
     setForm(updated);
     setSpProd("");setSpPrice("");setSpQ("");
     await saveCustomer(updated);
+    await onLogActivity("特別価格追加","customer",form.name,`${p?.fullName||""}：¥${spPrice}/日`);
   };
 
   const submit=async()=>{
@@ -3733,7 +3734,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
             <button onClick={()=>{setDetailId(null);setOpen(false);setEditId(null);setForm(E);}} style={{...S.ib("#64748b"),fontSize:12}}>← 一覧に戻る</button>
             <div style={{flex:1,fontSize:16,fontWeight:800}}>{c.name}</div>
             <button onClick={openEdit} style={{...S.btn("#92400e",true),fontSize:12}}><Ico d={I.edit} size={13}/>内容を編集</button>
-            <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(customers.filter(x=>x.id!==c.id));setDetailId(null);showToast("削除しました");}} style={{...S.ib("#991b1b"),fontSize:12}}><Ico d={I.trash} size={13}/>削除</button>
+            <button onClick={()=>setEditProjModal({type:"deleteCust",id:c.id,name:c.name})} style={{...S.ib("#991b1b"),fontSize:12}}><Ico d={I.trash} size={13}/>削除</button>
           </div>
           {open&&editId===c.id&&(
             <div style={{...S.card,padding:24,marginBottom:16}}>
@@ -3833,7 +3834,11 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
                       <span style={{flex:1,fontWeight:600}}>{spName(sp,products)}</span>
                       <span style={{color:"#16a34a",fontWeight:700}}>{fmt(sp.price)}/日（税抜）</span>
                       {!exists&&<span style={{fontSize:9,color:"#ef4444",fontWeight:700}}>製品削除済</span>}
-                      <button onClick={()=>setForm(f=>({...f,specialPrices:f.specialPrices.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
+                      <button onClick={()=>{
+                        const spn=spName(sp,products);
+                        onLogActivity("特別価格削除","customer",form.name,`${spn}を削除`);
+                        setForm(f=>({...f,specialPrices:f.specialPrices.filter((_,j)=>j!==i)}));
+                      }} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
                     </div>
                   );
                 })}
@@ -3896,29 +3901,50 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
             <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
               onClick={()=>setEditProjModal(null)}>
               <div style={{background:"#fff",borderRadius:12,padding:28,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-                <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>案件名を編集</div>
-                {editProjModal.useCount>0&&(
-                  <div style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#713f12"}}>
-                    ⚠️ {editProjModal.useCount}件の案件で使用中です
-                  </div>
-                )}
-                <input value={editProjName} onChange={e=>setEditProjName(e.target.value)} style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}/>
-                <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
-                  <button type="button" onClick={()=>{
-                    if(editProjModal.useCount>0){showToast("使用中の案件名は削除できません",false);return;}
-                    setForm(f=>({...f,projects:(f.projects||[]).filter((_,j)=>j!==editProjModal.index)}));
-                    setEditProjModal(null);
-                  }} style={{background:"none",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12}}>削除</button>
-                  <div style={{display:"flex",gap:8}}>
-                    <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
-                    <button type="button" onClick={()=>{
-                      const trimmed=editProjName.trim();
-                      if(!trimmed)return;
-                      setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p)}));
-                      setEditProjModal(null);
-                    }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>変更する</button>
-                  </div>
-                </div>
+                {editProjModal.type==="deleteCust"
+                  ?<>
+                    <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>顧客を削除</div>
+                    <div style={{marginBottom:20,fontSize:13,color:"#374151"}}>「{editProjModal.name}」を削除しますか？この操作は取り消せません。</div>
+                    <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                      <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
+                      <button type="button" onClick={async()=>{
+                        await onSave(customers.filter(x=>x.id!==editProjModal.id));
+                        if(detailId===editProjModal.id)setDetailId(null);
+                        await onLogActivity("削除","customer",editProjModal.name,"顧客を削除しました");
+                        setEditProjModal(null);
+                        showToast("削除しました");
+                      }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
+                    </div>
+                  </>
+                  :<>
+                    <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>案件名を編集</div>
+                    {editProjModal.useCount>0&&(
+                      <div style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#713f12"}}>
+                        ⚠️ {editProjModal.useCount}件の案件で使用中です
+                      </div>
+                    )}
+                    <input value={editProjName} onChange={e=>setEditProjName(e.target.value)} style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}/>
+                    <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
+                      <button type="button" onClick={()=>{
+                        if(editProjModal.useCount>0){showToast("使用中の案件名は削除できません",false);return;}
+                        setForm(f=>({...f,projects:(f.projects||[]).filter((_,j)=>j!==editProjModal.index)}));
+                        setEditProjModal(null);
+                      }} style={{background:"none",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12}}>削除</button>
+                      <div style={{display:"flex",gap:8}}>
+                        <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
+                        <button type="button" onClick={async()=>{
+                          const trimmed=editProjName.trim();
+                          if(!trimmed)return;
+                          const oldName=editProjModal.name;
+                          const useCount=editProjModal.useCount;
+                          setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p)}));
+                          await onLogActivity("案件名変更","customer",form.name,`「${oldName}」→「${trimmed}」${useCount>0?`（${useCount}件の案件を更新）`:""}`);
+                          setEditProjModal(null);
+                        }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>変更する</button>
+                      </div>
+                    </div>
+                  </>
+                }
               </div>
             </div>
           )}
@@ -4111,7 +4137,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
                 <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
                   {syncSPs(c.specialPrices,products).length>0&&<button onClick={()=>setExp(isSpOpen?null:c.id)} style={S.ib("#64748b")}><Ico d={I.star} size={12}/></button>}
                   <button onClick={()=>{setDetailId(c.id);setTimeout(()=>{setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});setEditId(c.id);setOpen(true);},0);}} style={S.ib("#92400e")}><Ico d={I.edit} size={12}/>編集</button>
-                  <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(customers.filter(x=>x.id!==c.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
+                  <button onClick={()=>setEditProjModal({type:"deleteCust",id:c.id,name:c.name})} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                 </div>
               </div>
 
@@ -4137,29 +4163,50 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
           onClick={()=>setEditProjModal(null)}>
           <div style={{background:"#fff",borderRadius:12,padding:28,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>案件名を編集</div>
-            {editProjModal.useCount>0&&(
-              <div style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#713f12"}}>
-                ⚠️ {editProjModal.useCount}件の案件で使用中です
-              </div>
-            )}
-            <input value={editProjName} onChange={e=>setEditProjName(e.target.value)} style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}/>
-            <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
-              <button type="button" onClick={()=>{
-                if(editProjModal.useCount>0){showToast("使用中の案件名は削除できません",false);return;}
-                setForm(f=>({...f,projects:(f.projects||[]).filter((_,j)=>j!==editProjModal.index)}));
-                setEditProjModal(null);
-              }} style={{background:"none",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12}}>削除</button>
-              <div style={{display:"flex",gap:8}}>
-                <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
-                <button type="button" onClick={()=>{
-                  const trimmed=editProjName.trim();
-                  if(!trimmed)return;
-                  setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p)}));
-                  setEditProjModal(null);
-                }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>変更する</button>
-              </div>
-            </div>
+            {editProjModal.type==="deleteCust"
+              ?<>
+                <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>顧客を削除</div>
+                <div style={{marginBottom:20,fontSize:13,color:"#374151"}}>「{editProjModal.name}」を削除しますか？この操作は取り消せません。</div>
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
+                  <button type="button" onClick={async()=>{
+                    await onSave(customers.filter(x=>x.id!==editProjModal.id));
+                    if(detailId===editProjModal.id)setDetailId(null);
+                    await onLogActivity("削除","customer",editProjModal.name,"顧客を削除しました");
+                    setEditProjModal(null);
+                    showToast("削除しました");
+                  }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
+                </div>
+              </>
+              :<>
+                <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>案件名を編集</div>
+                {editProjModal.useCount>0&&(
+                  <div style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#713f12"}}>
+                    ⚠️ {editProjModal.useCount}件の案件で使用中です
+                  </div>
+                )}
+                <input value={editProjName} onChange={e=>setEditProjName(e.target.value)} style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}/>
+                <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
+                  <button type="button" onClick={()=>{
+                    if(editProjModal.useCount>0){showToast("使用中の案件名は削除できません",false);return;}
+                    setForm(f=>({...f,projects:(f.projects||[]).filter((_,j)=>j!==editProjModal.index)}));
+                    setEditProjModal(null);
+                  }} style={{background:"none",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12}}>削除</button>
+                  <div style={{display:"flex",gap:8}}>
+                    <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
+                    <button type="button" onClick={async()=>{
+                      const trimmed=editProjName.trim();
+                      if(!trimmed)return;
+                      const oldName=editProjModal.name;
+                      const useCount=editProjModal.useCount;
+                      setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p)}));
+                      await onLogActivity("案件名変更","customer",form.name,`「${oldName}」→「${trimmed}」${useCount>0?`（${useCount}件の案件を更新）`:""}`);
+                      setEditProjModal(null);
+                    }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>変更する</button>
+                  </div>
+                </div>
+              </>
+            }
           </div>
         </div>
       )}
