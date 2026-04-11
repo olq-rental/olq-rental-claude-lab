@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, createPortal } from "react";
 import { supabase } from './supabaseClient';
 
 const ALL_PRODUCTS = [
@@ -3609,6 +3609,19 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
   const [sortKey,setSortKey]=useState("name"); // "name" | "sales"
   const [projInput,setProjInput]=useState("");
   const [confirmModal,setConfirmModal]=useState(null); // {msg, onOk}
+  const ConfirmModalPortal = confirmModal ? createPortal(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}
+      onClick={()=>setConfirmModal(null)}>
+      <div style={{background:"#fff",borderRadius:12,padding:28,width:320,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:20,color:"#1e293b"}}>{confirmModal.msg}</div>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <button type="button" onClick={()=>setConfirmModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 20px",cursor:"pointer"}}>キャンセル</button>
+          <button type="button" onClick={()=>{confirmModal.onOk();setConfirmModal(null);}} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 20px",cursor:"pointer",fontWeight:700}}>削除</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
   const xlsxInputRef=useRef(null);
   const importFromXlsx=async(file)=>{
     try{
@@ -3727,6 +3740,7 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
         setEditId(c.id); setOpen(true);
       };
       return(
+        <>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
             <button onClick={()=>{setDetailId(null);setOpen(false);setEditId(null);setForm(E);}} style={{...S.ib("#64748b"),fontSize:12}}>← 一覧に戻る</button>
@@ -3893,24 +3907,15 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
             </div>
           )}
           <CustomerAnalysis c={c} custRecords={custRecords} products={products} allRecords={records}/>
-          {confirmModal&&(
-            <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
-              onClick={()=>setConfirmModal(null)}>
-              <div style={{background:"#fff",borderRadius:12,padding:28,width:320,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
-                <div style={{fontSize:14,fontWeight:700,marginBottom:20,color:"#1e293b"}}>{confirmModal.msg}</div>
-                <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-                  <button type="button" onClick={()=>setConfirmModal(null)} style={{...S.ib("#64748b"),padding:"6px 20px"}}>キャンセル</button>
-                  <button type="button" onClick={()=>{confirmModal.onOk();setConfirmModal(null);}} style={{...S.ib("#dc2626"),padding:"6px 20px"}}>削除</button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
+        {ConfirmModalPortal}
+      </>
       );
     }
   }
 
   return(
+    <>
     <div>
 
       {open&&(
@@ -4118,20 +4123,9 @@ function CustomersTab({customers,products,records,onSave,showToast,presetCustome
 
         })()}
       </div>
-      {/* 案件名削除確認モーダル */}
-      {confirmModal&&(
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
-          onClick={()=>setConfirmModal(null)}>
-          <div style={{background:"#fff",borderRadius:12,padding:28,width:320,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:20,color:"#1e293b"}}>{confirmModal.msg}</div>
-            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-              <button type="button" onClick={()=>setConfirmModal(null)} style={{...S.ib("#64748b"),padding:"6px 20px"}}>キャンセル</button>
-              <button type="button" onClick={()=>{confirmModal.onOk();setConfirmModal(null);}} style={{...S.ib("#dc2626"),padding:"6px 20px"}}>削除</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
+    {ConfirmModalPortal}
+    </>
   );
 }
 
