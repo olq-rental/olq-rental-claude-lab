@@ -1043,7 +1043,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.01</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.02</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -2808,7 +2808,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
           <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
             <div style={{flex:1,minWidth:180,position:"relative"}}>
               <div style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",opacity:.4}}><Ico d={I.search} size={13}/></div>
-              <input value={fil.q} onChange={e=>setFil(f=>({...f,q:e.target.value}))} placeholder="会社・製品・案件名で検索..." style={{...S.inp,paddingLeft:28}}/>
+              <input value={fil.q} onChange={e=>setFil(f=>({...f,q:e.target.value}))} placeholder="会社・製品・案件名・納品書No.で検索..." style={{...S.inp,paddingLeft:28}}/>
             </div>
             <select value={fil.cid} onChange={e=>setFil(f=>({...f,cid:e.target.value}))} style={{...S.inp,width:170}}>
               <option value="">全顧客</option>
@@ -2822,13 +2822,13 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
               <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
-                {["顧客","案件名","機材","利用期間","金額(税抜)",""].map(h=>(
+                {["No.","顧客","案件名","機材","利用期間","金額(税抜)",""].map(h=>(
                   <th key={h} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#475569",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {filtered.length===0
-                  ?<tr><td colSpan={6} style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません</td></tr>
+                  ?<tr><td colSpan={7} style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません</td></tr>
                   :filtered.map((r,i)=>{
                     const c=customers.find(x=>x.id===r.customerId);
                     const isActive=preview?.r?.id===r.id;
@@ -2836,6 +2836,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                     return(
                       <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:isActive?"#f0fdf4":i%2?"#fcfcfc":"#fff",cursor:"pointer"}}
                         onClick={()=>setPreview(prev=>prev?.r?.id===r.id?null:{r, type:r.issueReceipt?"delivery-receipt":"delivery"})}>
+                        <td style={{padding:"8px 12px",fontSize:11,color:"#94a3b8",whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
                         <td style={{padding:"8px 12px",fontWeight:600}}>{c?.name||"―"}</td>
                         <td style={{padding:"8px 12px",fontSize:11,color:"#64748b"}}>
                           {r.projectName||"―"}
