@@ -1080,7 +1080,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.03</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.04</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -3941,8 +3941,9 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                 <div style={{marginTop:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:"#f59e0b",marginBottom:4}}>★ 特別価格</div>
                   {c.specialPrices.map((sp,j)=>(
-                    <div key={j} style={{fontSize:12,color:"#555",marginBottom:3}}>
-                      {spName(sp,products)} → <strong style={{color:"#16a34a"}}>{fmt(sp.price)}/日(税抜)</strong>
+                    <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,marginBottom:3}}>
+                      <span style={{flex:1,fontWeight:600}}>{spName(sp,products)}</span>
+                      <span style={{color:"#16a34a",fontWeight:700}}>{fmt(sp.price)}/日（税抜）</span>
                     </div>
                   ))}
                 </div>
@@ -3958,14 +3959,19 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                   ?<>
                     <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>顧客を削除</div>
                     <div style={{marginBottom:20,fontSize:13,color:"#374151"}}>「{editProjModal.name}」を削除しますか？この操作は取り消せません。</div>
+                    {(()=>{const custCaseCount=(records||[]).filter(r=>r.customerId===editProjModal.id).length;return custCaseCount>0
+                      ?<div style={{color:"#dc2626",fontSize:12,marginBottom:16}}>この顧客には{custCaseCount}件の案件があります。先に案件を削除してから顧客を削除してください。</div>
+                      :null;})()}
                     <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                       <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
-                      <button type="button" onClick={async()=>{
-                        await onDeleteCust(editProjModal.id,editProjModal.name);
-                        if(detailId===editProjModal.id)setDetailId(null);
-                        setEditProjModal(null);
-                        showToast("削除しました");
-                      }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
+                      {(records||[]).filter(r=>r.customerId===editProjModal.id).length===0&&(
+                        <button type="button" onClick={async()=>{
+                          await onDeleteCust(editProjModal.id,editProjModal.name);
+                          if(detailId===editProjModal.id)setDetailId(null);
+                          setEditProjModal(null);
+                          showToast("削除しました");
+                        }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
+                      )}
                     </div>
                   </>
                   :<>
@@ -4205,8 +4211,9 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
               {isSpOpen&&(c.specialPrices||[]).length>0&&(
                 <div style={{padding:"0 16px 12px 62px"}}>
                   {c.specialPrices.map((sp,j)=>(
-                    <div key={j} style={{fontSize:12,color:"#555",marginBottom:3}}>
-                      {spName(sp,products)} → <strong style={{color:"#16a34a"}}>{fmt(sp.price)}/日(税抜)</strong>
+                    <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,marginBottom:3}}>
+                      <span style={{flex:1,fontWeight:600}}>{spName(sp,products)}</span>
+                      <span style={{color:"#16a34a",fontWeight:700}}>{fmt(sp.price)}/日（税抜）</span>
                     </div>
                   ))}
                 </div>
@@ -4227,15 +4234,20 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
               ?<>
                 <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>顧客を削除</div>
                 <div style={{marginBottom:20,fontSize:13,color:"#374151"}}>「{editProjModal.name}」を削除しますか？この操作は取り消せません。</div>
+                {(()=>{const custCaseCount=(records||[]).filter(r=>r.customerId===editProjModal.id).length;return custCaseCount>0
+                  ?<div style={{color:"#dc2626",fontSize:12,marginBottom:16}}>この顧客には{custCaseCount}件の案件があります。先に案件を削除してから顧客を削除してください。</div>
+                  :null;})()}
                 <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                   <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
-                  <button type="button" onClick={async()=>{
-                    await onSave(customers.filter(x=>x.id!==editProjModal.id));
-                    if(detailId===editProjModal.id)setDetailId(null);
-                    await onLogActivity("削除","customer",editProjModal.name,"顧客を削除しました");
-                    setEditProjModal(null);
-                    showToast("削除しました");
-                  }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
+                  {(records||[]).filter(r=>r.customerId===editProjModal.id).length===0&&(
+                    <button type="button" onClick={async()=>{
+                      await onSave(customers.filter(x=>x.id!==editProjModal.id));
+                      if(detailId===editProjModal.id)setDetailId(null);
+                      await onLogActivity("削除","customer",editProjModal.name,"顧客を削除しました");
+                      setEditProjModal(null);
+                      showToast("削除しました");
+                    }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
+                  )}
                 </div>
               </>
               :<>
