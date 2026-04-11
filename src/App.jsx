@@ -3649,7 +3649,10 @@ function CustomersTab({customers,products,records,onSave,onSaveRec,showToast,pre
             const {index,oldName,newName,useCount}=renameModal;
             const trimmed=newName.trim();
             if(!trimmed)return;
-            setForm(f=>({...f,projects:(f.projects||[]).map((p,j)=>j===index?trimmed:p)}));
+            const updatedProjects=(form.projects||[]).map((p,j)=>j===index?trimmed:p);
+            setForm(f=>({...f,projects:updatedProjects}));
+            const updatedCust={...form,projects:updatedProjects,id:editId,discountRate:Number(form.discountRate)||0,updatedAt:Date.now()};
+            await onSave(customers.map(x=>x.id===editId?updatedCust:x));
             if(useCount>0&&onSaveRec){
               await onSaveRec(records.map(r=>r.customerId===editId&&r.projectName===oldName?{...r,projectName:trimmed}:r));
             }
