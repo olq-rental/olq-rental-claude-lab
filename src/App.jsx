@@ -1141,14 +1141,11 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   const days        = calcDays(form.startDate,form.endDate); // 実日数
   const billingDays = calcBillingDays(days);                  // 請求日数
   const billingQty  = form.billingType==="monthly" ? (Number(form.months)||1) : billingDays;
-  // noDisc集計（手数料ライン除く）
-  const nonFeeLines = (form.lines||[]).filter(ln=>!ln.isFee);
-  const noBillingDiscFlags = nonFeeLines.map(ln=>{
-    const prod = products.find(p=>p.id===ln.productId);
-    return !!(prod?.noBillingDiscount || ln.noBillingDiscount);
-  });
-  const allNoDisc  = nonFeeLines.length>0 && noBillingDiscFlags.every(Boolean);
-  const someNoDisc = !allNoDisc && noBillingDiscFlags.some(Boolean);
+  // noDisc集計
+  const validLines = (form.lines||[]).filter(ln=>ln.productId||ln.isManual);
+  const noDiscLines = validLines.filter(ln=>!ln.isFee&&(products.find(p=>p.id===ln.productId)?.noBillingDiscount||ln.noBillingDiscount));
+  const allNoDisc  = validLines.length>0 && noDiscLines.length===validLines.length;
+  const someNoDisc = noDiscLines.length>0 && !allNoDisc;
   // 製品ごとのnoBillingDiscountに応じてbillingQtyを切り替え
   const lineAmounts = (form.lines||[]).map(ln=>{
     const prod = products.find(p=>p.id===ln.productId);
@@ -1440,7 +1437,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                     </div>
                   )}
 
-                  {lineAmounts[li]>0&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600,marginTop:6}}>小計: {fmt(lineAmounts[li])}{ln.isFee&&<span style={{color:"#92400e",marginLeft:6,fontSize:10}}>（日数掛けなし）</span>}{!ln.isFee&&(lProd?.noBillingDiscount||ln.noBillingDiscount)&&<span style={{color:"#ef4444",marginLeft:6,fontSize:10}}>（日数値引き非適用）</span>}</div>}
+                  {lineAmounts[li]>0&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600,marginTop:6}}>小計: {fmt(lineAmounts[li])}{ln.isFee&&<span style={{color:"#92400e",marginLeft:6,fontSize:10}}>（日数掛けなし）</span>}{form.billingType==="daily"&&!ln.isFee&&(lProd?.noBillingDiscount||ln.noBillingDiscount)&&<span style={{color:"#dc2626",marginLeft:6,fontSize:10}}>（日数値引き非適用）</span>}</div>}
                 </div>
               );
             })}
@@ -1451,14 +1448,14 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               ?<span><span style={{color:"#64748b"}}>月数: </span><strong style={{color:"#9333ea",fontSize:17}}>{(form.months||1)}ヶ月</strong></span>
               :<span style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
                 {allNoDisc
-                  ?<><span style={{color:"#64748b"}}>実日数:</span><strong style={{color:"#2563eb",fontSize:17}}>{days}日</strong><span style={{fontSize:11,color:"#64748b"}}>（値引き非適用）</span></>
+                  ?<><span style={{color:"#64748b"}}>実日数:</span><strong style={{color:"#2563eb",fontSize:17}}>{days}日</strong><span style={{fontSize:11,color:"#dc2626",marginLeft:2}}>日数値引き非適用</span></>
                   :<><span style={{color:"#64748b"}}>実日数:</span>
                     <strong style={{color:"#94a3b8",fontSize:15}}>{days}日</strong>
                     <span style={{color:"#94a3b8",fontSize:12}}>→</span>
                     <span style={{color:"#64748b"}}>請求日数:</span>
                     <strong style={{color:"#2563eb",fontSize:17}}>{billingDays}日</strong>
                     {days!==billingDays&&<span style={{fontSize:10,color:"#f59e0b",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:4,padding:"1px 6px"}}>割引適用</span>}
-                    {someNoDisc&&<span style={{fontSize:10,color:"#ef4444",marginLeft:2}}>※一部製品は値引き非適用</span>}
+                    {someNoDisc&&<span style={{fontSize:10,color:"#dc2626",marginLeft:2}}>※一部製品は日数値引き非適用</span>}
                   </>
                 }
               </span>
