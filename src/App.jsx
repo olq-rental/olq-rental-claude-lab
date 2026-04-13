@@ -3686,6 +3686,14 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
                                   </div>
                                 ))
                               }
+                              <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid #e2e8f0"}}>
+                                <button onClick={()=>{
+                                  const g={customerId:r.customerId,customer:c,customerName:c.name,projectName:r.projectName||"",month:r.startDate?r.startDate.slice(0,7):"",items:[r],split:true,consolidate:false};
+                                  downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery",g);
+                                }} style={{background:"none",border:"none",color:"#2563eb",fontSize:11,cursor:"pointer",padding:0,textDecoration:"underline"}}>
+                                  → 納品書を開く
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
