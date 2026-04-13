@@ -3797,6 +3797,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     if(!c) return;
     setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});
     setEditId(c.id);
+    setDetailId(c.id);
     setOpen(true);
     onOpenHandled&&onOpenHandled();
     // 該当顧客が見えるようにスクロール
