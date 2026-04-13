@@ -3474,10 +3474,10 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   const treeYears=Object.keys(tree).sort().reverse();
 
   return(
-    <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"16px 20px 20px 62px"}}>
+    <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"16px 20px 20px 62px",display:"flex",flexDirection:"column"}}>
 
       {/* LAYER1: ステータス＋アクション */}
-      <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:10,marginBottom:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:10,marginBottom:10,order:2}}>
         <div style={{background:health.bg,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between",border:`1px solid ${health.color}33`}}>
           <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:8}}>
             <span style={{fontSize:15}}>{health.icon}</span>
@@ -3512,7 +3512,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
       </div>
 
       {/* LAYER2: 4KPIカード */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10,order:3}}>
         <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
           <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>前年比売上</div>
           <div style={{marginBottom:4}}>
@@ -3569,7 +3569,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
       </div>
 
       {/* LAYER3: 常時表示 */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8,order:4}}>
 
         {/* 提案できる機材 */}
         <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
@@ -3623,7 +3623,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
       </div>
 
       {/* 案件履歴 */}
-      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8}}>
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8,order:0}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
           <span style={{fontSize:13}}>📋</span>
           <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>案件履歴</span>
@@ -3701,7 +3701,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
 
       {/* 特別価格 */}
       {syncSPs(c.specialPrices,products).length>0&&(
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",order:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
             <span style={{fontSize:13}}>⭐</span>
             <span style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>特別価格</span>
