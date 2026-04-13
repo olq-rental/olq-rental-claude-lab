@@ -3634,7 +3634,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
         </div>
         {treeYears.length===0
           ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
-          :<div style={histExpanded?{}:{maxHeight:550,overflowY:"auto"}}>
+          :<div style={histExpanded?{}:{maxHeight:700,overflowY:"auto"}}>
             {treeYears.map(y=>(
               <div key={y} style={{marginBottom:6}}>
                 <div onClick={()=>setYearOpen(o=>({...o,[y]:!yIsOpen(y)}))}
