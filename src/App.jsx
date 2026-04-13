@@ -1084,7 +1084,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.06</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.07</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -3632,13 +3632,47 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
                 {Object.keys(tree[y]).sort().reverse().map(ym=>(
                   <div key={ym} style={{marginBottom:6,paddingLeft:8}}>
                     <div style={{fontSize:10,color:"#64748b",marginBottom:3,fontWeight:600}}>{ym.slice(5)}月（{tree[y][ym].length}件）</div>
-                    {tree[y][ym].map(r=>(
-                      <div key={r.id} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",background:"#f8fafc",borderRadius:4,marginBottom:2}}>
-                        <span style={{fontSize:9,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
-                        <span style={{fontSize:10,color:"#334155",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName||"（案件名なし）"}</span>
-                        <span style={{fontSize:10,fontWeight:600,color:"#475569",whiteSpace:"nowrap"}}>{fmt(r.amount||0)}</span>
-                      </div>
-                    ))}
+                    {tree[y][ym].map(r=>{
+                      const isExp = treeOpen[r.id];
+                      const rLines = (r.lines&&r.lines.length)?r.lines:(r.equipmentName?[{equipmentName:r.equipmentName,quantity:r.quantity||1}]:[]);
+                      const shown = rLines.slice(0,3).map(ln=>{const n=ln.equipmentName||"";return n.length>10?n.slice(0,10)+"…":n;}).filter(Boolean);
+                      const summary = shown.join(" / ")+(rLines.length>3?`　ほか${rLines.length-3}点`:"");
+                      const bTag = r.billingType==="monthly"?{label:"月極",bg:"#dbeafe",col:"#1d4ed8"}:{label:"日極",bg:"#dcfce7",col:"#166534"};
+                      return(
+                        <div key={r.id} style={{background:"#f8fafc",borderRadius:6,marginBottom:4,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+                          <div style={{display:"flex",alignItems:"flex-start",gap:6,padding:"6px 8px",cursor:"pointer"}} onClick={()=>setTreeOpen(o=>({...o,[r.id]:!o[r.id]}))}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
+                                <span style={{fontSize:9,background:bTag.bg,color:bTag.col,borderRadius:3,padding:"1px 5px",fontWeight:700,whiteSpace:"nowrap"}}>{bTag.label}</span>
+                                <span style={{fontSize:10,color:"#334155",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName||"（案件名なし）"}</span>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <span style={{fontSize:9,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
+                                {r.deliveryNo&&<span style={{fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:3,padding:"1px 5px",fontFamily:"monospace"}}>No.{r.deliveryNo}</span>}
+                              </div>
+                              {!isExp&&summary&&<div style={{fontSize:9,color:"#94a3b8",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{summary}</div>}
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:10,fontWeight:700,color:"#475569"}}>{fmt(r.amount||0)}</div>
+                              <div style={{fontSize:9,color:"#94a3b8"}}>{isExp?"▴ 閉じる":"▾ 詳細"}</div>
+                            </div>
+                          </div>
+                          {isExp&&(
+                            <div style={{borderTop:"1px solid #e2e8f0",padding:"6px 8px",background:"#fff"}}>
+                              {rLines.length===0
+                                ?<div style={{fontSize:10,color:"#94a3b8"}}>機材情報なし</div>
+                                :rLines.map((ln,i)=>(
+                                  <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#334155",padding:"2px 0",borderBottom:i<rLines.length-1?"1px solid #f1f5f9":"none"}}>
+                                    <span>{ln.equipmentName||"―"}{(ln.quantity||1)>1?` ×${ln.quantity}`:""}</span>
+                                    <span style={{color:"#64748b",marginLeft:8,whiteSpace:"nowrap"}}>{ln.amount?fmt(ln.amount):""}</span>
+                                  </div>
+                                ))
+                              }
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
