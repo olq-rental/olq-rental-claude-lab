@@ -4017,7 +4017,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
               {c.notes&&<div style={{marginTop:8,fontSize:11,color:"#64748b",background:"#f8fafc",borderRadius:4,padding:"6px 10px"}}>{c.notes}</div>}
             </div>
           )}
-          <CustomerAnalysis c={c} custRecords={custRecords} products={products} allRecords={records}/>
+          {!open&&<CustomerAnalysis c={c} custRecords={custRecords} products={products} allRecords={records}/>}
           {editProjModal&&(
             <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
               onClick={()=>setEditProjModal(null)}>
