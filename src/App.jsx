@@ -3668,7 +3668,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
                                 <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
                                 {r.deliveryNo&&<span style={{fontSize:10,background:"#f1f5f9",color:"#64748b",borderRadius:3,padding:"1px 6px",fontFamily:"monospace",whiteSpace:"nowrap"}}>No.{r.deliveryNo}</span>}
                               </div>
-                              {!isExp&&summary&&<div style={{fontSize:10,color:"#94a3b8",textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{summary}</div>}
+                              {!isExp&&summary&&<div style={{fontSize:10,color:"#475569",textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{summary}</div>}
                             </div>
                             <div style={{textAlign:"right",flexShrink:0,minWidth:60}}>
                               <div style={{fontSize:11,fontWeight:700,color:"#334155",whiteSpace:"nowrap"}}>{fmt(r.amount||0)}</div>
