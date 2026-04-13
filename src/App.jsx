@@ -3476,100 +3476,6 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   return(
     <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"16px 20px 20px 62px"}}>
 
-      {/* 案件履歴 */}
-      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
-          <span style={{fontSize:13}}>📋</span>
-          <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>案件履歴</span>
-          <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{custRecords.length}件</span>
-          <button onClick={()=>setHistExpanded(e=>!e)} style={{marginLeft:6,fontSize:9,background:histExpanded?"#1e293b":"#f1f5f9",color:histExpanded?"#fff":"#64748b",border:"none",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>
-            {histExpanded?"折りたたむ":"すべて表示"}
-          </button>
-        </div>
-        {treeYears.length===0
-          ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
-          :<div style={histExpanded?{}:{maxHeight:240,overflowY:"auto"}}>
-            {treeYears.map(y=>(
-              <div key={y} style={{marginBottom:6}}>
-                <div onClick={()=>setYearOpen(o=>({...o,[y]:!yIsOpen(y)}))}
-                  style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:4,cursor:"pointer",background:"#f1f5f9",marginBottom:4,userSelect:"none"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>{yIsOpen(y)?"▾":"▶"} {y}年</span>
-                  <span style={{fontSize:9,color:"#94a3b8",marginLeft:"auto"}}>{Object.values(tree[y]).flat().length}件</span>
-                </div>
-                {yIsOpen(y)&&Object.keys(tree[y]).sort().reverse().map(ym=>(
-                  <div key={ym} style={{marginBottom:4,paddingLeft:8}}>
-                    <div onClick={()=>setMonthOpen(o=>({...o,[ym]:!ymIsOpen(ym)}))}
-                      style={{display:"flex",alignItems:"center",gap:4,padding:"3px 6px",cursor:"pointer",marginBottom:3,userSelect:"none"}}>
-                      <span style={{fontSize:10,color:"#64748b",fontWeight:600}}>{ymIsOpen(ym)?"▾":"▶"} {ym.slice(5)}月</span>
-                      <span style={{fontSize:9,color:"#94a3b8",marginLeft:4}}>（{tree[y][ym].length}件）</span>
-                    </div>
-                    {ymIsOpen(ym)&&tree[y][ym].map(r=>{
-                      const isExp = treeOpen[r.id];
-                      const rawLines = (r.lines&&r.lines.length)?r.lines:(r.equipmentName?[{equipmentName:r.equipmentName,quantity:r.quantity||1}]:[]);
-                      const rLines = rawLines.filter(ln=>(ln.equipmentName||"").trim()!==""||ln.isManual);
-                      const shown = rLines.slice(0,3).map(ln=>{const n=ln.equipmentName||"";return n.length>10?n.slice(0,10)+"…":n;}).filter(Boolean);
-                      const summary = shown.length>0?(shown.join("・")+(rLines.length>3?` ほか${rLines.length-3}点`:"")):"";
-                      const bTag = r.billingType==="monthly"?{label:"月極",bg:"#dbeafe",col:"#1d4ed8"}:{label:"日極",bg:"#dcfce7",col:"#166534"};
-                      return(
-                        <div key={r.id} style={{background:"#fff",borderRadius:6,marginBottom:4,border:"1px solid #e2e8f0",overflow:"hidden"}}>
-                          <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"7px 10px",cursor:"pointer",textAlign:"left"}} onClick={()=>setTreeOpen(o=>({...o,[r.id]:!o[r.id]}))}>
-                            <div style={{flex:1,minWidth:0,textAlign:"left"}}>
-                              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,flexWrap:"nowrap"}}>
-                                <span style={{fontSize:9,background:bTag.bg,color:bTag.col,borderRadius:3,padding:"1px 5px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{bTag.label}</span>
-                                <span style={{fontSize:11,color:"#1e293b",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName||"（案件名なし）"}</span>
-                              </div>
-                              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:summary&&!isExp?3:0}}>
-                                <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
-                                {r.deliveryNo&&<span style={{fontSize:10,background:"#f1f5f9",color:"#64748b",borderRadius:3,padding:"1px 6px",fontFamily:"monospace",whiteSpace:"nowrap"}}>No.{r.deliveryNo}</span>}
-                              </div>
-                              {!isExp&&summary&&<div style={{fontSize:10,color:"#94a3b8",textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{summary}</div>}
-                            </div>
-                            <div style={{textAlign:"right",flexShrink:0,minWidth:60}}>
-                              <div style={{fontSize:11,fontWeight:700,color:"#334155",whiteSpace:"nowrap"}}>{fmt(r.amount||0)}</div>
-                              <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{isExp?"▴ 閉じる":"▾ 詳細"}</div>
-                            </div>
-                          </div>
-                          {isExp&&(
-                            <div style={{borderTop:"1px solid #f1f5f9",padding:"6px 10px",background:"#f8fafc"}}>
-                              {rLines.length===0
-                                ?<div style={{fontSize:10,color:"#94a3b8",textAlign:"left"}}>機材情報なし</div>
-                                :rLines.map((ln,i)=>(
-                                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,color:"#334155",padding:"3px 0",borderBottom:i<rLines.length-1?"1px solid #e2e8f0":"none",textAlign:"left"}}>
-                                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{ln.equipmentName||"―"}{(ln.quantity||1)>1?` ×${ln.quantity}`:""}</span>
-                                    <span style={{color:"#94a3b8",marginLeft:8,whiteSpace:"nowrap",flexShrink:0,fontSize:10}}>{ln.amount?fmt(ln.amount):""}</span>
-                                  </div>
-                                ))
-                              }
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        }
-      </div>
-
-      {/* 特別価格 */}
-      {syncSPs(c.specialPrices,products).length>0&&(
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-            <span style={{fontSize:13}}>⭐</span>
-            <span style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>特別価格</span>
-            <span style={{marginLeft:"auto",fontSize:9,background:"#fef9c3",color:"#92400e",borderRadius:4,padding:"1px 6px"}}>{syncSPs(c.specialPrices,products).length}件</span>
-          </div>
-          {c.specialPrices.map((sp,j)=>(
-            <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,marginBottom:3,padding:"4px 6px",background:"#fefce8",borderRadius:4}}>
-              <span style={{flex:1,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{spName(sp,products)}</span>
-              <span style={{color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>{fmt(sp.price)}/日（税抜）</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* LAYER1: ステータス＋アクション */}
       <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:10,marginBottom:10}}>
         <div style={{background:health.bg,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between",border:`1px solid ${health.color}33`}}>
@@ -3716,6 +3622,99 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
         </div>
       </div>
 
+      {/* 案件履歴 */}
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+          <span style={{fontSize:13}}>📋</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>案件履歴</span>
+          <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{custRecords.length}件</span>
+          <button onClick={()=>setHistExpanded(e=>!e)} style={{marginLeft:6,fontSize:9,background:histExpanded?"#1e293b":"#f1f5f9",color:histExpanded?"#fff":"#64748b",border:"none",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>
+            {histExpanded?"折りたたむ":"すべて表示"}
+          </button>
+        </div>
+        {treeYears.length===0
+          ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
+          :<div style={histExpanded?{}:{maxHeight:240,overflowY:"auto"}}>
+            {treeYears.map(y=>(
+              <div key={y} style={{marginBottom:6}}>
+                <div onClick={()=>setYearOpen(o=>({...o,[y]:!yIsOpen(y)}))}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:4,cursor:"pointer",background:"#f1f5f9",marginBottom:4,userSelect:"none"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>{yIsOpen(y)?"▾":"▶"} {y}年</span>
+                  <span style={{fontSize:9,color:"#94a3b8",marginLeft:"auto"}}>{Object.values(tree[y]).flat().length}件</span>
+                </div>
+                {yIsOpen(y)&&Object.keys(tree[y]).sort().reverse().map(ym=>(
+                  <div key={ym} style={{marginBottom:4,paddingLeft:8}}>
+                    <div onClick={()=>setMonthOpen(o=>({...o,[ym]:!ymIsOpen(ym)}))}
+                      style={{display:"flex",alignItems:"center",gap:4,padding:"3px 6px",cursor:"pointer",marginBottom:3,userSelect:"none"}}>
+                      <span style={{fontSize:10,color:"#64748b",fontWeight:600}}>{ymIsOpen(ym)?"▾":"▶"} {ym.slice(5)}月</span>
+                      <span style={{fontSize:9,color:"#94a3b8",marginLeft:4}}>（{tree[y][ym].length}件）</span>
+                    </div>
+                    {ymIsOpen(ym)&&tree[y][ym].map(r=>{
+                      const isExp = treeOpen[r.id];
+                      const rawLines = (r.lines&&r.lines.length)?r.lines:(r.equipmentName?[{equipmentName:r.equipmentName,quantity:r.quantity||1}]:[]);
+                      const rLines = rawLines.filter(ln=>(ln.equipmentName||"").trim()!==""||ln.isManual);
+                      const shown = rLines.slice(0,3).map(ln=>{const n=ln.equipmentName||"";return n.length>10?n.slice(0,10)+"…":n;}).filter(Boolean);
+                      const summary = shown.length>0?(shown.join("・")+(rLines.length>3?` ほか${rLines.length-3}点`:"")):"";
+                      const bTag = r.billingType==="monthly"?{label:"月極",bg:"#dbeafe",col:"#1d4ed8"}:{label:"日極",bg:"#dcfce7",col:"#166534"};
+                      return(
+                        <div key={r.id} style={{background:"#fff",borderRadius:6,marginBottom:4,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+                          <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"7px 10px",cursor:"pointer",textAlign:"left"}} onClick={()=>setTreeOpen(o=>({...o,[r.id]:!o[r.id]}))}>
+                            <div style={{flex:1,minWidth:0,textAlign:"left"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,flexWrap:"nowrap"}}>
+                                <span style={{fontSize:9,background:bTag.bg,color:bTag.col,borderRadius:3,padding:"1px 5px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{bTag.label}</span>
+                                <span style={{fontSize:11,color:"#1e293b",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName||"（案件名なし）"}</span>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:summary&&!isExp?3:0}}>
+                                <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
+                                {r.deliveryNo&&<span style={{fontSize:10,background:"#f1f5f9",color:"#64748b",borderRadius:3,padding:"1px 6px",fontFamily:"monospace",whiteSpace:"nowrap"}}>No.{r.deliveryNo}</span>}
+                              </div>
+                              {!isExp&&summary&&<div style={{fontSize:10,color:"#94a3b8",textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{summary}</div>}
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0,minWidth:60}}>
+                              <div style={{fontSize:11,fontWeight:700,color:"#334155",whiteSpace:"nowrap"}}>{fmt(r.amount||0)}</div>
+                              <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{isExp?"▴ 閉じる":"▾ 詳細"}</div>
+                            </div>
+                          </div>
+                          {isExp&&(
+                            <div style={{borderTop:"1px solid #f1f5f9",padding:"6px 10px",background:"#f8fafc"}}>
+                              {rLines.length===0
+                                ?<div style={{fontSize:10,color:"#94a3b8",textAlign:"left"}}>機材情報なし</div>
+                                :rLines.map((ln,i)=>(
+                                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,color:"#334155",padding:"3px 0",borderBottom:i<rLines.length-1?"1px solid #e2e8f0":"none",textAlign:"left"}}>
+                                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{ln.equipmentName||"―"}{(ln.quantity||1)>1?` ×${ln.quantity}`:""}</span>
+                                    <span style={{color:"#94a3b8",marginLeft:8,whiteSpace:"nowrap",flexShrink:0,fontSize:10}}>{ln.amount?fmt(ln.amount):""}</span>
+                                  </div>
+                                ))
+                              }
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+
+      {/* 特別価格 */}
+      {syncSPs(c.specialPrices,products).length>0&&(
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+            <span style={{fontSize:13}}>⭐</span>
+            <span style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>特別価格</span>
+            <span style={{marginLeft:"auto",fontSize:9,background:"#fef9c3",color:"#92400e",borderRadius:4,padding:"1px 6px"}}>{syncSPs(c.specialPrices,products).length}件</span>
+          </div>
+          {c.specialPrices.map((sp,j)=>(
+            <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,marginBottom:3,padding:"4px 6px",background:"#fefce8",borderRadius:4}}>
+              <span style={{flex:1,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{spName(sp,products)}</span>
+              <span style={{color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>{fmt(sp.price)}/日（税抜）</span>
+            </div>
+          ))}
+        </div>
+      )}
 
     </div>
   );
