@@ -3686,7 +3686,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
                                   </div>
                                 ))
                               }
-                              <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid #e2e8f0"}}>
+                              <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid #e2e8f0",textAlign:"left"}}>
                                 <button onClick={()=>{
                                   const g={customerId:r.customerId,customer:c,customerName:c.name,projectName:r.projectName||"",month:r.startDate?r.startDate.slice(0,7):"",items:[r],split:true,consolidate:false};
                                   downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery",g);
