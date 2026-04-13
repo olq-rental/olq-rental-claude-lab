@@ -552,11 +552,13 @@ function expandMonthlyOpenRecord(r, calcBillingDaysFn, todayFn) {
         quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],
         equipmentName:r.equipmentName||""}];
 
+  const limitMonth = limitD.getFullYear() * 12 + limitD.getMonth();
   let n = 0;
   while (n <= 120) {
     const pStart = new Date(startD);
     pStart.setMonth(pStart.getMonth() + n);
-    if (pStart > limitD) break;
+    const pStartMonth = pStart.getFullYear() * 12 + pStart.getMonth();
+    if (pStartMonth > limitMonth) break;
 
     const pEnd = new Date(pStart);
     pEnd.setMonth(pEnd.getMonth() + 1);
