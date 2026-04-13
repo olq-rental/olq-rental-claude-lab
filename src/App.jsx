@@ -3400,6 +3400,12 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   const [salesNote, setSalesNote] = useState(()=>{ try{return localStorage.getItem(`olq_snote_${c.id}`)||"";}catch{return "";} });
   const [noteSaved, setNoteSaved] = useState(false);
   const [treeOpen, setTreeOpen] = useState({});
+  const [yearOpen, setYearOpen] = useState({});
+  const [monthOpen, setMonthOpen] = useState({});
+  const [histExpanded, setHistExpanded] = useState(false);
+  const currentYear = String(new Date().getFullYear());
+  const yIsOpen = y => yearOpen[y]!==undefined ? yearOpen[y] : y===currentYear;
+  const ymIsOpen = ym => monthOpen[ym]!==undefined ? monthOpen[ym] : ym.startsWith(currentYear);
   const fmtD2 = d => d ? new Date(d).toLocaleDateString("ja-JP",{month:"2-digit",day:"2-digit"}) : "―";
   const toggleDetail = key => setDetailOpen(d=>({...d,[key]:!d[key]}));
   const saveNote = () => { try{localStorage.setItem(`olq_snote_${c.id}`,salesNote);}catch{} setNoteSaved(true); setTimeout(()=>setNoteSaved(false),2000); };
@@ -3617,22 +3623,33 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
       </div>
 
       {/* 案件履歴 */}
-      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
           <span style={{fontSize:13}}>📋</span>
           <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>案件履歴</span>
           <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{custRecords.length}件</span>
+          <button onClick={()=>setHistExpanded(e=>!e)} style={{marginLeft:6,fontSize:9,background:histExpanded?"#1e293b":"#f1f5f9",color:histExpanded?"#fff":"#64748b",border:"none",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>
+            {histExpanded?"折りたたむ":"すべて表示"}
+          </button>
         </div>
         {treeYears.length===0
           ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
-          :<div style={{maxHeight:240,overflowY:"auto"}}>
+          :<div style={histExpanded?{}:{maxHeight:240,overflowY:"auto"}}>
             {treeYears.map(y=>(
-              <div key={y} style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:4,padding:"2px 0",borderBottom:"1px solid #f1f5f9"}}>{y}年</div>
-                {Object.keys(tree[y]).sort().reverse().map(ym=>(
-                  <div key={ym} style={{marginBottom:6,paddingLeft:8}}>
-                    <div style={{fontSize:10,color:"#64748b",marginBottom:3,fontWeight:600}}>{ym.slice(5)}月（{tree[y][ym].length}件）</div>
-                    {tree[y][ym].map(r=>{
+              <div key={y} style={{marginBottom:6}}>
+                <div onClick={()=>setYearOpen(o=>({...o,[y]:!yIsOpen(y)}))}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:4,cursor:"pointer",background:"#f1f5f9",marginBottom:4,userSelect:"none"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>{yIsOpen(y)?"▾":"▶"} {y}年</span>
+                  <span style={{fontSize:9,color:"#94a3b8",marginLeft:"auto"}}>{Object.values(tree[y]).flat().length}件</span>
+                </div>
+                {yIsOpen(y)&&Object.keys(tree[y]).sort().reverse().map(ym=>(
+                  <div key={ym} style={{marginBottom:4,paddingLeft:8}}>
+                    <div onClick={()=>setMonthOpen(o=>({...o,[ym]:!ymIsOpen(ym)}))}
+                      style={{display:"flex",alignItems:"center",gap:4,padding:"3px 6px",cursor:"pointer",marginBottom:3,userSelect:"none"}}>
+                      <span style={{fontSize:10,color:"#64748b",fontWeight:600}}>{ymIsOpen(ym)?"▾":"▶"} {ym.slice(5)}月</span>
+                      <span style={{fontSize:9,color:"#94a3b8",marginLeft:4}}>（{tree[y][ym].length}件）</span>
+                    </div>
+                    {ymIsOpen(ym)&&tree[y][ym].map(r=>{
                       const isExp = treeOpen[r.id];
                       const rawLines = (r.lines&&r.lines.length)?r.lines:(r.equipmentName?[{equipmentName:r.equipmentName,quantity:r.quantity||1}]:[]);
                       const rLines = rawLines.filter(ln=>(ln.equipmentName||"").trim()!==""||ln.isManual);
@@ -3681,6 +3698,23 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
           </div>
         }
       </div>
+
+      {/* 特別価格 */}
+      {syncSPs(c.specialPrices,products).length>0&&(
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+            <span style={{fontSize:13}}>⭐</span>
+            <span style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>特別価格</span>
+            <span style={{marginLeft:"auto",fontSize:9,background:"#fef9c3",color:"#92400e",borderRadius:4,padding:"1px 6px"}}>{syncSPs(c.specialPrices,products).length}件</span>
+          </div>
+          {c.specialPrices.map((sp,j)=>(
+            <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,marginBottom:3,padding:"4px 6px",background:"#fefce8",borderRadius:4}}>
+              <span style={{flex:1,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{spName(sp,products)}</span>
+              <span style={{color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>{fmt(sp.price)}/日（税抜）</span>
+            </div>
+          ))}
+        </div>
+      )}
 
     </div>
   );
@@ -3979,17 +4013,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                 ))}
               </div>
               {c.notes&&<div style={{marginTop:8,fontSize:11,color:"#64748b",background:"#f8fafc",borderRadius:4,padding:"6px 10px"}}>{c.notes}</div>}
-              {syncSPs(c.specialPrices,products).length>0&&(
-                <div style={{marginTop:10}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#f59e0b",marginBottom:4}}>★ 特別価格</div>
-                  {c.specialPrices.map((sp,j)=>(
-                    <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,marginBottom:3}}>
-                      <span style={{flex:1,fontWeight:600}}>{spName(sp,products)}</span>
-                      <span style={{color:"#16a34a",fontWeight:700}}>{fmt(sp.price)}/日（税抜）</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
           <CustomerAnalysis c={c} custRecords={custRecords} products={products} allRecords={records}/>
