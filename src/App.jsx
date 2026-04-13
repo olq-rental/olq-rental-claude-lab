@@ -1286,7 +1286,17 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
       equipmentName:lines.map(l=>l.equipmentName).join(", "),unitPrice:lines[0]?.unitPrice||0,quantity:lines.reduce((s,l)=>s+(Number(l.quantity)||0),0),
       productId:lines[0]?.productId||"",
       id:editId||uid(),updatedAt:Date.now(),createdAt:editId?records.find(r=>r.id===editId)?.createdAt:Date.now()};
-    if(!editId && !rec.deliveryNo) { rec.deliveryNo = await nextDeliveryNo(); }
+    if(!editId && !rec.deliveryNo) {
+      rec.deliveryNo = await nextDeliveryNo();
+    } else if(editId) {
+      const orig = records.find(r=>r.id===editId);
+      if(orig?.deliveryNo) {
+        const base = orig.deliveryNo.replace(/R(\d+)$/, '');
+        const m = orig.deliveryNo.match(/R(\d+)$/);
+        const n = m ? parseInt(m[1])+1 : 1;
+        rec.deliveryNo = base + 'R' + n;
+      }
+    }
     const custName=customers.find(x=>x.id===form.customerId)?.name||"";
     await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName});
     const wasNew=!editId;
