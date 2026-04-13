@@ -3700,6 +3700,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
       </div>
 
       {/* 特別価格 */}
+      <div style={{order:1}}>
       {syncSPs(c.specialPrices,products).length>0&&(
         <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",order:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
@@ -3715,6 +3716,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
           ))}
         </div>
       )}
+      </div>
 
     </div>
   );
