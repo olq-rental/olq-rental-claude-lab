@@ -1086,7 +1086,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.10</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.12</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -1518,7 +1518,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                     <strong style={{color:"#94a3b8",fontSize:15}}>{days}日</strong>
                     <span style={{color:"#94a3b8",fontSize:12}}>→</span>
                     <span style={{color:"#64748b"}}>請求日数:</span>
-                    <strong style={{color:"#2563eb",fontSize:17}}>{billingDays}日</strong>
+                    <strong style={{color:"#2563eb",fontSize:17}}>{adjustedBillingDays}日</strong>
                     {days!==billingDays&&<span style={{fontSize:10,color:"#f59e0b",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:4,padding:"1px 6px"}}>割引適用</span>}
                     {someNoDisc&&<span style={{fontSize:10,color:"#dc2626",marginLeft:2}}>※一部製品は日数値引き非適用</span>}
                   </>
@@ -1530,6 +1530,38 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
             <span><span style={{color:"#64748b"}}>合計(税込): </span><strong style={{color:"#9333ea",fontSize:17}}>{fmt(taxIn(grandTotal))}</strong></span>
             <span style={{fontSize:11,color:"#94a3b8"}}>{form.lines?.length||0}品目</span>
           </div>
+          {form.billingType==="daily"&&(
+            <div style={{marginBottom:10,background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"8px 14px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:form.adjustDays!==""&&form.adjustDays!==undefined?10:0}}>
+                <span style={{fontSize:12,fontWeight:700,color:"#0369a1"}}>📅 日数調整</span>
+                <span style={{fontSize:11,color:"#64748b"}}>自動計算：{billingDays}日</span>
+                {(form.adjustDays===""||form.adjustDays===undefined)&&(
+                  <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:String(billingDays),adjustReason:""}))}
+                    style={{...S.btn("#0369a1",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>日数を調整する</button>
+                )}
+                {form.adjustDays!==""&&form.adjustDays!==undefined&&(
+                  <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:"",adjustReason:""}))}
+                    style={{...S.btn("#94a3b8",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>調整をキャンセル</button>
+                )}
+              </div>
+              {form.adjustDays!==""&&form.adjustDays!==undefined&&(
+                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:"10px 16px"}}>
+                  <div>
+                    <label style={S.lbl}>調整後の日数 *</label>
+                    <input type="number" min={0.5} max={billingDays} step={0.5} value={form.adjustDays}
+                      onChange={e=>{const v=Number(e.target.value);if(v>billingDays||v<0.5)return;setForm(f=>({...f,adjustDays:e.target.value}));}}
+                      style={S.inp} placeholder={`0.5〜${billingDays}日`}/>
+                    <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{billingDays}日以下・0.5刻みで入力</div>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>調整理由 *（納品書控に表示）</label>
+                    <input type="text" value={form.adjustReason} onChange={e=>setForm(f=>({...f,adjustReason:e.target.value}))}
+                      style={S.inp} placeholder="例：撮影短縮のため1日減"/>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {/* 補償料チェック */}
           <div style={{marginTop:10,display:"flex",alignItems:"center",gap:10,background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"10px 14px"}}>
             <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,fontWeight:700,color:"#92400e",userSelect:"none"}}>
@@ -1581,38 +1613,6 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               </div>
             )}
           </div>
-          {form.billingType==="daily"&&(
-            <div style={{marginTop:14,background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"10px 14px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:form.adjustDays!==undefined&&form.adjustDays!==""?10:0}}>
-                <span style={{fontSize:12,fontWeight:700,color:"#0369a1"}}>📅 日数調整</span>
-                <span style={{fontSize:11,color:"#64748b"}}>自動計算：{billingDays}日</span>
-                {(form.adjustDays===""||form.adjustDays===undefined)&&(
-                  <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:String(billingDays),adjustReason:""}))}
-                    style={{...S.btn("#0369a1",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>日数を調整する</button>
-                )}
-                {form.adjustDays!==""&&form.adjustDays!==undefined&&(
-                  <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:"",adjustReason:""}))}
-                    style={{...S.btn("#94a3b8",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>調整をキャンセル</button>
-                )}
-              </div>
-              {form.adjustDays!==""&&form.adjustDays!==undefined&&(
-                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:"10px 16px"}}>
-                  <div>
-                    <label style={S.lbl}>調整後の日数 *</label>
-                    <input type="number" min={1} max={billingDays} value={form.adjustDays}
-                      onChange={e=>{const v=Number(e.target.value);if(v>billingDays||v<1)return;setForm(f=>({...f,adjustDays:e.target.value}));}}
-                      style={S.inp} placeholder={`1〜${billingDays}日`}/>
-                    <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{billingDays}日以下で入力してください</div>
-                  </div>
-                  <div>
-                    <label style={S.lbl}>調整理由 *（納品書控に表示）</label>
-                    <input type="text" value={form.adjustReason} onChange={e=>setForm(f=>({...f,adjustReason:e.target.value}))}
-                      style={S.inp} placeholder="例：撮影短縮のため1日減"/>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
           <div style={{marginTop:14}}>
             <label style={S.lbl}>備考（全体）</label>
             <textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...S.inp,resize:"vertical"}} rows={5} placeholder="案件全体に関する備考（改行可）"/>
