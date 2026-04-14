@@ -2092,7 +2092,7 @@ function DeliveryCopy({r, g, no, forPrint}){
         const emptyCount=Math.max(0,ROWS-rowIdx);
         return(
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10*fs,marginTop:10*fs}}>
-          <thead><tr>{[{l:"No.",w:28},{l:"機材名"},{l:"単価",w:60},{l:"数量",w:40},{l:"開始日",w:72},{l:"終了日",w:72},{l:"備考"}].map(h=><th key={h.l} style={{border:bdr,padding:`${3*fs}px ${4*fs}px`,textAlign:"center",fontWeight:700,background:"#f5f5f5",width:h.w?h.w*fs:undefined}}>{h.l}</th>)}</tr></thead>
+          <thead><tr>{[{l:"No.",w:28},{l:"機材名"},{l:"機材No",w:52},{l:"単価",w:60},{l:"数量",w:40},{l:"開始日",w:72},{l:"終了日",w:72},{l:"備考"}].map(h=><th key={h.l} style={{border:bdr,padding:`${3*fs}px ${4*fs}px`,textAlign:"center",fontWeight:700,background:"#f5f5f5",width:h.w?h.w*fs:undefined}}>{h.l}</th>)}</tr></thead>
           <tbody>
             {dataRows}
             {Array.from({length:emptyCount}).map((_,i)=><tr key={`e${i}`}>{[28,0,36,52,36,68,68,0].map((w,j)=><td key={j} style={{border:bdr,padding:`${3*fs}px`,height:14*fs}}>{j===0?<span style={{color:"#ccc"}}>{rowIdx+i+1}</span>:""}</td>)}</tr>)}
