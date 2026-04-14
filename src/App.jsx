@@ -1086,7 +1086,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.11</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.10</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -3872,6 +3872,33 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
   const filteredSpProds = spQ.length>=1
     ? products.filter(p=>p.fullName.toLowerCase().includes(spQ.toLowerCase()))
     : [];
+  if(open && !detailId){
+    return(
+      <div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+          <button onClick={()=>{setOpen(false);setForm(E);}} style={{...S.ib("#64748b"),fontSize:12}}>← 一覧に戻る</button>
+          <div style={{flex:1,fontSize:16,fontWeight:800}}>新規顧客を追加</div>
+        </div>
+        <div style={{...S.card,padding:24,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 20px"}}>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>顧客名 * （社内管理用）</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={S.inp} placeholder="株式会社〇〇"/></div>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>請求書宛名（空欄の場合は顧客名を使用）</label><input value={form.invoiceName} onChange={e=>setForm(f=>({...f,invoiceName:e.target.value}))} style={S.inp} placeholder="例: 株式会社〇〇 制作部 ご担当者様"/></div>
+            <div><label style={S.lbl}>郵便番号</label><input value={form.zipCode} onChange={e=>setForm(f=>({...f,zipCode:e.target.value}))} style={S.inp} placeholder="000-0000"/></div>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>住所</label><textarea value={form.address||""} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={{...S.inp,height:66,resize:"vertical",lineHeight:1.6}} placeholder={"東京都港区新橋6-10-2\n第二新洋ビル 1F"}/></div>
+            <div><label style={S.lbl}>担当者名</label><input value={form.contact} onChange={e=>setForm(f=>({...f,contact:e.target.value}))} style={S.inp}/></div>
+            <div><label style={S.lbl}>電話</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={S.inp}/></div>
+            <div><label style={S.lbl}>メール</label><input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} style={S.inp}/></div>
+            <div><label style={S.lbl}>支払サイクル</label><input value={form.paymentCycle} onChange={e=>setForm(f=>({...f,paymentCycle:e.target.value}))} style={S.inp}/></div>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>備考</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.inp}/></div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:16}}>
+            <button onClick={submit} style={S.btn("#0f172a")}>登録</button>
+            <button onClick={()=>{setOpen(false);setForm(E);}} style={S.btn("#94a3b8")}>キャンセル</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if(detailId){
     const c=customers.find(x=>x.id===detailId);
     if(c){
