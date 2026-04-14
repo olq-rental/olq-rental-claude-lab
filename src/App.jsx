@@ -3872,7 +3872,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
   const filteredSpProds = spQ.length>=1
     ? products.filter(p=>p.fullName.toLowerCase().includes(spQ.toLowerCase()))
     : [];
-  if(open && !detailId){
+  if(false && open && !detailId){
     return(
       <div>
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
