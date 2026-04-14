@@ -1172,7 +1172,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   });
   const emptyLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false};
   const emptyManualLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false,isManual:true,isFee:false,noBillingDiscount:false};
-  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:session?.user?.user_metadata?.name?.split(/[\s　]/)[0]||"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false,isExtension:false,extendedFrom:"",extendedFromNo:""};
+  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:session?.user?.user_metadata?.name?.split(/[\s　]/)[0]||"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false,isExtension:false,extendedFrom:"",extendedFromNo:"",adjustDays:"",adjustReason:""};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
@@ -1190,7 +1190,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   const cust = customers.find(c=>c.id===form.customerId);
   const days        = calcDays(form.startDate,form.endDate); // 実日数
   const billingDays = calcBillingDays(days);                  // 請求日数
-  const billingQty  = form.billingType==="monthly" ? (Number(form.months)||1) : billingDays;
+  const adjustedBillingDays = (form.billingType==="daily" && form.adjustDays && Number(form.adjustDays)>0) ? Number(form.adjustDays) : billingDays;
+  const billingQty  = form.billingType==="monthly" ? (Number(form.months)||1) : adjustedBillingDays;
   // noDisc集計
   const validLines = (form.lines||[]).filter(ln=>ln.productId||ln.isManual);
   const noDiscLines = validLines.filter(ln=>!ln.isFee&&(products.find(p=>p.id===ln.productId)?.noBillingDiscount||ln.noBillingDiscount));
@@ -1264,6 +1265,10 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
 
   const submit=async()=>{
     if(!form.customerId){showToast("顧客は必須です",false);return;}
+    if(form.billingType==="daily"&&form.adjustDays!==""&&form.adjustDays!==undefined){
+      if(!Number(form.adjustDays)||Number(form.adjustDays)<1){showToast("調整日数を1以上で入力してください",false);return;}
+      if(!form.adjustReason.trim()){showToast("調整理由を入力してください",false);return;}
+    }
     const validLines=(form.lines||[]).filter(ln=>{
       if(ln.isManual) return !!ln.equipmentName;
       return !!ln.productId;
@@ -1279,7 +1284,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
     });
     const rec={customerId:form.customerId,projectName:form.projectName,projectDetail:form.projectDetail,ecOrderNo:form.ecOrderNo||"",ordererName:form.ordererName,ourStaff:form.ourStaff,
       billingType:form.billingType,months:form.billingType==="monthly"?(Number(form.months)||1):0,
-      days:form.billingType==="monthly"?0:days,billingDays:form.billingType==="monthly"?0:billingDays,startDate:form.startDate,endDate:form.endDateOpen?"":form.endDate,endDateOpen:form.billingType==="monthly"&&!!form.endDateOpen,notes:form.notes,
+      days:form.billingType==="monthly"?0:days,billingDays:form.billingType==="monthly"?0:adjustedBillingDays,startDate:form.startDate,endDate:form.endDateOpen?"":form.endDate,endDateOpen:form.billingType==="monthly"&&!!form.endDateOpen,notes:form.notes,adjustReason:form.adjustDays&&form.adjustReason?form.adjustReason:"",
       issueReceipt:!!form.issueReceipt,receiptDate:form.issueReceipt?(form.receiptDate||""):"",paymentMethod:form.issueReceipt?(form.paymentMethod||"credit"):"",receiptNote:form.issueReceipt?(form.receiptNote||""):"",receiptNameCustom:form.issueReceipt?!!form.receiptNameCustom:false,receiptNameOverride:form.issueReceipt?(form.receiptNameOverride||""):"",receiptHonorific:form.issueReceipt?(form.receiptHonorific||"御中"):"",
       includeInsurance:!!form.includeInsurance,
       lines,amount:totalAmount,insuranceAmount,
@@ -1576,6 +1581,38 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               </div>
             )}
           </div>
+          {form.billingType==="daily"&&(
+            <div style={{marginTop:14,background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"10px 14px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:form.adjustDays!==undefined&&form.adjustDays!==""?10:0}}>
+                <span style={{fontSize:12,fontWeight:700,color:"#0369a1"}}>📅 日数調整</span>
+                <span style={{fontSize:11,color:"#64748b"}}>自動計算：{billingDays}日</span>
+                {(form.adjustDays===""||form.adjustDays===undefined)&&(
+                  <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:String(billingDays),adjustReason:""}))}
+                    style={{...S.btn("#0369a1",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>日数を調整する</button>
+                )}
+                {form.adjustDays!==""&&form.adjustDays!==undefined&&(
+                  <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:"",adjustReason:""}))}
+                    style={{...S.btn("#94a3b8",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>調整をキャンセル</button>
+                )}
+              </div>
+              {form.adjustDays!==""&&form.adjustDays!==undefined&&(
+                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:"10px 16px"}}>
+                  <div>
+                    <label style={S.lbl}>調整後の日数 *</label>
+                    <input type="number" min={1} max={billingDays} value={form.adjustDays}
+                      onChange={e=>{const v=Number(e.target.value);if(v>billingDays||v<1)return;setForm(f=>({...f,adjustDays:e.target.value}));}}
+                      style={S.inp} placeholder={`1〜${billingDays}日`}/>
+                    <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{billingDays}日以下で入力してください</div>
+                  </div>
+                  <div>
+                    <label style={S.lbl}>調整理由 *（納品書控に表示）</label>
+                    <input type="text" value={form.adjustReason} onChange={e=>setForm(f=>({...f,adjustReason:e.target.value}))}
+                      style={S.inp} placeholder="例：撮影短縮のため1日減"/>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <div style={{marginTop:14}}>
             <label style={S.lbl}>備考（全体）</label>
             <textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...S.inp,resize:"vertical"}} rows={5} placeholder="案件全体に関する備考（改行可）"/>
@@ -2020,7 +2057,7 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:10*fs,marginTop:-1}}>
         <tbody><tr>
           <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,width:48*fs,fontWeight:700,verticalAlign:"top",letterSpacing:4}}>備　考</td>
-          <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,minHeight:90*fs,whiteSpace:"pre-wrap"}}>{r.notes||" "}</td>
+          <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,minHeight:90*fs,whiteSpace:"pre-wrap"}}>{[r.notes,r.adjustReason].filter(Boolean).join("\n")||" "}</td>
         </tr></tbody>
       </table>
       {/* 注意事項 */}
@@ -2103,7 +2140,7 @@ function DeliveryCopy({r, g, no, forPrint}){
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:10*fs,marginTop:-1}}>
         <tbody><tr>
           <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,width:48*fs,fontWeight:700,verticalAlign:"top",letterSpacing:4}}>備　考</td>
-          <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,minHeight:90*fs,whiteSpace:"pre-wrap"}}>{r.notes||" "}</td>
+          <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,minHeight:90*fs,whiteSpace:"pre-wrap"}}>{[r.notes,r.adjustReason].filter(Boolean).join("\n")||" "}</td>
         </tr></tbody>
       </table>
     </div>
