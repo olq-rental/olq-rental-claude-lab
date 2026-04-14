@@ -3872,6 +3872,33 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
   const filteredSpProds = spQ.length>=1
     ? products.filter(p=>p.fullName.toLowerCase().includes(spQ.toLowerCase()))
     : [];
+  if(open && !detailId){
+    return(
+      <div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+          <button onClick={()=>{setOpen(false);setForm(E);}} style={{...S.ib("#64748b"),fontSize:12}}>← 一覧に戻る</button>
+          <div style={{flex:1,fontSize:16,fontWeight:800}}>新規顧客を追加</div>
+        </div>
+        <div style={{...S.card,padding:24,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 20px"}}>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>顧客名 * （社内管理用）</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={S.inp} placeholder="株式会社〇〇"/></div>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>請求書宛名（空欄の場合は顧客名を使用）</label><input value={form.invoiceName} onChange={e=>setForm(f=>({...f,invoiceName:e.target.value}))} style={S.inp} placeholder="例: 株式会社〇〇 制作部 ご担当者様"/></div>
+            <div><label style={S.lbl}>郵便番号</label><input value={form.zipCode} onChange={e=>setForm(f=>({...f,zipCode:e.target.value}))} style={S.inp} placeholder="000-0000"/></div>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>住所</label><textarea value={form.address||""} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={{...S.inp,height:66,resize:"vertical",lineHeight:1.6}} placeholder={"東京都港区新橋6-10-2\n第二新洋ビル 1F"}/></div>
+            <div><label style={S.lbl}>担当者名</label><input value={form.contact} onChange={e=>setForm(f=>({...f,contact:e.target.value}))} style={S.inp}/></div>
+            <div><label style={S.lbl}>電話</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={S.inp}/></div>
+            <div><label style={S.lbl}>メール</label><input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} style={S.inp}/></div>
+            <div><label style={S.lbl}>支払サイクル</label><input value={form.paymentCycle} onChange={e=>setForm(f=>({...f,paymentCycle:e.target.value}))} style={S.inp}/></div>
+            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>備考</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.inp}/></div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:16}}>
+            <button onClick={submit} style={S.btn("#0f172a")}>登録</button>
+            <button onClick={()=>{setOpen(false);setForm(E);}} style={S.btn("#94a3b8")}>キャンセル</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if(detailId){
     const c=customers.find(x=>x.id===detailId);
     if(c){
@@ -4245,7 +4272,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
               <div style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",opacity:.4}}><Ico d={I.search} size={13}/></div>
               <input value={custQ} onChange={e=>setCustQ(e.target.value)} placeholder="顧客名で検索..." style={{...S.inp,paddingLeft:28,width:180}}/>
             </div>
-            <button onClick={()=>{setForm(E);setEditId(null);setDetailId("__new__");setOpen(true);}} style={S.btn("#0f172a")}><Ico d={I.plus} size={15}/>顧客を追加</button>
+            <button onClick={()=>{setForm(E);setEditId(null);setDetailId(null);setOpen(true);}} style={S.btn("#0f172a")}><Ico d={I.plus} size={15}/>顧客を追加</button>
             <button onClick={()=>xlsxInputRef.current?.click()} style={S.btn("#0369a1",true)}>📥 Excelから読み込み</button>
             <input ref={xlsxInputRef} type="file" accept=".xlsx" style={{display:"none"}} onChange={e=>{if(e.target.files[0]){importFromXlsx(e.target.files[0]);e.target.value="";}}}/>
             <button onClick={resetToPreset} style={S.btn("#64748b",true)}>↺ リセット</button>
