@@ -2313,7 +2313,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
             {g.items.flatMap(r=>{
               const rLines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
               const days=r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0);
-              return rLines.map((ln,li)=>{
+              const rows=rLines.map((ln,li)=>{
                 const prod=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
                 const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
                 const dispPrice=showDiscountLine?listPrice:(ln.unitPrice||r.unitPrice);
@@ -2333,17 +2333,15 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
                   </tr>
                 );
               });
+              if((r.insuranceAmount||0)>0){
+                rows.push(<tr key={`${r.id}-ins`}><td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right"}}>補償料</td><td style={{...S.td,padding:"4px 6px",textAlign:"right",fontWeight:600}}>{fmt(r.insuranceAmount)}</td></tr>);
+              }
+              return rows;
             })}
             {showDiscountLine&&totalDiscount>0&&(
               <tr>
                 <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right"}}>お値引き</td>
                 <td style={{...S.td,padding:"4px 6px",textAlign:"right",fontWeight:600}}>▲{fmt(totalDiscount)}</td>
-              </tr>
-            )}
-            {insurTot>0&&(
-              <tr style={{background:"#fff7ed"}}>
-                <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#92400e"}}>補償料</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(insurTot)}</td>
               </tr>
             )}
           </tbody>
@@ -2567,10 +2565,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     });
     // 補償料行
     if(totIns>0){
-      body += `<tr style="background:#fff7ed">
-        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e">補償料</td>
-        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e;font-weight:bold">${fn(totIns)}</td>
-      </tr>`;
+      body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">${fn(totIns)}</td></tr>`;
     }
     // 調整行
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
@@ -3243,7 +3238,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               const dateStr = `${y}/${String(m).padStart(2,"0")}/${String(lastDay).padStart(2,"0")}`;
               const bom = "\uFEFF"; const rows = [bom+"発生日,金額,取引先,勘定科目,税区分,摘要"];
               filtered.forEach(g=>{
-                const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0),0);
+                const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0)+(Number(r.insuranceAmount)||0),0);
                 const tax = Math.round(base*0.1);
                 const total = base + tax;
                 const memo = [g.customerName, g.projectName].filter(Boolean).join(" / ");
