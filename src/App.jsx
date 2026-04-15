@@ -2563,7 +2563,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </tr>`;
       });
       if((r.insuranceAmount||0)>0){
-        body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">${fn(r.insuranceAmount)}</td></tr>`;
+        body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`;
       }
     });
     // 調整行
