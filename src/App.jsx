@@ -2496,7 +2496,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         <!-- 中央: タイトル -->
         <div style="text-align:center;font-size:14px;font-weight:bold;padding:0 24px">ご請求書</div>
         <!-- 右: 管理No〜MAIL -->
-        <div style="font-size:10px;line-height:1.9;white-space:nowrap;text-align:right">
+        <div style="font-size:10px;line-height:1.9;white-space:nowrap;text-align:right;grid-row:1/3;display:flex;flex-direction:column;justify-content:space-between">
           <div>
             <div>管理No　<strong>${invNo}</strong></div>
             <div>日付　${issueDateStr}</div>
