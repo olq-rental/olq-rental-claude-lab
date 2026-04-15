@@ -2426,7 +2426,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
 }
 
 // 印刷用HTML生成 & ダウンロード
-function downloadPrintHTML(type, g) {
+function downloadPrintHTML(type, g, products, extraDiscount) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
   const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}
@@ -2454,7 +2454,19 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     const adjustments = g.adjustments || [];
     const adjSum = adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
     const totIns = g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
-    const grandTot = tot + adjSum;
+    const showDiscountLine = !!g.customer?.showDiscountLine;
+    const extraDiscountAmt = Number(extraDiscount)||0;
+    const listTot = showDiscountLine ? g.items.reduce((s,r)=>{
+      const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,unitPrice:r.unitPrice,quantity:r.quantity}];
+      return s+rLines.reduce((s2,ln)=>{
+        const prod=(products||[]).find(p=>p.id===ln.productId);
+        const lp=prod?prod.priceEx:(ln.unitPrice||0);
+        const days=r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1);
+        return s2+Math.round(lp*(ln.quantity||1)*days);
+      },0);
+    },0) : tot;
+    const totalDiscount = showDiscountLine ? (listTot - tot + extraDiscountAmt) : 0;
+    const grandTot = showDiscountLine ? (tot + adjSum - extraDiscountAmt) : (tot + adjSum);
     const taxAmt = Math.round(grandTot * 0.1);
     // 管理No：先頭案件のcreatedAtから生成
     const firstRec = g.items[0];
@@ -2532,7 +2544,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
       const lineCount = rLines.length;
       rLines.forEach((ln,li)=>{
-        const lineAmt = ln.amount!==undefined ? ln.amount : Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1)));
+        const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
+        const listPrice = prod ? prod.priceEx : (ln.unitPrice||0);
+        const dispPrice = showDiscountLine ? listPrice : (ln.unitPrice||r.unitPrice);
+        const lineAmt = showDiscountLine
+          ? Math.round(listPrice*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1)))
+          : (ln.amount!==undefined ? ln.amount : Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1))));
         const equipName = ln.equipmentName||r.equipmentName||"";
         const isSplit = g.split !== false;
         const projInfo = !isSplit && r.projectName
@@ -2543,7 +2560,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           ${li===0?`<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:top" rowspan="${lineCount}">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:top" rowspan="${lineCount}">${days}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:top" rowspan="${lineCount}">${orderer}</td>`:""}
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
-          <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(ln.unitPrice||r.unitPrice)}</td>
+          <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
         </tr>`;
       });
@@ -2562,6 +2579,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold;color:${Number(a.amount)<0?"#dc2626":"#16a34a"}">${fn(Number(a.amount)||0)}</td>
       </tr>`;
     });
+    if(showDiscountLine && totalDiscount > 0){
+      body += `<tr style="background:#FCEBEB">
+        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#A32D2D">お値引き</td>
+        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#A32D2D;font-weight:bold">▲${fn(totalDiscount)}</td>
+      </tr>`;
+    }
     const pcH = g.customer?.paymentCycle||"";
     const [myH,mmH] = (g.month||"").split("-").map(Number);
     let dueStrH = "";
