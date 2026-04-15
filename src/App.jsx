@@ -2335,9 +2335,9 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
               });
             })}
             {showDiscountLine&&totalDiscount>0&&(
-              <tr style={{background:"#FCEBEB"}}>
-                <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#A32D2D"}}>お値引き</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#A32D2D",fontWeight:600}}>▲{fmt(totalDiscount)}</td>
+              <tr>
+                <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right"}}>お値引き</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"right",fontWeight:600}}>▲{fmt(totalDiscount)}</td>
               </tr>
             )}
             {insurTot>0&&(
@@ -2580,10 +2580,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       </tr>`;
     });
     if(showDiscountLine && totalDiscount > 0){
-      body += `<tr style="background:#FCEBEB">
-        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#A32D2D">お値引き</td>
-        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#A32D2D;font-weight:bold">▲${fn(totalDiscount)}</td>
-      </tr>`;
+      body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">お値引き</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">▲${fn(totalDiscount)}</td></tr>`;
     }
     const pcH = g.customer?.paymentCycle||"";
     const [myH,mmH] = (g.month||"").split("-").map(Number);
@@ -4148,6 +4145,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                   ["支払サイクル", c.paymentCycle||"―"],
                   ["掛け率", Number(c.discountRate)>0&&Number(c.discountRate)<10?`${c.discountRate}掛`:"定価"],
                   ["請求まとめ", c.splitInvoice===false?"まとめ請求":"案件別"],
+                  ["請求書値引き表示", c.showDiscountLine?"定価＋お値引き行":"値引き後単価"],
                 ].map(([l,v])=>(
                   <div key={l} style={{display:"flex",gap:8,borderBottom:"1px solid #f1f5f9",paddingBottom:4}}>
                     <span style={{color:"#94a3b8",minWidth:80,flexShrink:0}}>{l}</span>
