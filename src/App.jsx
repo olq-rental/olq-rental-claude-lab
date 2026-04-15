@@ -3256,8 +3256,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
         {(()=>{
           if(!selMonth) return null;
           const [sy,sm] = selMonth.split("-").map(Number);
-          const monthStart = `${selMonth}-01`;
-          const monthEnd = new Date(sy,sm,0).toISOString().slice(0,10);
+          const lastDayNum = new Date(sy,sm,0).getDate();
+          const monthEnd = `${sy}-${String(sm).padStart(2,'0')}-${String(lastDayNum).padStart(2,'0')}`;
           const crossRecords = (records||[]).filter(r=>{
             if(!r.startDate||!r.endDate) return false;
             if(r.billingType==="monthly") return false;
@@ -3271,7 +3271,12 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               <div style={{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:10}}>⚠ 月またぎ案件（{crossRecords.length}件）</div>
               {crossRecords.map(r=>{
                 const c=customers.find(x=>x.id===r.customerId);
-                const splits=crossMonthSplits[r.id]||[{startDate:r.startDate,endDate:monthEnd}];
+                const recStart=r.startDate;
+                const recEnd=r.endDate;
+                const thisMonthStart=recStart<`${selMonth}-01`?`${selMonth}-01`:recStart;
+                const thisMonthEnd=recEnd>monthEnd?monthEnd:recEnd;
+                const defaultSplits=[{startDate:recStart,endDate:thisMonthEnd}];
+                const splits=crossMonthSplits[r.id]||defaultSplits;
                 const totalAmt=r.amount||0;
                 const usedAmt=splits.slice(0,-1).reduce((s,sp)=>{
                   if(!sp.startDate||!sp.endDate) return s;
@@ -3330,13 +3335,21 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                         </div>
                       );
                     })}
-                    <button onClick={()=>setCrossMonthSplits(prev=>{
-                      const s=[...(prev[r.id]||splits)];
-                      const last=s[s.length-1];
-                      const nextStart=last.startDate?new Date(new Date(last.startDate).getTime()+86400000).toISOString().slice(0,10):"";
-                      s.splice(s.length-1,0,{startDate:nextStart,endDate:""});
-                      return {...prev,[r.id]:s};
-                    })} style={{fontSize:11,color:"#0369a1",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>+ 分割を追加</button>
+                    <div style={{display:"flex",gap:12,alignItems:"center",marginTop:4}}>
+                      <button onClick={()=>setCrossMonthSplits(prev=>{
+                        const s=[...(prev[r.id]||splits)];
+                        const last=s[s.length-1];
+                        const nextStart=last.endDate?(()=>{const d=new Date(last.endDate);d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})():"";
+                        s.splice(s.length-1,0,{startDate:nextStart,endDate:""});
+                        return {...prev,[r.id]:s};
+                      })} style={{fontSize:11,color:"#0369a1",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>+ 分割を追加</button>
+                      <button onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:[{startDate:recStart,endDate:recEnd}]}))}
+                        style={{fontSize:11,color:"#16a34a",background:"#dcfce7",border:"1px solid #86efac",borderRadius:4,padding:"2px 8px",cursor:"pointer"}}>
+                        ✓ この月に全額計上
+                      </button>
+                      <button onClick={()=>setCrossMonthSplits(prev=>{const p={...prev};delete p[r.id];return p;})}
+                        style={{fontSize:11,color:"#64748b",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>リセット</button>
+                    </div>
                   </div>
                 );
               })}
