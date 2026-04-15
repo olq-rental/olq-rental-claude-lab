@@ -2320,9 +2320,9 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
                 const lineAmt=showDiscountLine?Math.round(listPrice*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1))):(ln.amount!==undefined?ln.amount:Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1))));
                 return(
                   <tr key={`${r.id}-${li}`}>
-                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"top"}} rowSpan={rLines.length}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.billingType==="monthly"&&<div style={{fontSize:10,marginTop:2}}>[月極]</div>}{r.ecOrderNo&&<div style={{fontSize:10,marginTop:2}}>EC:{r.ecOrderNo}</div>}</td>}
-                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"top"}} rowSpan={rLines.length}>{days}</td>}
-                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"top"}} rowSpan={rLines.length}>{r.ordererName ? r.ordererName+"　様" : ""}</td>}
+                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"middle"}} rowSpan={rLines.length}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.billingType==="monthly"&&<div style={{fontSize:10,marginTop:2}}>[月極]</div>}{r.ecOrderNo&&<div style={{fontSize:10,marginTop:2}}>EC:{r.ecOrderNo}</div>}</td>}
+                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}} rowSpan={rLines.length}>{days}</td>}
+                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"middle"}} rowSpan={rLines.length}>{r.ordererName ? r.ordererName+"　様" : ""}</td>}
                     <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>
                       {ln.equipmentName||r.equipmentName}
                       {li===0&&r.projectDetail&&<span style={{color:"#555",fontSize:10}}>　[{r.projectDetail}]</span>}
