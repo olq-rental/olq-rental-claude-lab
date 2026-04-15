@@ -2290,7 +2290,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
             <div>MAIL：invoice@olq.co.jp</div>
           </div>
           {/* 左下: 挨拶文・ご請求金額 */}
-          <div style={{gridColumn:1,gridRow:2,paddingTop:"4em"}}>
+          <div style={{gridColumn:1,gridRow:2,paddingTop:0,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
             <div style={{fontSize:10.5,marginBottom:8}}>毎度ありがとうございます。下記の通りご請求申し上げます。</div>
             <div style={{display:"flex",alignItems:"baseline",gap:12}}>
               <span style={{fontSize:13,fontWeight:"bold"}}>ご請求金額</span>
