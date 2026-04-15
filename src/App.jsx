@@ -1137,7 +1137,7 @@ export default function App() {
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
         {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
         {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
-        {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
+        {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} products={products} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
         {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
@@ -3054,7 +3054,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
 // =========================================================
 // InvoiceTab（請求書タブ） — 月選択・ステータス管理・調整行
 // =========================================================
-function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records}){
+function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records}){
   const months = [...new Set(groups.map(g=>g.month).filter(Boolean))].sort().reverse();
   const currentMonth = today().slice(0,7);
   const [selMonth, setSelMonth] = useState(months.includes(currentMonth)?currentMonth:(months[0]||""));
@@ -3435,7 +3435,7 @@ function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, show
             </div>
           </div>
           <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bfdbfe"}}>
-            <InvoicePreview type="invoice" g={{...preview.g,adjustments:getInvData(preview.key).adjustments}}/>
+            <InvoicePreview type="invoice" g={{...preview.g,adjustments:getInvData(preview.key).adjustments}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0}/>
           </div>
         </div>
       )}
