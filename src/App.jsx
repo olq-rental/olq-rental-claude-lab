@@ -3282,12 +3282,33 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                 const lastAmt=totalAmt-usedAmt;
                 return(
                   <div key={r.id} style={{background:"#fffbeb",borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid #fde68a"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                       <span style={{fontWeight:600,fontSize:12}}>{c?.name||"不明"}</span>
                       <span style={{fontSize:11,color:"#64748b"}}>{r.projectName||""}</span>
                       <span style={{fontSize:11,color:"#64748b"}}>{r.startDate}〜{r.endDate}</span>
                       <span style={{fontSize:12,fontWeight:700,color:"#92400e",marginLeft:"auto"}}>合計 {fmt(totalAmt)}</span>
                     </div>
+                    {(()=>{
+                      const rLines=(r.lines&&r.lines.length)?r.lines:(r.equipmentName?[{equipmentName:r.equipmentName,quantity:r.quantity||1,amount:r.amount}]:[]);
+                      return rLines.length>0&&(
+                        <div style={{background:"#fff",borderRadius:4,padding:"6px 8px",marginBottom:8,fontSize:11}}>
+                          {rLines.map((ln,i)=>(
+                            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",borderBottom:i<rLines.length-1?"1px solid #f1f5f9":"none"}}>
+                              <span style={{color:"#334155"}}>{ln.equipmentName||"―"}{(ln.quantity||1)>1?` ×${ln.quantity}`:""}</span>
+                              <span style={{color:"#64748b"}}>{ln.amount?fmt(ln.amount):""}</span>
+                            </div>
+                          ))}
+                          <div style={{marginTop:6,paddingTop:4,borderTop:"1px solid #f1f5f9"}}>
+                            <button onClick={()=>{
+                              const g={customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:r.startDate?.slice(0,7)||"",items:[r],split:true,consolidate:false};
+                              downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery",g);
+                            }} style={{background:"none",border:"none",color:"#2563eb",fontSize:11,cursor:"pointer",padding:0,textDecoration:"underline"}}>
+                              → 納品書を開く
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {splits.map((sp,si)=>{
                       const isLast=si===splits.length-1;
                       const d=sp.startDate&&sp.endDate?calcDays(sp.startDate,sp.endDate):0;
