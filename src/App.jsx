@@ -1086,7 +1086,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.12</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.13</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -2226,13 +2226,26 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
     </div>
   );
 }
-function InvoicePreview({type,g,forPrint}){
+function InvoicePreview({type,g,forPrint,products,extraDiscount}){
   const equipTot=g.items.reduce((s,r)=>s+(r.amount||0),0);
   const insurTot=g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
   const baseTot=equipTot+insurTot;
   const adjustments=g.adjustments||[];
   const adjSum=adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-  const tot=baseTot+adjSum;
+  const showDiscountLine=!!g.customer?.showDiscountLine;
+  const listTot=showDiscountLine?g.items.reduce((s,r)=>{
+    const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,unitPrice:r.unitPrice,quantity:r.quantity}];
+    return s+rLines.reduce((s2,ln)=>{
+      const prod=(products||[]).find(p=>p.id===ln.productId);
+      const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
+      const days=r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1);
+      return s2+Math.round(listPrice*(ln.quantity||1)*days);
+    },0);
+  },0):baseTot;
+  const autoDiscount=showDiscountLine?-(listTot-baseTot):0;
+  const extraDiscountAmt=Number(extraDiscount)||0;
+  const totalDiscount=autoDiscount-extraDiscountAmt;
+  const tot=baseTot+adjSum-extraDiscountAmt;
   const tax=Math.round(tot*0.1);
   if(type==="invoice"){
     const firstRec = g.items[0];
@@ -2302,7 +2315,10 @@ function InvoicePreview({type,g,forPrint}){
               const rLines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
               const days=r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0);
               return rLines.map((ln,li)=>{
-                const lineAmt=ln.amount!==undefined?ln.amount:Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1)));
+                const prod=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
+                const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
+                const dispPrice=showDiscountLine?listPrice:(ln.unitPrice||r.unitPrice);
+                const lineAmt=showDiscountLine?Math.round(listPrice*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1))):(ln.amount!==undefined?ln.amount:Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1))));
                 return(
                   <tr key={`${r.id}-${li}`}>
                     {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"top"}} rowSpan={rLines.length}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.billingType==="monthly"&&<div style={{fontSize:10,marginTop:2}}>[月極]</div>}{r.ecOrderNo&&<div style={{fontSize:10,marginTop:2}}>EC:{r.ecOrderNo}</div>}</td>}
@@ -2311,15 +2327,20 @@ function InvoicePreview({type,g,forPrint}){
                     <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>
                       {ln.equipmentName||r.equipmentName}
                       {li===0&&r.projectDetail&&<span style={{color:"#555",fontSize:10}}>　[{r.projectDetail}]</span>}
-
                     </td>
                     <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{ln.quantity||1}</td>
-                    <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(ln.unitPrice||r.unitPrice)}</td>
+                    <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(dispPrice)}</td>
                     <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontWeight:"bold"}}>{fmt(lineAmt)}</td>
                   </tr>
                 );
               });
             })}
+            {showDiscountLine&&totalDiscount<0&&(
+              <tr style={{background:"#FCEBEB"}}>
+                <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#A32D2D"}}>お値引き</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#A32D2D",fontWeight:600}}>▲{fmt(Math.abs(totalDiscount))}</td>
+              </tr>
+            )}
             {insurTot>0&&(
               <tr style={{background:"#fff7ed"}}>
                 <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#92400e"}}>補償料</td>
@@ -2406,7 +2427,7 @@ function InvoicePreview({type,g,forPrint}){
 }
 
 // 印刷用HTML生成 & ダウンロード
-function downloadPrintHTML(type, g) {
+function downloadPrintHTML(type, g, products, extraDiscount) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
   const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}
@@ -2891,7 +2912,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
     return matchQ&&matchGQ&&(!fil.cid||r.customerId===fil.cid)&&(!fil.month||r.startDate?.startsWith(fil.month));
   });
 
-  const previewG = preview ? makeGroup(preview.r) : null;
+  const previewG = preview ? {...makeGroup(preview.r), _key:preview.r?.id||""} : null;
 
   return(
     <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
@@ -2974,13 +2995,21 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
               {preview.type==="delivery-receipt"?"納品書・領収証":"納品書"} プレビュー
             </div>
             <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>downloadPrintHTML(preview.type,previewG)} style={{...S.btn("#16a34a",true),fontSize:11}}>🖨 印刷・PDF</button>
+              {previewG?.customer?.showDiscountLine&&(
+                        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+                          <span style={{color:"#92400e",fontWeight:600}}>追加値引き（円）</span>
+                          <input type="number" min={0} value={getInvData(previewG?._key||"")?.extraDiscount||""} placeholder="0"
+                            onChange={e=>updateInvData(previewG._key,{extraDiscount:Number(e.target.value)||0})}
+                            style={{width:90,padding:"3px 6px",border:"1px solid #e2e8f0",borderRadius:5,fontSize:11}}/>
+                        </div>
+                      )}
+                      <button onClick={()=>downloadPrintHTML(preview.type,previewG,products,getInvData(previewG?._key||"")?.extraDiscount||0)} style={{...S.btn("#16a34a",true),fontSize:11}}>🖨 印刷・PDF</button>
               <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
             </div>
           </div>
           <div style={{fontSize:10,color:"#94a3b8",marginBottom:6}}>💡 「印刷・PDF」でHTMLファイルをダウンロードします</div>
           <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bbf7d0"}}>
-            <InvoicePreview type={preview.type} g={previewG}/>
+            <InvoicePreview type={preview.type} g={previewG} forPrint={false} products={products} extraDiscount={getInvData(previewG?._key||"")?.extraDiscount||0}/>
           </div>
         </div>
       )}
@@ -3324,7 +3353,7 @@ function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, show
                                     }
                                     await updateInvData(key,{invNo:baseNo,printCount:count});
                                     const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,cur.extraDiscount||0);
                                   }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
                                     🖨
                                   </button>
@@ -3422,6 +3451,14 @@ function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, show
               <Ico d={I.print} size={14} color="#1d4ed8"/>請求書 プレビュー
             </div>
             <div style={{display:"flex",gap:6}}>
+              {preview.g?.customer?.showDiscountLine&&(
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+                  <span style={{color:"#92400e",fontWeight:600}}>追加値引き（円）</span>
+                  <input type="number" min={0} value={getInvData(preview.key)?.extraDiscount||""} placeholder="0"
+                    onChange={e=>updateInvData(preview.key,{extraDiscount:Number(e.target.value)||0})}
+                    style={{width:90,padding:"3px 6px",border:"1px solid #e2e8f0",borderRadius:5,fontSize:11}}/>
+                </div>
+              )}
               <button onClick={async()=>{
   const cur=getInvData(preview.key,preview.g.month);
   let baseNo=cur.invNo, count;
@@ -3429,13 +3466,13 @@ function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, show
   else{count=(cur.printCount||1)+1;}
   await updateInvData(preview.key,{invNo:baseNo,printCount:count});
   const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-  downloadPrintHTML("invoice",{...preview.g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
+  downloadPrintHTML("invoice",{...preview.g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,getInvData(preview.key)?.extraDiscount||0);
 }} style={{...S.btn("#1d4ed8",true),fontSize:11}}>🖨 PDF</button>
               <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
             </div>
           </div>
           <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bfdbfe"}}>
-            <InvoicePreview type="invoice" g={{...preview.g,adjustments:getInvData(preview.key).adjustments}}/>
+            <InvoicePreview type="invoice" g={{...preview.g,adjustments:getInvData(preview.key).adjustments}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0}/>
           </div>
         </div>
       )}
@@ -3780,7 +3817,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
 }
 
 function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActivity,showToast,presetCustomers,openCustomerId,onOpenHandled}){
-  const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false};
+  const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false,showDiscountLine:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
@@ -3844,7 +3881,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     if(!openCustomerId) return;
     const c = customers.find(x=>x.id===openCustomerId);
     if(!c) return;
-    setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});
+    setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,showDiscountLine:!!c.showDiscountLine});
     setEditId(c.id);
     setDetailId(c.id);
     setOpen(true);
@@ -3941,7 +3978,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     if(c){
       const custRecords=(records||[]).filter(r=>r.customerId===c.id);
       const openEdit=()=>{
-        setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});
+        setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,showDiscountLine:!!c.showDiscountLine});
         setEditId(c.id); setOpen(true);
       };
       return(
@@ -4008,6 +4045,11 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                     納品書に金額（単価）を記載する
                   </label>
                   <span style={{fontSize:10,color:"#64748b"}}>{form.showDeliveryPrice?"納品書（お客様用）に単価・機材Noを表示します":"デフォルト：納品書には金額を記載しません"}</span>
+                  <label style={{fontSize:12,fontWeight:700,color:"#0369a1",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,cursor:"pointer",marginTop:8}}>
+                    <input type="checkbox" checked={!!form.showDiscountLine} onChange={e=>setForm(f=>({...f,showDiscountLine:e.target.checked}))} style={{cursor:"pointer"}}/>
+                    請求書を定価＋お値引き行で表示する
+                  </label>
+                  <span style={{fontSize:10,color:"#64748b"}}>{form.showDiscountLine?"機材は定価表示・合計にお値引き行を追加":"デフォルト：値引き後の金額を各機材に反映"}</span>
                 </div>
                 <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>請求書 担当者名</label><input value={form.staff||""} onChange={e=>setForm(f=>({...f,staff:e.target.value}))} style={S.inp} placeholder="例: 井上 雄太（請求書PDFに表示）"/></div>
                 <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>備考</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.inp}/></div>
@@ -4354,7 +4396,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
 
                 <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
                   {syncSPs(c.specialPrices,products).length>0&&<button onClick={()=>setExp(isSpOpen?null:c.id)} style={S.ib("#64748b")}><Ico d={I.star} size={12}/></button>}
-                  <button onClick={()=>{setDetailId(c.id);setTimeout(()=>{setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});setEditId(c.id);setOpen(true);},0);}} style={S.ib("#92400e")}><Ico d={I.edit} size={12}/>編集</button>
+                  <button onClick={()=>{setDetailId(c.id);setTimeout(()=>{setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,showDiscountLine:!!c.showDiscountLine});setEditId(c.id);setOpen(true);},0);}} style={S.ib("#92400e")}><Ico d={I.edit} size={12}/>編集</button>
                   <button onClick={()=>setEditProjModal({type:"deleteCust",id:c.id,name:c.name})} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                 </div>
               </div>
