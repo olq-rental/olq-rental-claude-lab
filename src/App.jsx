@@ -2485,7 +2485,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
     body += `<div style="padding:0px 38px;max-width:760px;margin:0 auto;font-size:10px">
       <!-- grid 3列: 左=顧客, 中=タイトル, 右=管理情報 -->
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:4px 0;margin-bottom:8px">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
         <!-- 左: 顧客名・住所 -->
         <div style="padding-bottom:6px">
           <div style="font-size:14px;font-weight:bold;margin-bottom:6px">${g.customerName}　御中</div>
@@ -2515,7 +2515,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </div>
         </div>
         <!-- 左下: 挨拶文・ご請求金額 -->
-        <div style="grid-column:1/3;grid-row:2;padding-top:0;display:flex;flex-direction:column;justify-content:flex-end">
+        <div style="grid-column:1/3;grid-row:2;padding-top:0;display:flex;flex-direction:column;justify-content:flex-end;min-height:0">
           <div style="font-size:10px;margin-bottom:4px">毎度ありがとうございます。下記の通りご請求申し上げます。</div>
           <div style="display:flex;align-items:baseline;gap:14px">
             <span style="font-size:12px;font-weight:bold">ご請求金額</span>
