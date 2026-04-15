@@ -1086,7 +1086,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.13</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.14</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -3102,6 +3102,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   const [expanded, setExpanded] = useState({}); // {key: bool}
   const [statusFilter, setStatusFilter] = useState("all"); // "all"|"open"|"locked"
   const [showPwSetting, setShowPwSetting] = useState(false);
+  const [crossMonthSplits, setCrossMonthSplits] = useState({}); // {recordId: [{startDate, endDate}]}
   const [newPw, setNewPw] = useState("");
   const [custQ, setCustQ] = useState("");
 
@@ -3250,6 +3251,77 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             }} style={{...S.btn("#0ea5e9",true),fontSize:11,marginLeft:"auto"}}>📤 freee CSV</button>
           </div>
         )}
+
+        {/* 月またぎ案件セクション */}
+        {(()=>{
+          if(!selMonth) return null;
+          const [sy,sm] = selMonth.split("-").map(Number);
+          const monthStart = `${selMonth}-01`;
+          const monthEnd = new Date(sy,sm,0).toISOString().slice(0,10);
+          const crossRecords = (records||[]).filter(r=>{
+            if(!r.startDate||!r.endDate) return false;
+            if(r.billingType==="monthly") return false;
+            const rs = r.startDate.slice(0,7);
+            const re = r.endDate.slice(0,7);
+            return rs!==re && (rs===selMonth||re===selMonth||(rs<selMonth&&re>selMonth));
+          });
+          if(crossRecords.length===0) return null;
+          return(
+            <div style={{background:"#fff",border:"1.5px solid #f59e0b",borderRadius:10,padding:"12px 16px",marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:10}}>⚠ 月またぎ案件（{crossRecords.length}件）</div>
+              {crossRecords.map(r=>{
+                const c=customers.find(x=>x.id===r.customerId);
+                const splits=crossMonthSplits[r.id]||[{startDate:r.startDate,endDate:monthEnd}];
+                const totalAmt=r.amount||0;
+                const usedAmt=splits.slice(0,-1).reduce((s,sp)=>{
+                  if(!sp.startDate||!sp.endDate) return s;
+                  const d=calcDays(sp.startDate,sp.endDate);
+                  const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1}];
+                  return s+rLines.reduce((s2,ln)=>s2+Math.round((ln.unitPrice||0)*(ln.quantity||1)*calcBillingDays(d)),0);
+                },0);
+                const lastAmt=totalAmt-usedAmt;
+                return(
+                  <div key={r.id} style={{background:"#fffbeb",borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid #fde68a"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <span style={{fontWeight:600,fontSize:12}}>{c?.name||"不明"}</span>
+                      <span style={{fontSize:11,color:"#64748b"}}>{r.projectName||""}</span>
+                      <span style={{fontSize:11,color:"#64748b"}}>{r.startDate}〜{r.endDate}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:"#92400e",marginLeft:"auto"}}>合計 {fmt(totalAmt)}</span>
+                    </div>
+                    {splits.map((sp,si)=>{
+                      const isLast=si===splits.length-1;
+                      const d=sp.startDate&&sp.endDate?calcDays(sp.startDate,sp.endDate):0;
+                      const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1}];
+                      const spAmt=isLast?lastAmt:rLines.reduce((s,ln)=>s+Math.round((ln.unitPrice||0)*(ln.quantity||1)*calcBillingDays(d)),0);
+                      return(
+                        <div key={si} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:11}}>
+                          <span style={{color:"#64748b",minWidth:40}}>{si===0?r.startDate.slice(5)+"〜":""}</span>
+                          <input type="date" value={sp.startDate||""} disabled={si===0}
+                            onChange={e=>setCrossMonthSplits(prev=>{const s=[...(prev[r.id]||splits)];s[si]={...s[si],startDate:e.target.value};return {...prev,[r.id]:s};})}
+                            style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:120}}/>
+                          <span>〜</span>
+                          <input type="date" value={sp.endDate||""} disabled={isLast}
+                            onChange={e=>setCrossMonthSplits(prev=>{const s=[...(prev[r.id]||splits)];s[si]={...s[si],endDate:e.target.value};if(s[si+1])s[si+1]={...s[si+1],startDate:new Date(new Date(e.target.value).getTime()+86400000).toISOString().slice(0,10)};return {...prev,[r.id]:s};})}
+                            style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:120}}/>
+                          <span style={{minWidth:70,textAlign:"right",fontWeight:isLast?400:600}}>{fmt(spAmt)}</span>
+                          <span style={{fontSize:10,color:"#94a3b8"}}>{isLast?"（帳尻）":`${d}日→${calcBillingDays(d)}請求日`}</span>
+                          {!isLast&&si>0&&<button onClick={()=>setCrossMonthSplits(prev=>{const s=[...(prev[r.id]||splits)];s.splice(si,1);return {...prev,[r.id]:s};})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12}}>✕</button>}
+                        </div>
+                      );
+                    })}
+                    <button onClick={()=>setCrossMonthSplits(prev=>{
+                      const s=[...(prev[r.id]||splits)];
+                      const last=s[s.length-1];
+                      const nextStart=last.startDate?new Date(new Date(last.startDate).getTime()+86400000).toISOString().slice(0,10):"";
+                      s.splice(s.length-1,0,{startDate:nextStart,endDate:""});
+                      return {...prev,[r.id]:s};
+                    })} style={{fontSize:11,color:"#0369a1",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>+ 分割を追加</button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* テーブル */}
         <div style={S.card}>
