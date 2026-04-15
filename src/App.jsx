@@ -2515,7 +2515,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </div>
         </div>
         <!-- 左下: 挨拶文・ご請求金額 -->
-        <div style="grid-column:1/3;grid-row:2;padding-top:2em">
+        <div style="grid-column:1/3;grid-row:2;padding-top:0;display:flex;flex-direction:column;justify-content:flex-end">
           <div style="font-size:10px;margin-bottom:4px">毎度ありがとうございます。下記の通りご請求申し上げます。</div>
           <div style="display:flex;align-items:baseline;gap:14px">
             <span style="font-size:12px;font-weight:bold">ご請求金額</span>
