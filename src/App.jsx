@@ -2563,10 +2563,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </tr>`;
       });
     });
-    // 補償料行
-    if(totIns>0){
-      body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">${fn(totIns)}</td></tr>`;
-    }
+    // 補償料行（案件ごと）
+    g.items.forEach(r=>{
+      if((r.insuranceAmount||0)>0){
+        body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">${fn(r.insuranceAmount)}</td></tr>`;
+      }
+    });
     // 調整行
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
       body += `<tr style="background:#fefce8">
