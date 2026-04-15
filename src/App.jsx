@@ -2262,7 +2262,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
         {/* タイトル */}
         <div style={{textAlign:"center",fontSize:16,fontWeight:"bold",marginBottom:14}}>ご請求書</div>
         {/* grid 2列×2行: 左=顧客/挨拶, 右=管理No〜MAIL */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr auto",alignItems:"start",gap:"8px 0",marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto",alignItems:"stretch",gap:"8px 0",marginBottom:14}}>
           {/* 左上: 顧客名・住所 */}
           <div style={{gridColumn:1,gridRow:1,paddingBottom:6}}>
             <div style={{fontSize:16,fontWeight:"bold",marginBottom:6}}>{g.customerName}　御中</div>
