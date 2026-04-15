@@ -2256,7 +2256,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
       return "";
     })();
     const issueDateStr = rawDate ? (()=>{const d=new Date(rawDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;})() : "";
-    const staff = g.customer?.staff || firstRec?.ourStaff || "井上 雄太";
+    const staff = g.customer?.staff || "井上 雄太";
     return(
       <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",padding:"24px 28px",color:"#111",background:"#fff",fontSize:11}}>
         {/* タイトル */}
@@ -2477,7 +2477,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     })();
     const issueDateStr = rawDate ? (()=>{const d=new Date(rawDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;})() : "";
     // 担当者
-    const staff = g.customer?.staff || firstRec?.ourStaff || "井上 雄太";
+    const staff = g.customer?.staff || "井上 雄太";
     // 顧客住所
 
 
