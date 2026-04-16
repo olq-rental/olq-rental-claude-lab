@@ -3102,17 +3102,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   const [expanded, setExpanded] = useState({}); // {key: bool}
   const [statusFilter, setStatusFilter] = useState("all"); // "all"|"open"|"locked"
   const [showPwSetting, setShowPwSetting] = useState(false);
-  const [crossMonthSplits, setCrossMonthSplits] = useState(()=>{
-    const saved=getInvData(`__crossMonthSplits__`);
-    try{return saved?.crossSplits?JSON.parse(saved.crossSplits):{};}catch{return {};}
-  });
-  const updateCrossSplits = React.useCallback((updater)=>{
-    setCrossMonthSplits(prev=>{
-      const next=typeof updater==='function'?updater(prev):updater;
-      updateInvData(`__crossMonthSplits__`,{crossSplits:JSON.stringify(next)});
-      return next;
-    });
-  },[updateInvData]);
+  const [crossMonthSplits, setCrossMonthSplits] = useState({}); // {recordId: {type:'full'|'split', targetMonth?:string, splits?:[{startDate,endDate}]}}
   const [newPw, setNewPw] = useState("");
   const [custQ, setCustQ] = useState("");
 
@@ -3387,13 +3377,13 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           return(
                             <div key={si} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:11}}>
                               <span style={{minWidth:44,fontWeight:500,color:"#475569"}}>{spItem.startDate?spItem.startDate.slice(0,7).slice(5)+"月":""}</span>
-                              <input type="date" value={spItem.startDate||""} disabled={si===0} onChange={e=>updateCrossSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],startDate:e.target.value};return {...prev,[r.id]:ns};})} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
+                              <input type="date" value={spItem.startDate||""} disabled={si===0} onChange={e=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],startDate:e.target.value};return {...prev,[r.id]:ns};})} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
                               <span>〜</span>
-                              <input type="date" value={spItem.endDate||""} disabled={isLast} onChange={e=>{const nd=addDay(e.target.value);updateCrossSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],endDate:e.target.value};if(ns.splits[si+1])ns.splits[si+1]={...ns.splits[si+1],startDate:nd};return {...prev,[r.id]:ns};});}} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
+                              <input type="date" value={spItem.endDate||""} disabled={isLast} onChange={e=>{const nd=addDay(e.target.value);setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],endDate:e.target.value};if(ns.splits[si+1])ns.splits[si+1]={...ns.splits[si+1],startDate:nd};return {...prev,[r.id]:ns};});}} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
                               <span style={{minWidth:64,textAlign:"right"}}>{fmt(spAmt)}</span>
-                              <span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:isSet?"#dcfce7":"#fee2e2",color:isSet?"#15803d":"#dc2626"}}>{(()=>{if(!isSet)return"未設定";const prod=(products||[]).find(p=>p.id===(spItem.productId||(r.lines&&r.lines[0]?.productId)||r.productId));return prod?.noBillingDiscount?`${d}日間請求`:`${d}日→${calcBillingDays(d)}請求日`;})()}</span>
+                              <span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:isSet?"#dcfce7":"#fee2e2",color:isSet?"#15803d":"#dc2626"}}>{isSet?`${d}日→${calcBillingDays(d)}請求日`:"未設定"}</span>
                               {isLast&&<span style={{fontSize:10,color:"#94a3b8"}}>（帳尻）</span>}
-                              {!isLast&&si>0&&<button onClick={()=>updateCrossSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits.splice(si,1);return {...prev,[r.id]:ns};})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12}}>✕</button>}
+                              {!isLast&&si>0&&<button onClick={()=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits.splice(si,1);return {...prev,[r.id]:ns};})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12}}>✕</button>}
                             </div>
                           );
                         })}
@@ -3405,18 +3395,18 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                     <div style={{display:"flex",gap:8,alignItems:"center",marginTop:6,flexWrap:"wrap"}}>
                       {status==='pending'&&<>
                         {months.map(m=>(
-                          <button key={m} onClick={()=>updateCrossSplits(prev=>({...prev,[r.id]:{type:'full',targetMonth:m}}))}
+                          <button key={m} onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:{type:'full',targetMonth:m}}))}
                             style={{fontSize:11,background:m===selMonth?"#16a34a":"#4f46e5",color:"#fff",border:"none",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>
                             ✓ {m.slice(5)}月に全額計上
                           </button>
                         ))}
-                        <button onClick={()=>updateCrossSplits(prev=>({...prev,[r.id]:{type:'split',splits:[{startDate:r.startDate,endDate:monthEnd},{startDate:addDay(monthEnd),endDate:r.endDate}]}}))}
+                        <button onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:{type:'split',splits:[{startDate:r.startDate,endDate:monthEnd},{startDate:addDay(monthEnd),endDate:r.endDate}]}}))}
                           style={{fontSize:11,background:"#e0f2fe",color:"#0369a1",border:"1px solid #7dd3fc",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>
                           期間を分割して計上
                         </button>
                       </>}
-                      {status==='splitting'&&<button onClick={()=>{const s=[...splits];const prev2=s[s.length-2];const nextStart=prev2?.endDate?addDay(prev2.endDate):"";s.splice(s.length-1,0,{startDate:nextStart,endDate:""});updateCrossSplits(prev=>({...prev,[r.id]:{...prev[r.id],splits:s}}));}} style={{fontSize:11,color:"#0369a1",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>+ 分割を追加</button>}
-                      {status!=='pending'&&<button onClick={()=>updateCrossSplits(prev=>{const p={...prev};delete p[r.id];return p;})} style={{fontSize:11,color:"#64748b",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>リセット</button>}
+                      {status==='splitting'&&<button onClick={()=>{const s=[...splits];const prev2=s[s.length-2];const nextStart=prev2?.endDate?addDay(prev2.endDate):"";s.splice(s.length-1,0,{startDate:nextStart,endDate:""});setCrossMonthSplits(prev=>({...prev,[r.id]:{...prev[r.id],splits:s}}));}} style={{fontSize:11,color:"#0369a1",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>+ 分割を追加</button>}
+                      {status!=='pending'&&<button onClick={()=>setCrossMonthSplits(prev=>{const p={...prev};delete p[r.id];return p;})} style={{fontSize:11,color:"#64748b",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>リセット</button>}
                     </div>
                   </div>
                 );
