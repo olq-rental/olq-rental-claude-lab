@@ -3222,6 +3222,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     const adj=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
     return s+base+adj;
   },0);
+  const previewG = preview ? (crossAdjustedFiltered.find(g=>`${g.customerId}||${g.projectName}||${g.month}`===preview.key)||preview.g) : null;
+  const livePreviewG = preview ? (crossAdjustedFiltered.find(g=>`${g.customerId}||${g.projectName}||${g.month}`===preview.key)||preview.g) : null;
 
   return(
     <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
@@ -3621,7 +3623,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               <Ico d={I.print} size={14} color="#1d4ed8"/>請求書 プレビュー
             </div>
             <div style={{display:"flex",gap:6}}>
-              {preview.g?.customer?.showDiscountLine&&(
+              {livePreviewG?.customer?.showDiscountLine&&(
                 <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
                   <span style={{color:"#92400e",fontWeight:600}}>追加値引き（円）</span>
                   <input type="number" min={0} value={getInvData(preview.key)?.extraDiscount||""} placeholder="0"
@@ -3636,13 +3638,13 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   else{count=(cur.printCount||1)+1;}
   await updateInvData(preview.key,{invNo:baseNo,printCount:count});
   const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-  downloadPrintHTML("invoice",{...preview.g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,getInvData(preview.key)?.extraDiscount||0);
+  downloadPrintHTML("invoice",{...livePreviewG,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,getInvData(preview.key)?.extraDiscount||0);
 }} style={{...S.btn("#1d4ed8",true),fontSize:11}}>🖨 PDF</button>
               <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
             </div>
           </div>
           <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bfdbfe"}}>
-            <InvoicePreview type="invoice" g={{...preview.g,adjustments:getInvData(preview.key).adjustments}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0}/>
+            <InvoicePreview type="invoice" g={{...livePreviewG,adjustments:getInvData(preview.key).adjustments}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0}/>
           </div>
         </div>
       )}
