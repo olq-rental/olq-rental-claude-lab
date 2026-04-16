@@ -3438,7 +3438,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               <tbody>
                 {(()=>{
                   const custGroups={};
-                  filtered.forEach(g=>{
+                  crossAdjustedFiltered.forEach(g=>{
                     if(!custGroups[g.customerId]) custGroups[g.customerId]={customerName:g.customerName,customerId:g.customerId,groups:[]};
                     custGroups[g.customerId].groups.push(g);
                   });
