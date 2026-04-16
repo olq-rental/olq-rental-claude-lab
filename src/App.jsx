@@ -3102,7 +3102,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   const [expanded, setExpanded] = useState({}); // {key: bool}
   const [statusFilter, setStatusFilter] = useState("all"); // "all"|"open"|"locked"
   const [showPwSetting, setShowPwSetting] = useState(false);
-  const [crossMonthSplits, setCrossMonthSplits] = useState({}); // {recordId: {type:'full'|'split', targetMonth?:string, splits?:[{startDate,endDate}]}}
+  const [crossMonthSplits, setCrossMonthSplits] = useState(()=>{try{const s=localStorage.getItem('olqCrossMonthSplits');return s?JSON.parse(s):{};}catch{return {};}}); // {recordId: {type:'full'|'split', targetMonth?:string, splits?:[{startDate,endDate}]}}
+  React.useEffect(()=>{try{localStorage.setItem('olqCrossMonthSplits',JSON.stringify(crossMonthSplits));}catch{}}, [crossMonthSplits]);
   const [newPw, setNewPw] = useState("");
   const [custQ, setCustQ] = useState("");
 
