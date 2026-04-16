@@ -1086,7 +1086,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.14</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.15</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -3320,7 +3320,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           if(crossRecords.length===0) return null;
           const getStatus=r=>{const sp=crossMonthSplits[r.id];if(!sp)return'pending';if(sp.type==='full')return'done';return'splitting';};
           const getMonths=r=>{const ms=[];let m=r.startDate.slice(0,7);const end=r.endDate.slice(0,7);while(m<=end){ms.push(m);const [y,mo]=m.split('-').map(Number);m=mo===12?`${y+1}-01`:`${y}-${String(mo+1).padStart(2,'0')}`;}return ms;};
-          const computeSplitAmt=(r,spItem)=>{if(!spItem.startDate||!spItem.endDate)return 0;const d=calcDays(spItem.startDate,spItem.endDate);const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1}];return rLines.reduce((s,ln)=>s+Math.round((ln.unitPrice||0)*(ln.quantity||1)*calcBillingDays(d)),0);};
+          const computeSplitAmt=(r,spItem)=>{if(!spItem.startDate||!spItem.endDate)return 0;const d=calcDays(spItem.startDate,spItem.endDate);const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1,productId:r.productId}];return rLines.reduce((s,ln)=>{const prod=(products||[]).find(p=>p.id===ln.productId);const billDays=prod?.noBillingDiscount?d:calcBillingDays(d);return s+Math.round((ln.unitPrice||0)*(ln.quantity||1)*billDays);},0);};
           const addDay=dateStr=>{const d=new Date(dateStr);d.setDate(d.getDate()+1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
           const pendingCount=crossRecords.filter(r=>getStatus(r)==='pending').length;
           const doneCount=crossRecords.filter(r=>getStatus(r)!=='pending').length;
