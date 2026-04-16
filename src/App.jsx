@@ -3215,7 +3215,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     return result;
   },[filtered,crossMonthSplits,selMonth,records,customers]);
 
-  const monthTotal = filtered.reduce((s,g)=>{
+  const monthTotal = crossAdjustedFiltered.reduce((s,g)=>{
     const key=`${g.customerId}||${g.projectName}||${g.month}`;
     const d=getInvData(key,g.month);
     const base=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
@@ -3292,7 +3292,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               const lastDay = new Date(y, m, 0).getDate();
               const dateStr = `${y}/${String(m).padStart(2,"0")}/${String(lastDay).padStart(2,"0")}`;
               const bom = "\uFEFF"; const rows = [bom+"発生日,金額,取引先,勘定科目,税区分,摘要"];
-              filtered.forEach(g=>{
+              crossAdjustedFiltered.forEach(g=>{
                 const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0)+(Number(r.insuranceAmount)||0),0);
                 const tax = Math.round(base*0.1);
                 const total = base + tax;
