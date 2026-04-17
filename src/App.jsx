@@ -2221,7 +2221,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
         <tfoot>
           <tr><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${6*fs}px`,textAlign:"right",fontWeight:700}}>小計[10%対象]</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right",fontWeight:700}}>{fmt(grandTot)}</td></tr>
           <tr><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${6*fs}px`,textAlign:"center"}}>消費税[10%]</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right"}}>{fmt(taxAmt)}</td></tr>
-          <tr style={{background:"#fff7e6"}}><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${6*fs}px`,textAlign:"right",fontWeight:900}}>税込合計</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right",fontWeight:900}}>{fmt(grandTot+taxAmt)}</td></tr>
+          <tr style={{background:"#f0f0f0"}}><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${6*fs}px`,textAlign:"right",fontWeight:900}}>税込合計</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right",fontWeight:900}}>{fmt(grandTot+taxAmt)}</td></tr>
         </tfoot>
       </table>
     </div>
