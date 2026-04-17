@@ -3560,7 +3560,10 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                             <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                                               <td style={{padding:"4px 8px",color:"#475569"}}>
                                                 {r.isExtension
-                                                  ?<span style={{color:"#2563eb"}}>延長分{r.extendedFromNo?`（元No.${r.extendedFromNo}）`:""}</span>
+                                                  ?<span style={{color:"#2563eb"}}>
+                                                      {r.equipmentName||(r.lines||[]).map(l=>l.equipmentName).filter(Boolean).join("、")||"延長分"}
+                                                      {r.extendedFromNo&&<span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>（元No.{r.extendedFromNo}）</span>}
+                                                    </span>
                                                   :r.equipmentName}
                                                 {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
                                                 {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
