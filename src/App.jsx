@@ -3561,14 +3561,18 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                               <td style={{padding:"4px 8px",color:"#475569"}}>
                                                 {r.isExtension
                                                   ?<span style={{color:"#2563eb"}}>
-                                                      {r.equipmentName||(r.lines||[]).map(l=>l.equipmentName).filter(Boolean).join("、")||"延長分"}
+                                                      {r.equipmentName||(r.lines||[]).map(l=>l.equipmentName).filter(Boolean).join("、")||""}
+                                                      {<span style={{fontSize:10,marginLeft:2}}>（延長分）</span>}
                                                       {r.extendedFromNo&&<span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>（元No.{r.extendedFromNo}）</span>}
                                                     </span>
                                                   :r.equipmentName}
                                                 {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
                                                 {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
                                               </td>
-                                              <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
+                                              <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>
+                                                {fmtD(r.startDate)}〜{fmtD(r.endDate)}
+                                                {r.deliveryNo&&<span style={{marginLeft:6,fontSize:10,color:"#94a3b8",background:"#f1f5f9",borderRadius:4,padding:"1px 5px"}}>No.{r.deliveryNo}</span>}
+                                              </td>
                                               <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
                                                 {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)}
                                               </td>
