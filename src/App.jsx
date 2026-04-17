@@ -1213,7 +1213,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
 
   // expandRows=trueの時、subItemsを台数分に自動同期
   const syncSubItems=(ln)=>{
-    if(!ln.expandRows) return ln;
+    if(!ln.expandRows) return {...ln,subItems:[]};
     const n=Math.max(1,Number(ln.quantity)||1);
     const cur=ln.subItems||[];
     const synced=Array.from({length:n},(_,i)=>cur[i]||{no:"",note:""});
