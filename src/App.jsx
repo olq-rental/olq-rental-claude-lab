@@ -1086,7 +1086,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.15</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.16</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -2152,7 +2152,8 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
   const bdr = "1px solid #555";
   const receiptDateStr = r.receiptDate ? new Date(r.receiptDate).toLocaleDateString("ja-JP") : new Date(r.startDate).toLocaleDateString("ja-JP");
   const payLabel = r.paymentMethod==="cash" ? "現金" : "クレジット　スクエア";
-  const receiptName = r.ordererName || g.customer?.contact || g.customer?.invoiceName || g.customerName || "";
+  const receiptName = r.receiptNameCustom && r.receiptNameOverride ? r.receiptNameOverride : (g.customer?.invoiceName || g.customerName || "");
+  const honorific = r.receiptNameCustom && r.receiptNameOverride ? (r.receiptHonorific || '様') : ((receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様');
   const subTot = Math.round(r.amount / 1.1 * (r.amount > 0 ? 1 : 0));
   // r.amount = 機材合計(税抜), insuranceAmount = 補償料(税抜)
   const equipAmt = r.amount || 0;
@@ -2176,7 +2177,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
           </div>
         </div>
       </div>
-      <div style={{fontSize:15*fs,fontWeight:700,borderBottom:"2px solid #111",paddingBottom:3,display:"inline-block",minWidth:200*fs,marginBottom:12*fs}}>{receiptName}　様</div>
+      <div style={{fontSize:15*fs,fontWeight:700,borderBottom:"2px solid #111",paddingBottom:3,display:"inline-block",minWidth:200*fs,marginBottom:12*fs}}>{receiptName}　{honorific}</div>
       <div style={{margin:`${8*fs}px 0`,fontSize:12*fs}}>
         <span style={{marginRight:14}}>合計金額</span>
         <span style={{fontSize:26*fs,fontWeight:900,borderBottom:"2px solid #111",padding:`0 16*fspx`}}>{fmt(grandTot+taxAmt)}</span>
@@ -2184,7 +2185,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
       </div>
       <div style={{fontSize:10*fs,marginBottom:10*fs}}>上記、正に領収いたしました。</div>
       <div style={{fontSize:10*fs,padding:`${6*fs}px ${10*fs}px`,background:"#f9f9f9",border:`1px solid #ddd`,borderRadius:3,marginBottom:12*fs}}>
-        但書き　機材レンタル代として　［{payLabel}］
+        {r.receiptNote || `機材レンタル代として　［${payLabel}］`}
       </div>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:9.5*fs}}>
         <thead>
