@@ -3559,7 +3559,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           {[...g.items].sort((a,b)=>(a.endDate||"").localeCompare(b.endDate||"")).map(r=>(
                                             <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                                               <td style={{padding:"4px 8px",color:"#475569"}}>
-                                                {r.equipmentName}
+                                                {r.isExtension
+                                                  ?<span style={{color:"#2563eb"}}>延長分{r.extendedFromNo?`（元No.${r.extendedFromNo}）`:""}</span>
+                                                  :r.equipmentName}
                                                 {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
                                                 {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
                                               </td>
