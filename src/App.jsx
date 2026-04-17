@@ -2411,10 +2411,10 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
         return(
           <div key={r.id}>
             <div style={{borderBottom:"3px solid #2563eb",marginBottom:2}}>
-              <DeliveryCustomer r={r} g={g} no={no} forPrint={forPrint} showPrice={!!g.customer?.showDeliveryPrice}/>
+              <DeliveryCopy r={r} g={g} no={no} forPrint={forPrint}/>
             </div>
             <div style={{borderBottom:(type==="delivery-receipt"&&r.issueReceipt)||!isLast?"4px dashed #cbd5e1":"none"}}>
-              <DeliveryCopy r={r} g={g} no={no} forPrint={forPrint}/>
+              <DeliveryCustomer r={r} g={g} no={no} forPrint={forPrint} showPrice={!!g.customer?.showDeliveryPrice}/>
             </div>
             {type==="delivery-receipt"&&r.issueReceipt&&(
               <ReceiptPage r={r} g={g} no={no} isLast={isLast} forPrint={forPrint}/>
@@ -2640,6 +2640,77 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         <div>TEL: 03-5777-1100</div><div>MAIL: rental@olq.co.jp</div>
         </div>`;
 
+      // 納品書控（社内用）
+      { // ページ分割スコープ
+        const ROWS_PER_PAGE_C = 32; // 1ページ目
+        const ROWS_PER_PAGE_C_REST = 40; // 2ページ目以降
+        const allRowsC = [];
+        lines.forEach(ln => {
+          allRowsC.push({type:'main', ln});
+          (ln.expandRows?(ln.subItems||[]):[]).forEach(si => allRowsC.push({type:'sub', ln, si}));
+        });
+        if((r.insuranceAmount||0)>0) allRowsC.push({type:'insurance'});
+        const pagesC = [];
+        { let remaining = [...allRowsC]; let isFirst = true;
+          while(remaining.length > 0){ const limit = isFirst ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST; pagesC.push(remaining.slice(0,limit)); remaining = remaining.slice(limit); isFirst = false; }
+          if(pagesC.length===0) pagesC.push([]);
+        }
+        const totalPagesC = pagesC.length;
+        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
+        pagesC.forEach((pageRows, pageIdx) => {
+          const isFirstPage = pageIdx === 0;
+          const pageNo = pageIdx + 1;
+          const topPad = isFirstPage ? '80px' : '70px';
+          body += `<div class="pb" style="padding:${topPad} 19px 30px 56px;position:relative;width:794px;box-sizing:border-box">`;
+          if(isFirstPage){
+            body += `<div style="position:relative">
+              <div class="title" style="letter-spacing:4px">納品書控</div>
+              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
+            </div>
+            <div class="hdr"><div>
+              <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
+              ${projDisplay?`<div style="margin-top:4px"><strong>『${projDisplay}』</strong></div>`:""}
+              ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
+              ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
+              <div style="display:flex;gap:14px;margin-top:12px">
+                <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">納品確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
+                <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">返却確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
+              </div>
+            </div>${olqBlock}</div>`;
+          } else {
+            body += `<div style="position:relative;margin-bottom:14px">
+              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center;margin-bottom:10px">納品書控　${pageNo}/${totalPagesC}</div>
+              <div style="text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
+            </div>`;
+          }
+          body += `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:339px"><col style="width:36px"><col style="width:56px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col></colgroup><thead><tr><th>機材名</th><th>No</th><th>単価</th><th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
+          let rowNumC = pagesC.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
+          pageRows.forEach(row => {
+            rowNumC++;
+            if(row.type==='main'){
+              const ln=row.ln;
+              body += `<tr><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+            } else if(row.type==='sub'){
+              const ln=row.ln; const si=row.si;
+              body += `<tr class="sub-row"><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
+            } else if(row.type==='insurance'){
+              body += `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
+            }
+          });
+          const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
+          const emptyCountC = pageLimitC - pageRows.length;
+          for(let i=0; i<emptyCountC; i++) body += `<tr class="empty">${emptyColsC}</tr>`;
+          body += `</tbody></table>`;
+          if(pageNo===totalPagesC){
+            body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>`;
+          }
+          if(!isFirstPage){
+            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPagesC}</div>`;
+          }
+          body += `</div>`;
+        });
+      }
+
       // 納品書（お客様用）
       const showDPrice = !!g.customer?.showDeliveryPrice;
       { // ページ分割スコープ
@@ -2707,77 +2778,6 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           }
           if(!isFirstPage){
             body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPages}</div>`;
-          }
-          body += `</div>`;
-        });
-      }
-
-      // 納品書控（社内用）
-      { // ページ分割スコープ
-        const ROWS_PER_PAGE_C = 32; // 1ページ目
-        const ROWS_PER_PAGE_C_REST = 40; // 2ページ目以降
-        const allRowsC = [];
-        lines.forEach(ln => {
-          allRowsC.push({type:'main', ln});
-          (ln.expandRows?(ln.subItems||[]):[]).forEach(si => allRowsC.push({type:'sub', ln, si}));
-        });
-        if((r.insuranceAmount||0)>0) allRowsC.push({type:'insurance'});
-        const pagesC = [];
-        { let remaining = [...allRowsC]; let isFirst = true;
-          while(remaining.length > 0){ const limit = isFirst ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST; pagesC.push(remaining.slice(0,limit)); remaining = remaining.slice(limit); isFirst = false; }
-          if(pagesC.length===0) pagesC.push([]);
-        }
-        const totalPagesC = pagesC.length;
-        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
-        pagesC.forEach((pageRows, pageIdx) => {
-          const isFirstPage = pageIdx === 0;
-          const pageNo = pageIdx + 1;
-          const topPad = isFirstPage ? '80px' : '70px';
-          body += `<div class="pb" style="padding:${topPad} 19px 30px 56px;position:relative;width:794px;box-sizing:border-box">`;
-          if(isFirstPage){
-            body += `<div style="position:relative">
-              <div class="title" style="letter-spacing:4px">納品書控</div>
-              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
-            </div>
-            <div class="hdr"><div>
-              <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
-              ${projDisplay?`<div style="margin-top:4px"><strong>『${projDisplay}』</strong></div>`:""}
-              ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
-              ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
-              <div style="display:flex;gap:14px;margin-top:12px">
-                <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">納品確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
-                <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">返却確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
-              </div>
-            </div>${olqBlock}</div>`;
-          } else {
-            body += `<div style="position:relative;margin-bottom:14px">
-              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center;margin-bottom:10px">納品書控　${pageNo}/${totalPagesC}</div>
-              <div style="text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
-            </div>`;
-          }
-          body += `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:339px"><col style="width:36px"><col style="width:56px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col></colgroup><thead><tr><th>機材名</th><th>No</th><th>単価</th><th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
-          let rowNumC = pagesC.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
-          pageRows.forEach(row => {
-            rowNumC++;
-            if(row.type==='main'){
-              const ln=row.ln;
-              body += `<tr><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
-            } else if(row.type==='sub'){
-              const ln=row.ln; const si=row.si;
-              body += `<tr class="sub-row"><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
-            } else if(row.type==='insurance'){
-              body += `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
-            }
-          });
-          const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
-          const emptyCountC = pageLimitC - pageRows.length;
-          for(let i=0; i<emptyCountC; i++) body += `<tr class="empty">${emptyColsC}</tr>`;
-          body += `</tbody></table>`;
-          if(pageNo===totalPagesC){
-            body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>`;
-          }
-          if(!isFirstPage){
-            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPagesC}</div>`;
           }
           body += `</div>`;
         });
