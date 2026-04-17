@@ -1580,7 +1580,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 16px",marginTop:10}}>
                 <div>
                   <label style={S.lbl}>領収日</label>
-                  <input type="text" value={form.receiptDate} onChange={e=>setForm(f=>({...f,receiptDate:e.target.value}))} style={S.inp} placeholder="例：2026/3/23"/>
+                  <input type="date" value={form.receiptDate} onChange={e=>setForm(f=>({...f,receiptDate:e.target.value}))} style={S.inp}/>
                 </div>
                 <div>
                   <label style={S.lbl}>支払方法</label>
