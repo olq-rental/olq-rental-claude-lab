@@ -3162,11 +3162,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
       const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`);
       return statusFilter==="locked"?d.status==="locked":d.status!=="locked";
     })
-    .sort((a,b)=>{
-      const ae=a.items.map(r=>r.endDate||"").filter(Boolean).sort()[0]||"";
-      const be=b.items.map(r=>r.endDate||"").filter(Boolean).sort()[0]||"";
-      return ae.localeCompare(be)||a.customerName.localeCompare(b.customerName,"ja");
-    });
+    .sort((a,b)=>a.customerName.localeCompare(b.customerName,"ja")||a.projectName.localeCompare(b.projectName,"ja"));
 
   // 月またぎ分割反映済みグループを生成
   const crossAdjustedFiltered = React.useMemo(()=>{
