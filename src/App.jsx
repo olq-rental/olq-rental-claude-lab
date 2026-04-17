@@ -3556,7 +3556,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           </tr>
                                         </thead>
                                         <tbody>
-                                          {g.items.map(r=>(
+                                          {[...g.items].sort((a,b)=>(a.endDate||"").localeCompare(b.endDate||"")).map(r=>(
                                             <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                                               <td style={{padding:"4px 8px",color:"#475569"}}>
                                                 {r.equipmentName}
