@@ -3225,7 +3225,6 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     const adj=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
     return s+base+adj;
   },0);
-  const previewG = preview ? (crossAdjustedFiltered.find(g=>`${g.customerId}||${g.projectName}||${g.month}`===preview.key)||preview.g) : null;
   const livePreviewG = preview ? (crossAdjustedFiltered.find(g=>`${g.customerId}||${g.projectName}||${g.month}`===preview.key)||preview.g) : null;
 
   return(
