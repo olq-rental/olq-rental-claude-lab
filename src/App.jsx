@@ -1306,7 +1306,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
     await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName});
     const wasNew=!editId;
     showToast(editId?"更新しました":"登録しました");setForm(E);setEditId(null);setOpen(false);setLineSearches([""]);
-    if(wasNew&&onAfterSubmit) onAfterSubmit(rec);
+    if(onAfterSubmit) onAfterSubmit(rec);
   };
 
   const mnths=[...new Set(records.map(r=>r.startDate?.slice(0,7)))].filter(Boolean).sort().reverse();
