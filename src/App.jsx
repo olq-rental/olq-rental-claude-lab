@@ -2111,7 +2111,7 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
         </tr></tbody>
       </table>
       {/* 注意事項 */}
-      <div style={{marginTop:12*fs,fontSize:8.5*fs,color:"#666",lineHeight:1.7}}>
+      <div style={{marginTop:12*fs,fontSize:9*fs,color:"#666",lineHeight:1.7}}>
         <div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div>
       </div>
     </div>
