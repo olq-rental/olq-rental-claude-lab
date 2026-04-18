@@ -2490,7 +2490,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
-.sign-label{font-weight:bold;font-size:9px;margin-bottom:2px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:3px 7px}
+.sign-label{font-weight:bold;font-size:9px;margin-bottom:2px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:4px 6px}
 .empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}`;
 
   let body = "";
