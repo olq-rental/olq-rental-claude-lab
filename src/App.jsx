@@ -3543,10 +3543,21 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,
                                     cursor:"pointer",whiteSpace:"nowrap"
                                   }}>{locked?"✅ 締め済み":"未締め"}</span>
-                                </td>
+                                {(()=>{
+                                  const pc=getInvData(key)?.printCount||0;
+                                  const pi=getInvData(key)?.lastPrintDate||"";
+                                  if(!pc||!pi) return null;
+                                  const d=new Date(pi);
+                                  const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+                                  return <span style={{fontSize:9,color:"#16a34a",marginLeft:4,whiteSpace:"nowrap"}}>{ds} {pc}回目発行済</span>;
+                                })()}
+                              </td>
                                 <td style={{padding:"8px 8px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
-                                  <button onClick={()=>setPreview(p=>p?.key===key?null:{key,g})}
-                                    style={{...S.ib(isActive?"#1d4ed8":"#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
+                                  <button onClick={async()=>{
+                                    const cur=getInvData(key);
+                                    const invNo=cur.invNo||(g.month?`${g.month}-???`:"");
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
+                                  }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
                                     <Ico d={I.print} size={10}/>確認
                                   </button>
                                   <button onClick={async()=>{
@@ -3559,7 +3570,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     } else {
                                       count=(cur.printCount||1)+1;
                                     }
-                                    await updateInvData(key,{invNo:baseNo,printCount:count});
+                                    await updateInvData(key,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
                                     const invNo=count<=1?baseNo:`${baseNo}-${count}`;
                                     downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
                                   }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
