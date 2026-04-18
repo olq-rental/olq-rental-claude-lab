@@ -3621,7 +3621,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                               </td>
                                               <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
                                               <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
-                                                {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)}
+                                                {r.billingType==="monthly"?(r.months||1)+"ヶ月":((()=>{const rLns=r.lines&&r.lines.length?r.lines:[{productId:r.productId,noBillingDiscount:r.noBillingDiscount}];const hasND=rLns.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);return hasND?(r.days||0):(r.billingDays||r.days||0);})())}
                                               </td>
                                               <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(r.amount)}</td>
                                             </tr>
