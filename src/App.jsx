@@ -1086,7 +1086,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.17</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.18</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -2946,7 +2946,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
   useEffect(()=>{
     if(autoOpenRecord){
       const r=records.find(x=>x.id===autoOpenRecord);
-      if(r) setPreview({r,type:r.issueReceipt?"delivery-receipt":"delivery"});
+      if(r){ const g=makeGroup(r); downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g); }
       onClearAutoOpen&&onClearAutoOpen();
     }
   },[autoOpenRecord]);
@@ -3017,7 +3017,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                     const g=makeGroup(r);
                     return(
                       <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:isActive?"#f0fdf4":i%2?"#fcfcfc":"#fff",cursor:"pointer"}}
-                        onClick={()=>setPreview(prev=>prev?.r?.id===r.id?null:{r, type:r.issueReceipt?"delivery-receipt":"delivery"})}>
+                        onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)}>
                         <td style={{padding:"8px 12px",fontSize:11,color:"#94a3b8",whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
                         <td style={{padding:"8px 12px",fontWeight:600}}>{c?.name||"―"}</td>
                         <td style={{padding:"8px 12px",fontSize:11,color:"#64748b"}}>
@@ -3055,24 +3055,6 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
         </div>
       </div>
 
-      {preview&&previewG&&(
-        <div style={{flex:1,minWidth:0,position:"sticky",top:70}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700,color:"#475569",display:"flex",alignItems:"center",gap:6}}>
-              <Ico d={I.file} size={14} color="#16a34a"/>
-              {preview.type==="delivery-receipt"?"納品書・領収証":"納品書"} プレビュー
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>downloadPrintHTML(preview.type,previewG)} style={{...S.btn("#16a34a",true),fontSize:11}}>🖨 印刷・PDF</button>
-              <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
-            </div>
-          </div>
-          <div style={{fontSize:10,color:"#94a3b8",marginBottom:6}}>💡 「印刷・PDF」でHTMLファイルをダウンロードします</div>
-          <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bbf7d0"}}>
-            <InvoicePreview type={preview.type} g={previewG}/>
-          </div>
-        </div>
-      )}
       {/* 延長モーダル */}
       {extModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
