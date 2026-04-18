@@ -1179,13 +1179,28 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   const [fil,setFil]=useState({q:"",cid:"",month:new Date().toISOString().slice(0,7),locked:""});
   const [expandedCust,setExpandedCust]=useState({}); // {custId: bool}
   const [expandedProj,setExpandedProj]=useState({}); // {custId_projName: bool}
-  const [returnModal,setReturnModal]=useState(null); // {id, returnDate:"", billingEndDate:""}
+  const [returnModal,setReturnModal]=useState(null);
+  // {id, returnDate, billingEndDate, selectedLines:{[lineIdx]:bool}}
   const [extModal,setExtModal]=useState(null); // {record, lines, selected}
   const [lineSearches,setLineSearches]=useState([""]);
   const [custSearch,setCustSearch]=useState(""); // 顧客絞り込み入力
 
   // 旧データ互換
   const getLines=r=>(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
+  // ライン単位の計上終了日（なければrecord単位にフォールバック）
+  const getLineReturnDate=(ln,r)=>ln.returnDate??r.returnDate??null;
+  // ライン単位の実返却日（なければrecord単位にフォールバック）
+  const getLineActualReturnDate=(ln,r)=>ln.actualReturnDate??r.actualReturnDate??null;
+  // レコードのステータスを導出（active:延長中 / partial:一部返却済 / closed:完了）
+  const getRecordStatus=r=>{
+    if(!r.isExtension) return 'closed';
+    const lines=getLines(r);
+    const allClosed=lines.every(ln=>getLineReturnDate(ln,r)!==null);
+    const someClosed=lines.some(ln=>getLineReturnDate(ln,r)!==null);
+    if(allClosed) return 'closed';
+    if(someClosed) return 'partial';
+    return 'active';
+  };
 
   const cust = customers.find(c=>c.id===form.customerId);
   const days        = calcDays(form.startDate,form.endDate); // 実日数
@@ -1646,6 +1661,23 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:"#fff",borderRadius:12,padding:24,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
             <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>📦 戻り[終了]の設定</div>
+            {returnModal&&(()=>{
+              const targetRec=records.find(x=>x.id===returnModal.id);
+              const rLns=targetRec?getLines(targetRec):[];
+              return rLns.length>1&&(
+                <div style={{marginBottom:12}}>
+                  <label style={{...S.lbl,marginBottom:6}}>返却する機材を選択</label>
+                  {rLns.map((ln,i)=>(
+                    <label key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,cursor:"pointer",padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,background:returnModal.selectedLines?.[i]?"#eff6ff":"#fff"}}>
+                      <input type="checkbox" checked={!!returnModal.selectedLines?.[i]}
+                        onChange={e=>setReturnModal(p=>({...p,selectedLines:{...p.selectedLines,[i]:e.target.checked}}))}/>
+                      <span style={{fontSize:12}}>{ln.equipmentName||`機材${i+1}`}</span>
+                      {getLineReturnDate(ln,targetRec)&&<span style={{fontSize:10,color:"#16a34a",marginLeft:"auto"}}>✓ 返却済</span>}
+                    </label>
+                  ))}
+                </div>
+              );
+            })()}
             <div style={{marginBottom:12}}>
               <label style={S.lbl}>返却日（機材が戻った日）</label>
               <input type="date" value={returnModal.returnDate}
@@ -1664,29 +1696,37 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                 if(!returnModal.billingEndDate){showToast("計上終了日を入力してください",false);return;}
                 const targetRec=records.find(x=>x.id===returnModal.id);
                 if(targetRec){
-                  const endDate=returnModal.billingEndDate;
-                  const d=calcDays(targetRec.startDate,endDate);
-                  const bd=calcBillingDays(d);
-                  const rLines=(targetRec.lines&&targetRec.lines.length)?targetRec.lines:[{unitPrice:targetRec.unitPrice,quantity:targetRec.quantity||1,noBillingDiscount:targetRec.noBillingDiscount}];
-                  const newAmount=rLines.reduce((s,ln)=>{
+                  const rLns=getLines(targetRec);
+                  const selectedIdxs=Object.entries(returnModal.selectedLines||{}).filter(([,v])=>v).map(([k])=>Number(k));
+                  if(selectedIdxs.length===0){showToast("返却する機材を1つ以上選択してください",false);return;}
+                  // ライン単位で returnDate を更新
+                  const updatedLines=rLns.map((ln,i)=>{
+                    if(!selectedIdxs.includes(i)) return ln;
+                    return {...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate};
+                  });
+                  // 全ライン返却済かチェック
+                  const allClosed=updatedLines.every(ln=>ln.returnDate);
+                  // ライン単位で金額を再計算
+                  const newAmount=updatedLines.reduce((s,ln)=>{
+                    const lineEnd=ln.returnDate||returnModal.billingEndDate;
+                    const d=calcDays(targetRec.startDate,lineEnd);
                     const noDisc=ln.noBillingDiscount;
-                    const qty=noDisc?d:bd;
+                    const qty=noDisc?d:calcBillingDays(d);
                     return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
                   },0);
                   const newInsurance=targetRec.includeInsurance?Math.round(newAmount*0.1):0;
                   await onSave(records.map(x=>x.id===returnModal.id?{
                     ...x,
-                    returnDate:returnModal.billingEndDate,
-                    actualReturnDate:returnModal.returnDate,
-                    endDate,
-                    endDateOpen:false,
-                    days:d,
-                    billingDays:bd,
+                    lines:updatedLines,
+                    returnDate:allClosed?returnModal.billingEndDate:x.returnDate,
+                    actualReturnDate:allClosed?returnModal.returnDate:x.actualReturnDate,
+                    endDate:allClosed?returnModal.billingEndDate:x.endDate,
+                    endDateOpen:!allClosed,
                     amount:newAmount,
                     insuranceAmount:newInsurance
                   }:x));
                 }
-                showToast("計上終了日: "+returnModal.billingEndDate+" で設定しました");
+                showToast("計上終了日を設定しました");
                 setReturnModal(null);
               }} style={S.btn("#7c3aed",true)}>設定する</button>
               <button onClick={()=>setReturnModal(null)} style={S.btn("#94a3b8")}>キャンセル</button>
@@ -1870,7 +1910,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                           setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
                                         }} style={{...S.ib("#0369a1"),marginRight:4,fontSize:10}}>🔄 延長</button>
                                         {(r.endDateOpen||(!r.endDate&&r.billingType==="monthly"))&&!r.returnDate&&(
-                                          <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today()});}}
+                                          <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today(),selectedLines:Object.fromEntries(getLines(r).map((_,i)=>[i,true]))});}}
                                             style={{...S.ib("#7c3aed"),marginRight:4,fontSize:10}}>📦 戻り[終了]</button>
                                         )}
                                         {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>計上終了:{r.returnDate}</span>}
