@@ -2372,7 +2372,8 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
                 const prod=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
                 const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
                 const dispPrice=showDiscountLine?listPrice:(ln.unitPrice||r.unitPrice);
-                const lineAmt=showDiscountLine?Math.round(listPrice*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1))):(ln.amount!==undefined?ln.amount:Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1))));
+                const useDaysForLine=r.billingType==="monthly"?(r.months||1):((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1));
+                const lineAmt=showDiscountLine?Math.round(listPrice*(ln.quantity||1)*useDaysForLine):(ln.amount!==undefined?ln.amount:Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLine));
                 return(
                   <tr key={`${r.id}-${li}`}>
                     {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"middle"}} rowSpan={rLines.length}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.billingType==="monthly"&&<div style={{fontSize:10,marginTop:2}}>[月極]</div>}{r.ecOrderNo&&<div style={{fontSize:10,marginTop:2}}>EC:{r.ecOrderNo}</div>}</td>}
