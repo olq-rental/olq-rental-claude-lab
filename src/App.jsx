@@ -2593,9 +2593,10 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </thead>
         <tbody>`;
     g.items.forEach(r => {
-      const days = r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0);
       const orderer = r.ordererName ? r.ordererName+"　様" : "";
       const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
+      const hasNoBilling=rLines.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);
+      const days = r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasNoBilling?(r.days||0):(r.billingDays||r.days||0));
       const lineCount = rLines.length;
       rLines.forEach((ln,li)=>{
         const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
