@@ -2081,6 +2081,14 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
             (ln.expandRows?(ln.subItems||[]):[]).forEach((si,si2)=>{rowIdx++;dataRows.push(<tr key={`s${li}_${si2}`}><td style={{border:bdr,padding:`${2*fs}px`,color:"#aaa"}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px ${2*fs}px ${16*fs}px`,fontSize:9*fs,color:"#555"}}>└ No.{si.no}</td><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px`,fontSize:8.5*fs,color:"#666"}}>{si.note||""}</td></tr>);});
           }
         });
+        if((r.insuranceAmount||0)>0){
+          rowIdx++;
+          if(showPrice){
+            dataRows.push(<tr key="ins"><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",color:"#aaa"}}></td><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,color:"#92400e"}}>補償料</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(r.insuranceAmount)}</td></tr>);
+          } else {
+            dataRows.push(<tr key="ins"><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",color:"#aaa"}}></td><td colSpan={4} style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,color:"#92400e"}}>補償料</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(r.insuranceAmount)}</td></tr>);
+          }
+        }
         const emptyCount=Math.max(0,ROWS-rowIdx);
         const cols = showPrice
           ? [{l:"No.",w:28},{l:"機材名"},{l:"単価",w:60},{l:"数量",w:40},{l:"開始日",w:72},{l:"終了日",w:72},{l:"備考"}]
@@ -2168,6 +2176,10 @@ function DeliveryCopy({r, g, no, forPrint}){
           dataRows.push(<tr key={`m${li}`}><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{rowIdx}</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`}}>{ln.equipmentName}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{ln.equipNo}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right"}}>{fmt(ln.unitPrice)}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{ln.quantity}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",whiteSpace:"nowrap"}}>{fmtD(r.endDate)}</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,fontSize:9*fs}}>{r.billingType==="monthly"?"月極"+(ln.lineNote?" "+ln.lineNote:""):(ln.lineNote||"")}</td></tr>);
           (ln.expandRows?(ln.subItems||[]):[]).forEach((si,si2)=>{rowIdx++;dataRows.push(<tr key={`s${li}_${si2}`}><td style={{border:bdr,padding:`${2*fs}px`,color:"#aaa"}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px ${2*fs}px ${14*fs}px`,fontSize:9*fs,color:"#555"}}>└ {ln.equipmentName}</td><td style={{border:bdr,padding:`${2*fs}px`,textAlign:"center",fontSize:9*fs}}>{si.no}</td><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px`,fontSize:8.5*fs,color:"#666"}}>{si.note||""}</td></tr>);});
         });
+        if((r.insuranceAmount||0)>0){
+          rowIdx++;
+          dataRows.push(<tr key="ins"><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",color:"#aaa"}}></td><td colSpan={6} style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,color:"#92400e"}}>補償料</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(r.insuranceAmount)}</td></tr>);
+        }
         const emptyCount=Math.max(0,ROWS-rowIdx);
         return(
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10*fs,marginTop:10*fs}}>
