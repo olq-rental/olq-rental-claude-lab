@@ -2660,7 +2660,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         pagesC.forEach((pageRows, pageIdx) => {
           const isFirstPage = pageIdx === 0;
           const pageNo = pageIdx + 1;
-          const topPad = isFirstPage ? '80px' : '70px';
+          const topPad = isFirstPage ? '30px' : '20px';
           body += `<div class="pb" style="padding:${topPad} 19px 30px 56px;position:relative;width:794px;box-sizing:border-box">`;
           if(isFirstPage){
             body += `<div style="position:relative">
@@ -3549,6 +3549,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                       <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:8}}>
                                         <thead>
                                           <tr style={{color:"#94a3b8",borderBottom:"1px solid #e2e8f0"}}>
+                                            <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600,width:90}}>伝票No.</th>
                                             <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>機材</th>
                                             <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>利用期間</th>
                                             <th style={{padding:"3px 8px",textAlign:"center",fontWeight:600,width:50}}>日数</th>
@@ -3558,6 +3559,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                         <tbody>
                                           {[...g.items].sort((a,b)=>(a.endDate||"").localeCompare(b.endDate||"")).map(r=>(
                                             <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
+                                              <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
                                               <td style={{padding:"4px 8px",color:"#475569"}}>
                                                 {r.isExtension
                                                   ?<span style={{color:"#2563eb"}}>
@@ -3569,10 +3571,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                                 {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
                                                 {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
                                               </td>
-                                              <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>
-                                                {fmtD(r.startDate)}〜{fmtD(r.endDate)}
-                                                {r.deliveryNo&&<span style={{marginLeft:6,fontSize:10,color:"#94a3b8",background:"#f1f5f9",borderRadius:4,padding:"1px 5px"}}>No.{r.deliveryNo}</span>}
-                                              </td>
+                                              <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
                                               <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
                                                 {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)}
                                               </td>
