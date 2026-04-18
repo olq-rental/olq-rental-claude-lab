@@ -2601,9 +2601,10 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
         const listPrice = prod ? prod.priceEx : (ln.unitPrice||0);
         const dispPrice = showDiscountLine ? listPrice : (ln.unitPrice||r.unitPrice);
+        const useDaysForLinePdf=r.billingType==="monthly"?(r.months||1):((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1));
         const lineAmt = showDiscountLine
-          ? Math.round(listPrice*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1)))
-          : (ln.amount!==undefined ? ln.amount : Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1))));
+          ? Math.round(listPrice*(ln.quantity||1)*useDaysForLinePdf)
+          : Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLinePdf);
         const equipName = ln.equipmentName||r.equipmentName||"";
         const isSplit = g.split !== false;
         const projInfo = !isSplit && r.projectName
