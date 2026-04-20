@@ -912,8 +912,15 @@ export default function App() {
         sGet(K.p), sGet(K.c), sGet(K.r), sGet(K.inv)
       ]);
       if (p?.length) setProducts(p);
-      if (c?.length) { setCustomers(c); }
-      else { setCustomers(PRESET_CUSTOMERS); await sSet(K.c, PRESET_CUSTOMERS); }
+      if (c === null) {
+        console.error('顧客データ読み込みエラー');
+        alert('顧客データの読み込みに失敗しました。ページを再読み込みしてください。');
+      } else if (c.length > 0) {
+        setCustomers(c);
+      } else {
+        const ok = window.confirm('顧客データが空です。プリセット38社を投入しますか？\n※通常はキャンセルしてください。');
+        if (ok) { setCustomers(PRESET_CUSTOMERS); await sSet(K.c, PRESET_CUSTOMERS); }
+      }
       if (r?.length) setRecords(r);
       if (inv) setInvoiceData(inv);
     })();
