@@ -3223,51 +3223,84 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     crossRecs.forEach(r=>{
       const sp=crossMonthSplits[r.id];
       if(!sp) return;
-      let monthAmt=0;
+      const c=customers.find(x=>x.id===r.customerId);
       if(sp.type==='full'){
-        monthAmt=sp.targetMonth===selMonth?(r.amount||0):0;
-      } else if(sp.type==='split'&&sp.splits){
-        const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1}];
-        const totalAmt=r.amount||0;
-        const usedAmt=sp.splits.slice(0,-1).reduce((s,spItem)=>{
-          if(!spItem.startDate||!spItem.endDate) return s;
-          const d=calcDays(spItem.startDate,spItem.endDate);
-          return s+rLines.reduce((s2,ln)=>s2+Math.round((ln.unitPrice||0)*(ln.quantity||1)*calcBillingDays(d)),0);
-        },0);
-        const lastAmt=totalAmt-usedAmt;
+        const monthAmt=sp.targetMonth===selMonth?(r.amount||0):0;
+        if(monthAmt<=0) return;
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id));
+        if(existingGroup){
+          result=result.map(g=>({...g,items:g.items.map(item=>item.id===r.id?{...item,amount:monthAmt}:item)}));
+        } else {
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===(r.projectName||"")&&g.month===selMonth);
+          if(existingSame){
+            result=result.map(g=>g===existingSame?{...g,items:[...g.items,{...r,amount:monthAmt}]}:g);
+          } else {
+            result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[{...r,amount:monthAmt}],split:true,consolidate:false,_synthetic:true});
+          }
+        }
+        return;
+      }
+      if(sp.type==='split'&&sp.splits){
         const idx=sp.splits.findIndex(spItem=>spItem.startDate&&spItem.endDate&&spItem.startDate.slice(0,7)<=selMonth&&spItem.endDate.slice(0,7)>=selMonth);
         if(idx<0) return;
         const isLast=idx===sp.splits.length-1;
-        if(isLast){monthAmt=lastAmt;}
-        else{
-          const spItem=sp.splits[idx];
-          const d=calcDays(spItem.startDate,spItem.endDate);
-          monthAmt=rLines.reduce((s,ln)=>s+Math.round((ln.unitPrice||0)*(ln.quantity||1)*calcBillingDays(d)),0);
+        const spItem=sp.splits[idx];
+        const splitDays=calcDays(spItem.startDate,spItem.endDate);
+        const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1,productId:r.productId||"",equipmentName:r.equipmentName||"",lineNote:r.lineNote||"",noBillingDiscount:!!r.noBillingDiscount}];
+        const rebuiltLines=rLines.map(ln=>{
+          const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
+          const lineBD=noDisc?splitDays:calcBillingDays(splitDays);
+          const lineAmt=Math.round((ln.unitPrice||0)*(ln.quantity||1)*lineBD);
+          return {...ln,billingDays:lineBD,amount:lineAmt};
+        });
+        const firstLn=rLines[0]||{};
+        const firstNoDisc=firstLn.noBillingDiscount||(products||[]).find(p=>p.id===firstLn.productId)?.noBillingDiscount;
+        const splitBillingDays=firstNoDisc?splitDays:calcBillingDays(splitDays);
+        const monthAmt=rebuiltLines.reduce((s,ln)=>s+(ln.amount||0),0);
+        if(monthAmt<=0) return;
+        let autoAdj=null;
+        if(isLast){
+          const origTotal=r.amount||0;
+          const allSplitsTotal=sp.splits.reduce((s,sp2)=>{
+            if(!sp2.startDate||!sp2.endDate) return s;
+            const d2=calcDays(sp2.startDate,sp2.endDate);
+            return s+rLines.reduce((s2,ln)=>{
+              const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
+              const bd=noDisc?d2:calcBillingDays(d2);
+              return s2+Math.round((ln.unitPrice||0)*(ln.quantity||1)*bd);
+            },0);
+          },0);
+          const diff=origTotal-allSplitsTotal;
+          if(diff!==0) autoAdj={id:`auto_adj_${r.id}`,label:'日数値引き調整',amount:diff,_auto:true};
         }
-      }
-      if(monthAmt<=0) return;
-      const c=customers.find(x=>x.id===r.customerId);
-      const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id));
-      if(existingGroup){
-        result=result.map(g=>({...g,items:g.items.map(item=>item.id===r.id?{...item,amount:monthAmt}:item)}));
-      } else {
-        const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===(r.projectName||"")&&g.month===selMonth);
-        if(existingSame){
-          result=result.map(g=>g===existingSame?{...g,items:[...g.items,{...r,amount:monthAmt}]}:g);
+        const splitItem={...r,startDate:spItem.startDate,endDate:spItem.endDate,days:splitDays,billingDays:splitBillingDays,amount:monthAmt,lines:rebuiltLines};
+        const injectAutoAdj=g=>autoAdj?{...g,_autoAdjustments:[...(g._autoAdjustments||[]).filter(a=>a.id!==autoAdj.id),autoAdj]}:g;
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id));
+        if(existingGroup){
+          result=result.map(g=>{
+            if(!g.items.some(item=>item.id===r.id)) return g;
+            return injectAutoAdj({...g,items:g.items.map(item=>item.id===r.id?splitItem:item)});
+          });
         } else {
-          result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[{...r,amount:monthAmt}],split:true,consolidate:false,_synthetic:true});
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===(r.projectName||"")&&g.month===selMonth);
+          if(existingSame){
+            result=result.map(g=>g!==existingSame?g:injectAutoAdj({...g,items:[...g.items,splitItem]}));
+          } else {
+            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[splitItem],split:true,consolidate:false,_synthetic:true}));
+          }
         }
       }
     });
     return result;
-  },[filtered,crossMonthSplits,selMonth,records,customers]);
+  },[filtered,crossMonthSplits,selMonth,records,customers,products]);
 
   const monthTotal = crossAdjustedFiltered.reduce((s,g)=>{
     const key=`${g.customerId}||${g.projectName}||${g.month}`;
     const d=getInvData(key,g.month);
     const base=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
     const adj=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-    return s+base+adj;
+    const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+    return s+base+adj+autoAdj;
   },0);
   const livePreviewG = preview ? (crossAdjustedFiltered.find(g=>`${g.customerId}||${g.projectName}||${g.month}`===preview.key)||preview.g) : null;
 
@@ -3342,8 +3375,10 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               const bom = "\uFEFF"; const rows = [bom+"発生日,金額,取引先,勘定科目,税区分,摘要"];
               crossAdjustedFiltered.forEach(g=>{
                 const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0)+(Number(r.insuranceAmount)||0),0);
-                const tax = Math.round(base*0.1);
-                const total = base + tax;
+                const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+                const grandBase = base + autoAdj;
+                const tax = Math.round(grandBase*0.1);
+                const total = grandBase + tax;
                 const memo = [g.customerName, g.projectName].filter(Boolean).join(" / ");
                 rows.push([dateStr, total, g.customerName, "売上高", "課税売上10%", memo].join(","));
               });
@@ -3428,7 +3463,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                               <span style={{minWidth:44,fontWeight:500,color:"#475569"}}>{spItem.startDate?spItem.startDate.slice(0,7).slice(5)+"月":""}</span>
                               <input type="date" value={spItem.startDate||""} disabled={si===0} onChange={e=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],startDate:e.target.value};return {...prev,[r.id]:ns};})} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
                               <span>〜</span>
-                              <input type="date" value={spItem.endDate||""} disabled={isLast} onChange={e=>{const nd=addDay(e.target.value);setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],endDate:e.target.value};if(ns.splits[si+1])ns.splits[si+1]={...ns.splits[si+1],startDate:nd};return {...prev,[r.id]:ns};});}} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
+                              <input type="date" value={spItem.endDate||""} disabled={isLast} onChange={e=>{const nd=addDay(e.target.value);setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],endDate:e.target.value};if(ns.splits[si+1])ns.splits[si+1]={...ns.splits[si+1],startDate:nd};const newUsed=ns.splits.slice(0,-1).reduce((s,sp2)=>s+computeSplitAmt(r,{...sp2,endDate:sp2.endDate||""}),0);if(newUsed>=(r.amount||0)){alert('非最終月の合計が案件登録金額を超えています。期間を短くしてください。');return prev;}return {...prev,[r.id]:ns};});}} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
                               <span style={{minWidth:64,textAlign:"right"}}>{fmt(spAmt)}</span>
                               <span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:isSet?"#dcfce7":"#fee2e2",color:isSet?"#15803d":"#dc2626"}}>{(()=>{if(!isSet)return"未設定";const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId}];const hasNoBilling=rLines.some(ln=>(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);return hasNoBilling?`${d}日間請求`:`${d}日→${calcBillingDays(d)}請求日`;})()}</span>
                               {isLast&&<span style={{fontSize:10,color:"#94a3b8"}}>（帳尻）</span>}
@@ -3643,7 +3678,14 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                             <Ico d={I.plus} size={11}/>追加
                                           </button>}
                                         </div>
-                                        {d.adjustments.length===0&&<div style={{fontSize:11,color:"#94a3b8"}}>調整行なし</div>}
+                                        {d.adjustments.length===0&&(g._autoAdjustments||[]).length===0&&<div style={{fontSize:11,color:"#94a3b8"}}>調整行なし</div>}
+                                        {(g._autoAdjustments||[]).map(a=>(
+                                          <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
+                                            <span style={{flex:1,fontSize:11,padding:"4px 8px",color:"#64748b",background:"#f1f5f9",borderRadius:4}}>🔒 {a.label}</span>
+                                            <span style={{width:110,fontSize:11,padding:"4px 8px",textAlign:"right",color:Number(a.amount)<0?"#dc2626":"#16a34a",fontWeight:600}}>{fmt(Number(a.amount)||0)}</span>
+                                            <span style={{width:64}}/>
+                                          </div>
+                                        ))}
                                         {d.adjustments.map(a=>(
                                           <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
                                             <input value={a.label} onChange={e=>updateAdj(key,a.id,{label:e.target.value})}
@@ -3703,13 +3745,13 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   else{count=(cur.printCount||1)+1;}
   await updateInvData(preview.key,{invNo:baseNo,printCount:count});
   const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-  downloadPrintHTML("invoice",{...livePreviewG,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,getInvData(preview.key)?.extraDiscount||0);
+  downloadPrintHTML("invoice",{...livePreviewG,adjustments:[...(cur.adjustments||[]),...(livePreviewG._autoAdjustments||[])],invNo,issueDate:cur.issueDate||""},products,getInvData(preview.key)?.extraDiscount||0);
 }} style={{...S.btn("#1d4ed8",true),fontSize:11}}>🖨 PDF</button>
               <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
             </div>
           </div>
           <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bfdbfe"}}>
-            <InvoicePreview type="invoice" g={{...livePreviewG,adjustments:getInvData(preview.key).adjustments}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0}/>
+            <InvoicePreview type="invoice" g={{...livePreviewG,adjustments:[...(getInvData(preview.key).adjustments||[]),...(livePreviewG._autoAdjustments||[])]}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0}/>
           </div>
         </div>
       )}
