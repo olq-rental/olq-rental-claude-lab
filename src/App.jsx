@@ -3634,7 +3634,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                   <button onClick={async()=>{
                                     const cur=getInvData(key);
                                     const invNo=cur.invNo||(g.month?`${g.month}-???`:"");
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products);
                                   }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
                                     <Ico d={I.print} size={10}/>確認
                                   </button>
@@ -3650,7 +3650,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     }
                                     await updateInvData(key,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
                                     const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products);
                                   }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
                                     🖨
                                   </button>
