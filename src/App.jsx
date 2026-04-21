@@ -1452,7 +1452,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                         <>
                           <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#92400e",cursor:"pointer",userSelect:"none",background:"#fff7ed",borderRadius:4,padding:"2px 7px",border:"1px solid #fed7aa"}}>
                             <input type="checkbox" checked={!!ln.isFee} onChange={e=>setLine(li,{isFee:e.target.checked,noBillingDiscount:e.target.checked?false:ln.noBillingDiscount})} style={{cursor:"pointer"}}/>
-                            手数料（日数なし）
+                            手数料及び販売（日数なし）
                           </label>
                           {!ln.isFee&&(
                             <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",cursor:"pointer",userSelect:"none"}}>
