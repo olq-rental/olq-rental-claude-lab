@@ -2330,6 +2330,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
             {g.projectName&&<div style={{fontSize:12,fontWeight:"bold",marginBottom:4}}>{ g.projectName}</div>}
             {g.customer?.zipCode&&<div style={{marginBottom:1}}>〒{ g.customer.zipCode}</div>}
             {g.customer?.address&&(g.customer.address).split("\n").map((line,i)=><div key={{i}} style={{marginBottom:1}}>{line}</div>)}
+            {g.customer?.contact&&<div style={{marginBottom:1}}>{g.customer.contact}　様</div>}
           </div>
           {/* 右列（2行分）: 管理No〜MAIL */}
           <div style={{gridColumn:2,gridRow:"1/3",fontSize:10,lineHeight:1.9,whiteSpace:"nowrap",paddingLeft:16,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
@@ -2552,6 +2553,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           ${g.projectName?`<div style="font-size:12px;font-weight:bold;margin-bottom:4px">${g.projectName}</div>`:""}
           ${g.customer?.zipCode?`<div style="margin-bottom:1px">〒${g.customer.zipCode}</div>`:""}
           ${(g.customer?.address||"").split("\n").map(l=>`<div style="margin-bottom:1px">${l}</div>`).join("")}
+          ${g.customer?.contact?`<div style="margin-bottom:1px">${g.customer.contact}　様</div>`:""}
         </div>
         <!-- 中央: タイトル -->
         <div style="text-align:center;font-size:14px;font-weight:bold;padding:0 24px">ご請求書</div>
