@@ -1092,7 +1092,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.19</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.20</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -2951,6 +2951,13 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
   const [fil, setFil] = useState({q:"", cid:"", month:new Date().toISOString().slice(0,7)});
   const [preview, setPreview] = useState(null); // {type, g}
   const [extModal, setExtModal] = useState(null);
+  const [expandedDates, setExpandedDates] = useState({});
+  const prevDay = dateStr => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
 
   useEffect(()=>{
     if(autoOpenRecord){
@@ -3020,7 +3027,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
               <tbody>
                 {filtered.length===0
                   ?<tr><td colSpan={7} style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません</td></tr>
-                  :filtered.map((r,i)=>{
+                  :recs.map((r,i)=>{
                     const c=customers.find(x=>x.id===r.customerId);
                     const isActive=preview?.r?.id===r.id;
                     const g=makeGroup(r);
