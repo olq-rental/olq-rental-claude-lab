@@ -3150,6 +3150,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   const [showPwSetting, setShowPwSetting] = useState(false);
   const [crossMonthSplits, setCrossMonthSplits] = useState(()=>{try{const s=localStorage.getItem('olqCrossMonthSplits');return s?JSON.parse(s):{};}catch{return {};}}); // {recordId: {type:'full'|'split', targetMonth?:string, splits?:[{startDate,endDate}]}}
   React.useEffect(()=>{try{localStorage.setItem('olqCrossMonthSplits',JSON.stringify(crossMonthSplits));}catch{} supabase.from('settings').upsert({key:'crossMonthSplits',value:JSON.stringify(crossMonthSplits)},{onConflict:'key'}).then(({error})=>{if(error)console.error('crossMonthSplits save error',error);});}, [crossMonthSplits]);
+  React.useEffect(()=>{supabase.from('settings').select('value').eq('key','crossMonthSplits').single().then(({data,error})=>{if(!error&&data?.value){try{const parsed=JSON.parse(data.value);setCrossMonthSplits(parsed);localStorage.setItem('olqCrossMonthSplits',data.value);}catch{}}});},[]);
   const [newPw, setNewPw] = useState("");
   const [custQ, setCustQ] = useState("");
 
