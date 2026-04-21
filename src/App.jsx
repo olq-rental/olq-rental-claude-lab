@@ -2951,6 +2951,13 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
   const [fil, setFil] = useState({q:"", cid:"", month:new Date().toISOString().slice(0,7)});
   const [preview, setPreview] = useState(null); // {type, g}
   const [extModal, setExtModal] = useState(null);
+  const [expandedDates, setExpandedDates] = useState({});
+  const prevDay = dateStr => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
 
   useEffect(()=>{
     if(autoOpenRecord){
