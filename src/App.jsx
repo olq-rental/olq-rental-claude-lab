@@ -657,14 +657,12 @@ function spName(sp, products) {
   const p = products.find(x => x.id === sp.productId);
   return p ? p.fullName : (sp.productName || `[削除済:${sp.productId}]`);
 }
-// 特別価格リストから削除済み製品を除去し、productNameを最新に同期
+// 特別価格リストのproductNameを最新に同期（削除済み製品は除去せず保持）
 function syncSPs(specialPrices, products) {
-  return (specialPrices||[])
-    .filter(sp => products.some(p => p.id === sp.productId))
-    .map(sp => {
-      const p = products.find(x => x.id === sp.productId);
-      return { ...sp, productName: p ? p.fullName : sp.productName };
-    });
+  return (specialPrices||[]).map(sp => {
+    const p = products.find(x => x.id === sp.productId);
+    return p ? { ...sp, productName: p.fullName } : sp;
+  });
 }
 
 // ---- データストア（Supabase版）----
