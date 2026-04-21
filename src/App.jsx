@@ -3010,56 +3010,82 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
               {mnths.map(m=><option key={m}>{m}</option>)}
             </select>
           </div>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
-              <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
-                {["No.","顧客","案件名","機材","利用期間","金額(税抜)",""].map(h=>(
-                  <th key={h} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#475569",whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {filtered.length===0
-                  ?<tr><td colSpan={7} style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません</td></tr>
-                  :filtered.map((r,i)=>{
-                    const c=customers.find(x=>x.id===r.customerId);
-                    const isActive=preview?.r?.id===r.id;
-                    const g=makeGroup(r);
-                    return(
-                      <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:isActive?"#f0fdf4":i%2?"#fcfcfc":"#fff",cursor:"pointer"}}
-                        onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)}>
-                        <td style={{padding:"8px 12px",fontSize:11,color:"#94a3b8",whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
-                        <td style={{padding:"8px 12px",fontWeight:600}}>{c?.name||"―"}</td>
-                        <td style={{padding:"8px 12px",fontSize:11,color:"#64748b"}}>
-                          {r.projectName||"―"}
-                          {r.ecOrderNo&&<span style={{marginLeft:6,fontSize:10,color:"#0369a1"}}>EC:{r.ecOrderNo}</span>}
-                        </td>
-                        <td style={{padding:"8px 12px",fontSize:11}}>{r.equipmentName}</td>
-                        <td style={{padding:"8px 12px",fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
-                        <td style={{padding:"8px 12px",fontWeight:700,color:"#16a34a"}}>{fmt(r.amount)}</td>
-                        <td style={{padding:"8px 12px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
-                          <button onClick={()=>{
-                            const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
-                            const units=[];
-                            rLns.forEach((ln,lineIdx)=>{
-                              const qty=Number(ln.quantity)||1;
-                              if(ln.subItems&&ln.subItems.length>0){
-                                ln.subItems.forEach((si,siIdx)=>units.push({lineIdx,siIdx,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:si.no,note:si.note||"",originalLine:ln}));
-                              } else {
-                                for(let i=0;i<qty;i++) units.push({lineIdx,siIdx:i,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:i+1,note:"",originalLine:ln});
-                              }
-                            });
-                            setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
-                          }} style={{...S.ib("#0369a1"),fontSize:11,marginRight:4}}>🔄 延長</button>
-                          <button onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)} style={{...S.ib("#16a34a"),fontSize:11}}>
-                            <Ico d={I.file} size={11}/>{r.issueReceipt?"納品書・領収証":"納品書"}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                }
-              </tbody>
-            </table>
+          <div>
+            {filtered.length===0
+              ?<div style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません</div>
+              :(()=>{
+                const dateGroups={};
+                filtered.forEach(r=>{const key=prevDay(r.startDate);if(!dateGroups[key])dateGroups[key]=[];dateGroups[key].push(r);});
+                const sortedDates=Object.keys(dateGroups).sort().reverse();
+                return sortedDates.map(dateKey=>{
+                  const recs=dateGroups[dateKey];
+                  const isOpen=!!expandedDates[dateKey];
+                  const dayTotal=recs.reduce((s,r)=>s+(r.amount||0),0);
+                  const [,dm,dd]=dateKey.split("-");
+                  const dateLabel=`${Number(dm)}/${Number(dd)}`;
+                  return(
+                    <div key={dateKey} style={{borderBottom:"1px solid #e2e8f0"}}>
+                      <div onClick={()=>setExpandedDates(p=>({...p,[dateKey]:!p[dateKey]}))}
+                        style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",cursor:"pointer",background:isOpen?"#f0fdf4":"#f8fafc",userSelect:"none"}}>
+                        <span style={{fontSize:13,fontWeight:700,color:"#0f172a",minWidth:48}}>{isOpen?"▼":"▶"} {dateLabel}</span>
+                        <span style={{fontSize:11,color:"#64748b"}}>{recs.length}件</span>
+                        <span style={{fontSize:12,fontWeight:700,color:"#16a34a",marginLeft:"auto"}}>{fmt(dayTotal)}</span>
+                      </div>
+                      {isOpen&&(
+                        <div style={{overflowX:"auto"}}>
+                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
+                            <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
+                              {["No.","顧客","案件名","機材","利用期間","金額(税抜)",""].map(h=>(
+                                <th key={h} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#475569",whiteSpace:"nowrap"}}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>
+                              {recs.map((r,i)=>{
+                                const c=customers.find(x=>x.id===r.customerId);
+                                const isActive=preview?.r?.id===r.id;
+                                const g=makeGroup(r);
+                                return(
+                                  <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:isActive?"#f0fdf4":i%2?"#fcfcfc":"#fff",cursor:"pointer"}}
+                                    onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)}>
+                                    <td style={{padding:"8px 12px",fontSize:11,color:"#94a3b8",whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
+                                    <td style={{padding:"8px 12px",fontWeight:600}}>{c?.name||"―"}</td>
+                                    <td style={{padding:"8px 12px",fontSize:11,color:"#64748b"}}>
+                                      {r.projectName||"―"}
+                                      {r.ecOrderNo&&<span style={{marginLeft:6,fontSize:10,color:"#0369a1"}}>EC:{r.ecOrderNo}</span>}
+                                    </td>
+                                    <td style={{padding:"8px 12px",fontSize:11}}>{r.equipmentName}</td>
+                                    <td style={{padding:"8px 12px",fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
+                                    <td style={{padding:"8px 12px",fontWeight:700,color:"#16a34a"}}>{fmt(r.amount)}</td>
+                                    <td style={{padding:"8px 12px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
+                                      <button onClick={()=>{
+                                        const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
+                                        const units=[];
+                                        rLns.forEach((ln,lineIdx)=>{
+                                          const qty=Number(ln.quantity)||1;
+                                          if(ln.subItems&&ln.subItems.length>0){
+                                            ln.subItems.forEach((si,siIdx)=>units.push({lineIdx,siIdx,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:si.no,note:si.note||"",originalLine:ln}));
+                                          } else {
+                                            for(let i=0;i<qty;i++) units.push({lineIdx,siIdx:i,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:i+1,note:"",originalLine:ln});
+                                          }
+                                        });
+                                        setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
+                                      }} style={{...S.ib("#0369a1"),fontSize:11,marginRight:4}}>🔄 延長</button>
+                                      <button onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)} style={{...S.ib("#16a34a"),fontSize:11}}>
+                                        <Ico d={I.file} size={11}/>{r.issueReceipt?"納品書・領収証":"納品書"}
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()
+            }
           </div>
         </div>
       </div>
