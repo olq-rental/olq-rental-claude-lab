@@ -973,7 +973,8 @@ export default function App() {
       if (synced.length === c.specialPrices.length && synced.every((s,i)=>s.productName===c.specialPrices[i].productName)) return c;
       return {...c, specialPrices: synced};
     });
-    if (updated !== customers) { setCustomers(updated); await sSet(K.c, updated); }
+    const changed = updated.some((c, i) => c !== customers[i]);
+    if (changed) { setCustomers(updated); await sSet(K.c, updated); }
   };
   const saveCust = async (n, logInfo) => {
     setCustomers(n);
