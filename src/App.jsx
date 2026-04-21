@@ -4332,6 +4332,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                     <option value="月末締め 翌々月5日">月末締め 翌々月5日</option>
                     <option value="月末締め 翌々月10日">月末締め 翌々月10日</option>
                     <option value="月末締め 翌々月25日">月末締め 翌々月25日</option>
+                    <option value="月末締め 翌々月15日">月末締め 翌々月15日</option>
                     <option value="スクエア">スクエア（都度払い）</option>
                     <option value="その他">その他</option>
                   </select>
@@ -4560,6 +4561,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                 <option value="月末締め 翌々月5日">月末締め 翌々月5日</option>
                 <option value="月末締め 翌々月10日">月末締め 翌々月10日</option>
                 <option value="月末締め 翌々月25日">月末締め 翌々月25日</option>
+                <option value="月末締め 翌々月15日">月末締め 翌々月15日</option>
                 <option value="スクエア">スクエア（都度払い）</option>
                 <option value="その他">その他</option>
               </select>
