@@ -1283,6 +1283,17 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
   const addSub=(li)=>setLine(li,{subItems:[...(form.lines[li].subItems||[]),{no:"",note:""}]});
   const removeSub=(li,si)=>setLine(li,{subItems:form.lines[li].subItems.filter((_,j)=>j!==si)});
   const setSub=(li,si,patch)=>{const subs=[...(form.lines[li].subItems||[])];subs[si]={...subs[si],...patch};setLine(li,{subItems:subs});};
+  const APPLE_NOTICE="⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。";
+  React.useEffect(()=>{
+    const validLines=(form.lines||[]).filter(ln=>ln.productId||ln.isManual);
+    const hasApple=validLines.some(ln=>/iPhone|iPad/i.test(ln.equipmentName||(products.find(p=>p.id===ln.productId)?.fullName||"")));
+    setForm(f=>{
+      const base=(f.notes||"").replace(/\n*⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。/g,"").trimEnd();
+      const next=hasApple?(base?(base+"\n\n"+APPLE_NOTICE):APPLE_NOTICE):base;
+      if(next===(f.notes||"")) return f;
+      return {...f,notes:next};
+    });
+  },[form.lines.map(ln=>ln.productId).join(","),form.lines.map(ln=>ln.equipmentName).join(",")]);
 
   const submit=async()=>{
     if(!form.customerId){showToast("顧客は必須です",false);return;}
