@@ -2998,7 +2998,7 @@ window.onbeforeprint=function(){
     var d=document.createElement('div');
     d.className='pn-el';
     d.textContent=(i+1)+'/'+total;
-    d.style.cssText='position:fixed;bottom:6px;right:10px;font-size:8px;color:#999;pointer-events:none;z-index:9999;top:'+(i*h+h-20)+'px;bottom:auto;position:absolute;';
+    d.style.cssText='position:absolute;font-size:8px;color:#999;pointer-events:none;right:10px;top:'+(i*h+8)+'px;';
     document.body.appendChild(d);
   }
 };
