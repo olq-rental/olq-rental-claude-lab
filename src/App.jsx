@@ -1225,7 +1225,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
     // isFee（手数料）は日数掛けなし（台数×単価のみ）
     const qty = ln.isFee ? 1
               : form.billingType==="monthly" ? (Number(form.months)||1)
-              : noDisc ? days : billingDays;
+              : noDisc ? days : adjustedBillingDays;
     return (Number(ln.unitPrice)||0)*(Number(ln.quantity)||0)*qty;
   });
   const totalAmount = lineAmounts.reduce((s,a)=>s+a,0);
