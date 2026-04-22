@@ -2360,7 +2360,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
         <div style={{display:"grid",gridTemplateColumns:"1fr auto",alignItems:"stretch",gap:"8px 0",marginBottom:14}}>
           {/* 左上: 顧客名・住所 */}
           <div style={{gridColumn:1,gridRow:1,paddingBottom:6}}>
-            <div style={{fontSize:16,fontWeight:"bold",marginBottom:6}}>{g.customerName}　御中</div>
+            <div style={{fontSize:16,fontWeight:"bold",marginBottom:6}}>{g.customer?.invoiceName || g.customerName}　御中</div>
             {g.projectName&&<div style={{fontSize:12,fontWeight:"bold",marginBottom:4}}>{ g.projectName}</div>}
             {g.customer?.zipCode&&<div style={{marginBottom:1}}>〒{ g.customer.zipCode}</div>}
             {g.customer?.address&&(g.customer.address).split("\n").map((line,i)=><div key={{i}} style={{marginBottom:1}}>{line}</div>)}
@@ -2583,7 +2583,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
         <!-- 左: 顧客名・住所 -->
         <div style="padding-bottom:6px">
-          <div style="font-size:14px;font-weight:bold;margin-bottom:6px">${g.customerName}　御中</div>
+          <div style="font-size:14px;font-weight:bold;margin-bottom:6px">${g.customer?.invoiceName || g.customerName}　御中</div>
           ${g.projectName?`<div style="font-size:12px;font-weight:bold;margin-bottom:4px">${g.projectName}</div>`:""}
           ${g.customer?.zipCode?`<div style="margin-bottom:1px">〒${g.customer.zipCode}</div>`:""}
           ${(g.customer?.address||"").split("\n").map(l=>`<div style="margin-bottom:1px">${l}</div>`).join("")}
