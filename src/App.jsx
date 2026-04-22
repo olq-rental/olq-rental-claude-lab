@@ -2648,7 +2648,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           </tr>
         </thead>
         <tbody>`;
-    [...g.items].sort((a,b)=>(a.endDate||"").localeCompare(b.endDate||"")).forEach(r => {
+    (()=>{const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;return(a.endDate||"").localeCompare(b.endDate||"");});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");_sorted.forEach((r,_ri) => {
       const orderer = r.ordererName ? r.ordererName+"　様" : "";
       const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
       const hasNoBilling=rLines.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);
@@ -2679,7 +2679,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if((r.insuranceAmount||0)>0){
         body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`;
       }
-    });
+      if(_hasBoth&&_ri===_lastMIdx){body+=`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`;}});})();
     // 調整行
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
       body += `<tr style="background:#fefce8">
@@ -3735,8 +3735,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           </tr>
                                         </thead>
                                         <tbody>
-                                          {[...g.items].sort((a,b)=>(a.endDate||"").localeCompare(b.endDate||"")).map(r=>(
-                                            <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
+                                          {(()=>{const sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;return(a.endDate||"").localeCompare(b.endDate||"");});const lastMIdx=sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const hasBoth=lastMIdx>=0&&sorted.some(r=>r.billingType!=="monthly");return sorted.map((r,i)=>(<React.Fragment key={r.id}><tr style={{borderBottom:"1px solid #f1f5f9"}}>
                                               <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
                                               <td style={{padding:"4px 8px",color:"#475569"}}>
                                                 {r.isExtension
@@ -3755,7 +3754,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                               </td>
                                               <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(r.amount)}</td>
                                             </tr>
-                                          ))}
+                                            {hasBoth&&i===lastMIdx&&<tr key="spacer"><td colSpan={5} style={{padding:"6px 0",borderBottom:"2px solid #e2e8f0",background:"#f8fafc"}}></td></tr>}
+                                          </React.Fragment>));})()}
                                         </tbody>
                                       </table>
                                       {/* 調整行 */}
