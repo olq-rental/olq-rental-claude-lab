@@ -1324,7 +1324,9 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
       productId:lines[0]?.productId||"",
       id:editId||uid(),updatedAt:Date.now(),createdAt:editId?records.find(r=>r.id===editId)?.createdAt:Date.now()};
     if(!editId && !rec.deliveryNo) {
-      rec.deliveryNo = await nextDeliveryNo();
+      const no = await nextDeliveryNo();
+      if(no==='ERR'){showToast("伝票番号の採番に失敗しました。もう一度登録ボタンを押してください。",false);return;}
+      rec.deliveryNo = no;
     } else if(editId) {
       const orig = records.find(r=>r.id===editId);
       if(orig?.deliveryNo) {
@@ -1335,7 +1337,13 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
       }
     }
     const custName=customers.find(x=>x.id===form.customerId)?.name||"";
-    await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName});
+    try {
+      await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName});
+    } catch(e) {
+      showToast("保存に失敗しました。もう一度登録ボタンを押してください。",false);
+      console.error("save error",e);
+      return;
+    }
     const wasNew=!editId;
     showToast(editId?"更新しました":"登録しました");setForm(E);setEditId(null);setOpen(false);setLineSearches([""]);
     if(onAfterSubmit) onAfterSubmit(rec);
