@@ -1779,9 +1779,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                 });
                 const selectedLines=Object.values(lineMap);
                 const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):today();
-                const baseNo=r.deliveryNo||"";
-                const eMatch=baseNo.match(/E(\d+)$/);
-                const delivNo=baseNo?(baseNo.replace(/E\d+$/,"")+"E"+(eMatch?parseInt(eMatch[1])+1:1)):await nextDeliveryNo();
+                const delivNo=await nextDeliveryNo();
                 const newRec={
                   ...E,
                   id:uid(),
@@ -3140,9 +3138,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                 });
                 const selectedLines=Object.values(lineMap);
                 const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):new Date().toISOString().slice(0,10);
-                const baseNo2=r.deliveryNo||"";
-                const eMatch2=baseNo2.match(/E(\d+)$/);
-                const delivNo=baseNo2?(baseNo2.replace(/E\d+$/,"")+"E"+(eMatch2?parseInt(eMatch2[1])+1:1)):await nextDeliveryNo();
+                const delivNo=await nextDeliveryNo();
                 const newRec={
                   id:uid(),
                   customerId:r.customerId,
