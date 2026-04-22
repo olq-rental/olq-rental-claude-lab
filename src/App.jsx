@@ -1811,9 +1811,14 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                   issueReceipt:false,
                   createdAt:new Date().toISOString(),
                 };
-                await onSave([...records,newRec]);
-                setExtModal(null);
-                showToast("延長案件を作成しました");
+                try {
+                  await onSave([...records,newRec]);
+                  setExtModal(null);
+                  showToast("延長案件を作成しました");
+                } catch(e) {
+                  showToast("保存に失敗しました。もう一度お試しください。",false);
+                  console.error("extModal save error",e);
+                }
               }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
               <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
             </div>
@@ -3172,9 +3177,14 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                   notes:"",
                   createdAt:new Date().toISOString(),
                 };
-                await onSave([...records,newRec]);
-                setExtModal(null);
-                showToast("延長案件を作成しました");
+                try {
+                  await onSave([...records,newRec]);
+                  setExtModal(null);
+                  showToast("延長案件を作成しました");
+                } catch(e) {
+                  showToast("保存に失敗しました。もう一度お試しください。",false);
+                  console.error("extModal2 save error",e);
+                }
               }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
               <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
             </div>
