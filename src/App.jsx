@@ -2538,11 +2538,11 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
 function downloadPrintHTML(type, g, products, extraDiscount) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
-  const css = `@page{margin:0mm 0mm 8mm 0mm;size:A4}@page{@bottom-center{content:counter(page) "/" counter(pages);font-size:8px;color:#999}}*{box-sizing:border-box;margin:0;padding:0}tfoot{display:table-row-group}
+  const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tfoot{display:table-row-group}
 body{font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;margin:0}
 table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:3px 5px;font-size:10px}
 th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{text-align:center}
-.pb{page-break-after:always;width:794px;box-sizing:border-box}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
+.pb{page-break-after:always;width:794px;box-sizing:border-box;position:relative}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
@@ -2988,6 +2988,24 @@ ${css}
   <button onclick="window.close()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer">✕ 閉じる</button>
 </div>
 <div style="margin-top:52px">${body}</div>
+<script>
+window.onbeforeprint=function(){
+  var h=1122;
+  var total=Math.ceil(document.body.scrollHeight/h);
+  var old=document.querySelectorAll('.pn-el');
+  old.forEach(function(e){e.remove();});
+  for(var i=0;i<total;i++){
+    var d=document.createElement('div');
+    d.className='pn-el';
+    d.textContent=(i+1)+'/'+total;
+    d.style.cssText='position:fixed;bottom:6px;right:10px;font-size:8px;color:#999;pointer-events:none;z-index:9999;top:'+(i*h+h-20)+'px;bottom:auto;position:absolute;';
+    document.body.appendChild(d);
+  }
+};
+window.onafterprint=function(){
+  document.querySelectorAll('.pn-el').forEach(function(e){e.remove();});
+};
+</script>
 </body></html>`;
   const newTab = window.open('', '_blank');
   newTab.document.write(fullHTML);
