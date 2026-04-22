@@ -1295,6 +1295,16 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
     });
   },[form.lines.map(ln=>ln.productId).join(","),form.lines.map(ln=>ln.equipmentName).join(",")]);
 
+  React.useEffect(()=>{
+    setForm(f=>{
+      const reason=(f.adjustReason||"").trim();
+      const base=(f.notes||"").replace(/\n*【日数調整】.*$/s,"").trimEnd();
+      const next=reason?(base?(base+"\n\n【日数調整】"+reason):"【日数調整】"+reason):base;
+      if(next===(f.notes||"")) return f;
+      return {...f,notes:next};
+    });
+  },[form.adjustReason]);
+
   const submit=async()=>{
     if(!form.customerId){showToast("顧客は必須です",false);return;}
     if(form.billingType==="daily"&&form.adjustDays!==""&&form.adjustDays!==undefined){
