@@ -4241,8 +4241,13 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     if(!updatedForm.name){showToast("顧客名は必須",false);return;}
     const synced=syncSPs(updatedForm.specialPrices,products);
     const c={...updatedForm,specialPrices:synced,id:editId||uid(),discountRate:Number(updatedForm.discountRate)||0,staff:updatedForm.staff||"",updatedAt:Date.now(),createdAt:editId?customers.find(x=>x.id===editId)?.createdAt:Date.now()};
-    await onSave(editId?customers.map(x=>x.id===editId?c:x):[...customers,c],{action:editId?"更新":"作成",name:c.name});
-    showToast("更新しました");
+    try {
+      await onSave(editId?customers.map(x=>x.id===editId?c:x):[...customers,c],{action:editId?"更新":"作成",name:c.name});
+      showToast("更新しました");
+    } catch(e) {
+      showToast("保存に失敗しました。もう一度お試しください。",false);
+      console.error("saveCustomer error",e);
+    }
   };
 
   const addProj=async()=>{
