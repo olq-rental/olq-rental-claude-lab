@@ -1695,7 +1695,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
       {deleteModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
-            <div style={{fontSize:15,fontWeight:700,marginBottom:8,color:"#991b1b"}}>⚠️ 案件を削除しますか？</div>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:8,color:"#991b1b"}}>⚠️ 案件を削除しますか？システム全体に影響するので、実行する場合は管理者に確認してください。</div>
             <div style={{fontSize:13,color:"#374151",marginBottom:6}}>顧客：{deleteModal.custName}</div>
             <div style={{fontSize:13,color:"#374151",marginBottom:20}}>案件名：{deleteModal.record.projectName||"（案件名なし）"}</div>
             <div style={{display:"flex",gap:10}}>
