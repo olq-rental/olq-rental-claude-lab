@@ -2538,7 +2538,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
 function downloadPrintHTML(type, g, products, extraDiscount) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
-  const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tfoot{display:table-row-group}
+  const css = `@page{margin:0mm 0mm 8mm 0mm;size:A4}@page{@bottom-center{content:counter(page) "/" counter(pages);font-size:8px;color:#999}}*{box-sizing:border-box;margin:0;padding:0}tfoot{display:table-row-group}
 body{font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;margin:0}
 table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:3px 5px;font-size:10px}
 th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{text-align:center}
