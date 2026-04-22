@@ -4874,17 +4874,22 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     const pid=editId||uid();
     const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount};
     p.fullName=`${p.brand} ${p.name}`;
-    await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
-    if(spList.length>0&&saveCust){
-      const updatedCustomers=customers.map(c=>{
-        const sp=spList.find(s=>s.cid===c.id);
-        if(!sp)return c;
-        const existing=(c.specialPrices||[]).filter(s=>s.productId!==pid);
-        return {...c,specialPrices:[...existing,{productId:pid,price:sp.price}]};
-      });
-      await saveCust(updatedCustomers);
+    try {
+      await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
+      if(spList.length>0&&saveCust){
+        const updatedCustomers=customers.map(c=>{
+          const sp=spList.find(s=>s.cid===c.id);
+          if(!sp)return c;
+          const existing=(c.specialPrices||[]).filter(s=>s.productId!==pid);
+          return {...c,specialPrices:[...existing,{productId:pid,price:sp.price}]};
+        });
+        await saveCust(updatedCustomers);
+      }
+      showToast(editId?"更新しました":"追加しました"); setForm(E); setEditId(null); setOpen(false); setSpList([]); setSpCid(""); setSpPrice(""); setProdSpQ("");
+    } catch(e) {
+      showToast("保存に失敗しました。もう一度お試しください。",false);
+      console.error("saveProd error",e);
     }
-    showToast(editId?"更新しました":"追加しました"); setForm(E); setEditId(null); setOpen(false); setSpList([]); setSpCid(""); setSpPrice(""); setProdSpQ("");
   };
 
   const resetToDefault=async()=>{
