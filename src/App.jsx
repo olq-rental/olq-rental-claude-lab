@@ -1713,7 +1713,10 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
             {returnModal&&(()=>{
               const targetRec=records.find(x=>x.id===returnModal.id);
               const rLns=targetRec?getLines(targetRec):[];
-              return rLns.length>1&&(
+              const isExtRec=targetRec?.isExtension;
+              const hasMultiLine=rLns.length>1;
+              const hasPartialQty=isExtRec&&rLns.some(ln=>(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec));
+              return (hasMultiLine||hasPartialQty)&&(
                 <div style={{marginBottom:12}}>
                   <label style={{...S.lbl,marginBottom:6}}>返却する機材を選択</label>
                   {rLns.map((ln,i)=>(
