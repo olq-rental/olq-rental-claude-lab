@@ -1092,7 +1092,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.21</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.22</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -1728,9 +1728,9 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                       {targetRec.isExtension&&(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec)&&(
                         <span style={{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}>
                           <span style={{fontSize:11,color:"#64748b"}}>返却数</span>
-                          <input type="number" min={1} max={Number(ln.quantity)||1} value={returnModal.returnQtys?.[i]??(Number(ln.quantity)||1)}
+                          <input type="text" inputMode="numeric" value={returnModal.returnQtys?.[i]??(Number(ln.quantity)||1)}
                             onClick={e=>e.stopPropagation()}
-                            onChange={e=>{const v=Math.min(Math.max(1,Number(e.target.value)),Number(ln.quantity)||1);setReturnModal(p=>({...p,returnQtys:{...p.returnQtys,[i]:v}}));}}
+                            onChange={e=>{const raw=e.target.value.replace(/[^0-9]/g,"");const v=raw===""?"":(Math.min(Math.max(1,Number(raw)),Number(ln.quantity)||1));setReturnModal(p=>({...p,returnQtys:{...p.returnQtys,[i]:v}}));}}
                             style={{width:48,padding:"2px 4px",border:"1px solid #e2e8f0",borderRadius:4,fontSize:12,textAlign:"center"}}/>
                           <span style={{fontSize:11,color:"#64748b"}}>/{Number(ln.quantity)||1}台</span>
                         </span>
