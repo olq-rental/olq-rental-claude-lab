@@ -1636,8 +1636,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                 <div>
                   <label style={S.lbl}>支払方法</label>
                   <div style={{display:"flex",gap:2,background:"#e2e8f0",borderRadius:6,padding:2}}>
-                    {[{k:"credit",l:"💳 クレジット"},{k:"cash",l:"💴 現金"}].map(t=>(
-                      <button key={t.k} type="button" onClick={()=>setForm(f=>({...f,paymentMethod:t.k}))} style={{flex:1,background:form.paymentMethod===t.k?"#fff":"transparent",border:"none",borderRadius:5,padding:"6px 0",fontSize:12,fontWeight:form.paymentMethod===t.k?700:500,color:form.paymentMethod===t.k?"#713f12":"#94a3b8",cursor:"pointer",boxShadow:form.paymentMethod===t.k?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>{t.l}</button>
+                    {[{k:"ec",l:"💳 ECクレジット"},{k:"square",l:"🟦 スクエア"},{k:"cash",l:"💴 現金"}].map(t=>(
+                      <button key={t.k} type="button" onClick={()=>setForm(f=>({...f,paymentMethod:t.k,receiptNote:t.k==="ec"?"機材レンタル代として　[ECクレジット]":t.k==="square"?"機材レンタル代として　[スクエア クレジット]":"機材レンタル代として　[現金]"}))} style={{flex:1,background:form.paymentMethod===t.k?"#fff":"transparent",border:"none",borderRadius:5,padding:"6px 0",fontSize:12,fontWeight:form.paymentMethod===t.k?700:500,color:form.paymentMethod===t.k?"#713f12":"#94a3b8",cursor:"pointer",boxShadow:form.paymentMethod===t.k?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>{t.l}</button>
                     ))}
                   </div>
                 </div>
@@ -2259,7 +2259,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
   const fs = forPrint ? 1 : 0.78;
   const bdr = "1px solid #555";
   const receiptDateStr = r.receiptDate ? new Date(r.receiptDate).toLocaleDateString("ja-JP") : new Date(r.startDate).toLocaleDateString("ja-JP");
-  const payLabel = r.paymentMethod==="cash" ? "現金" : "クレジット　スクエア";
+  const payLabel = r.paymentMethod==="cash" ? "現金" : r.paymentMethod==="square" ? "スクエア クレジット" : "ECクレジット";
   const receiptName = r.receiptNameCustom && r.receiptNameOverride ? r.receiptNameOverride : (g.customer?.invoiceName || g.customerName || "");
   const honorific = r.receiptNameCustom && r.receiptNameOverride ? (r.receiptHonorific || '様') : ((receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様');
   const subTot = Math.round(r.amount / 1.1 * (r.amount > 0 ? 1 : 0));
@@ -2900,7 +2900,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const rIdx = g.items.indexOf(r);
         const receiptNo = genDeliveryNo(r, rIdx);
         const receiptDateStr = r.receiptDate || fd(r.startDate);
-        const payLabel = r.paymentMethod === "cash" ? "現金" : "クレジット　スクエア";
+        const payLabel = r.paymentMethod === "cash" ? "現金" : r.paymentMethod === "square" ? "スクエア クレジット" : "ECクレジット";
         const receiptName = r.receiptNameCustom && r.receiptNameOverride ? r.receiptNameOverride : (g.customer?.invoiceName || g.customerName);
         const honorific = r.receiptNameCustom && r.receiptNameOverride ? (r.receiptHonorific || '様') : ((receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様');
         const equipAmt = r.amount || 0;
