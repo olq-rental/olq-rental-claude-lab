@@ -2446,7 +2446,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
           <tbody>
             {(()=>{const _s=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1,bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;return(a.endDate||"").localeCompare(b.endDate||"");});const _lm=_s.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hb=_lm>=0&&_s.some(r=>r.billingType!=="monthly");return _s.flatMap((r,_ri)=>{
               const rLines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
-              const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate&&ln.returnDate>=(r.startDate||""));
+              const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
               const rows=rLines.map((ln,li)=>{
                 const lineEndDate=ln.returnDate||r.endDate;
                 const lineDays=r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.billingDays||r.days||0));
@@ -2689,7 +2689,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     (()=>{const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;return(a.endDate||"").localeCompare(b.endDate||"");});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");_sorted.forEach((r,_ri) => {
       const orderer = r.ordererName ? r.ordererName+"　様" : "";
       const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
-      const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate&&ln.returnDate>=(r.startDate||""));
+      const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
       const hasNoBilling=rLines.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);
       const days = r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasNoBilling?(r.days||0):(r.billingDays||r.days||0));
       const lineCount = rLines.length;
@@ -3403,7 +3403,11 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
           const lineBD=noDisc?splitDays:calcBillingDays(splitDays);
           const lineAmt=Math.round((ln.unitPrice||0)*(ln.quantity||1)*lineBD);
-          return {...ln,billingDays:lineBD,amount:lineAmt};
+          let clampedReturnDate=ln.returnDate;
+          if(clampedReturnDate&&(clampedReturnDate<spItem.startDate||clampedReturnDate>spItem.endDate)){
+            clampedReturnDate=undefined;
+          }
+          return {...ln,billingDays:lineBD,amount:lineAmt,returnDate:clampedReturnDate};
         });
         const firstLn=rLines[0]||{};
         const firstNoDisc=firstLn.noBillingDiscount||(products||[]).find(p=>p.id===firstLn.productId)?.noBillingDiscount;
