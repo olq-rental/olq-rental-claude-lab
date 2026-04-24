@@ -2689,14 +2689,17 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     (()=>{const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;return(a.endDate||"").localeCompare(b.endDate||"");});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");_sorted.forEach((r,_ri) => {
       const orderer = r.ordererName ? r.ordererName+"　様" : "";
       const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
+      const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
       const hasNoBilling=rLines.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);
       const days = r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasNoBilling?(r.days||0):(r.billingDays||r.days||0));
       const lineCount = rLines.length;
       rLines.forEach((ln,li)=>{
+        const lineEndDate=ln.returnDate||r.endDate;
         const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
         const listPrice = prod ? prod.priceEx : (ln.unitPrice||0);
         const dispPrice = showDiscountLine ? listPrice : (ln.unitPrice||r.unitPrice);
-        const useDaysForLinePdf=r.billingType==="monthly"?(r.months||1):((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1));
+        const useDaysForLinePdf=r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
+        const lineDaysPdf=r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.billingDays||r.days||0));
         const lineAmt = showDiscountLine
           ? Math.round(listPrice*(ln.quantity||1)*useDaysForLinePdf)
           : Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLinePdf);
@@ -2707,7 +2710,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           : (r.projectDetail || "");
         const nameExtra = li===0 && projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
         body += `<tr>
-          ${li===0?`<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle" rowspan="${lineCount}">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle" rowspan="${lineCount}">${days}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle" rowspan="${lineCount}">${orderer}</td>`:""}
+          ${hasPerLineDate
+            ? `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${lineDaysPdf}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
+            : li===0?`<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle" rowspan="${lineCount}">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle" rowspan="${lineCount}">${days}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle" rowspan="${lineCount}">${orderer}</td>`:""}
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
