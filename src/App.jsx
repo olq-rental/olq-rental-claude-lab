@@ -1721,6 +1721,16 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                       <input type="checkbox" checked={!!returnModal.selectedLines?.[i]}
                         onChange={e=>setReturnModal(p=>({...p,selectedLines:{...p.selectedLines,[i]:e.target.checked}}))}/>
                       <span style={{fontSize:12}}>{ln.equipmentName||`機材${i+1}`}</span>
+                      {targetRec.isExtension&&(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec)&&(
+                        <span style={{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}>
+                          <span style={{fontSize:11,color:"#64748b"}}>返却数</span>
+                          <input type="number" min={1} max={Number(ln.quantity)||1} value={returnModal.returnQtys?.[i]??(Number(ln.quantity)||1)}
+                            onClick={e=>e.stopPropagation()}
+                            onChange={e=>{const v=Math.min(Math.max(1,Number(e.target.value)),Number(ln.quantity)||1);setReturnModal(p=>({...p,returnQtys:{...p.returnQtys,[i]:v}}));}}
+                            style={{width:48,padding:"2px 4px",border:"1px solid #e2e8f0",borderRadius:4,fontSize:12,textAlign:"center"}}/>
+                          <span style={{fontSize:11,color:"#64748b"}}>/{Number(ln.quantity)||1}台</span>
+                        </span>
+                      )}
                       {getLineReturnDate(ln,targetRec)&&<span style={{fontSize:10,color:"#16a34a",marginLeft:"auto"}}>✓ 返却済</span>}
                     </label>
                   ))}
@@ -1749,9 +1759,17 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                   const selectedIdxs=Object.entries(returnModal.selectedLines||{}).filter(([,v])=>v).map(([k])=>Number(k));
                   if(selectedIdxs.length===0){showToast("返却する機材を1つ以上選択してください",false);return;}
                   // ライン単位で returnDate を更新
-                  const updatedLines=rLns.map((ln,i)=>{
-                    if(!selectedIdxs.includes(i)) return ln;
-                    return {...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate};
+                  const updatedLines=[];
+                  rLns.forEach((ln,i)=>{
+                    if(!selectedIdxs.includes(i)){updatedLines.push(ln);return;}
+                    const lineQty=Number(ln.quantity)||1;
+                    const retQty=Math.min(Math.max(1,Number(returnModal.returnQtys?.[i]??lineQty)),lineQty);
+                    if(retQty>=lineQty){
+                      updatedLines.push({...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate});
+                    } else {
+                      updatedLines.push({...ln,quantity:retQty,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate});
+                      updatedLines.push({...ln,quantity:lineQty-retQty,returnDate:undefined,actualReturnDate:undefined});
+                    }
                   });
                   // 全ライン返却済かチェック
                   const allClosed=updatedLines.every(ln=>ln.returnDate);
@@ -1966,7 +1984,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                           setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
                                         }} style={{...S.ib("#0369a1"),marginRight:4,fontSize:10}}>🔄 延長</button>
                                         {(r.endDateOpen||(!r.endDate&&r.billingType==="monthly"))&&!r.returnDate&&(
-                                          <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today(),selectedLines:Object.fromEntries(getLines(r).map((_,i)=>[i,true]))});}}
+                                          <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today(),selectedLines:Object.fromEntries(getLines(r).map((_,i)=>[i,true])),returnQtys:Object.fromEntries(getLines(r).map((ln,i)=>[i,Number(ln.quantity)||1]))});}}
                                             style={{...S.ib("#7c3aed"),marginRight:4,fontSize:10}}>📦 戻り[終了]</button>
                                         )}
                                         {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>計上終了:{r.returnDate}</span>}
