@@ -3696,7 +3696,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,
                                     cursor:"pointer",whiteSpace:"nowrap"
                                   }}>{locked?"✅ 締め済み":"未締め"}</span>
-                                {(()=>{const ri=g.items.find(r=>r.issueReceipt&&r.receiptDate);if(!ri)return null;const rd=new Date(ri.receiptDate+"T00:00:00");return <span style={{display:"block",fontSize:10,color:"#0369a1",fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>{(rd.getMonth()+1)}月{rd.getDate()}日 領収済</span>;})()}
+                                {(()=>{const ri=g.items.find(r=>r.issueReceipt&&r.receiptDate);if(!ri)return null;const rd=new Date(ri.receiptDate+"T00:00:00");return <span style={{display:"block",fontSize:10,color:"#0369a1",fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>{(rd.getMonth()+1)}月{rd.getDate()}日 領収済　{ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット"}</span>;})()}
                                 {(()=>{
                                   const pc=getInvData(key)?.printCount||0;
                                   const pi=getInvData(key)?.lastPrintDate||"";
