@@ -2611,6 +2611,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           <div>
             <div>管理No　<strong>${invNo}</strong></div>
             <div>日付　${issueDateStr}</div>
+            ${(()=>{const ri=g.items.find(r=>r.issueReceipt&&r.receiptDate);if(!ri)return "";const rd=new Date(ri.receiptDate+"T00:00:00");const pm=ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット";return `<div style="color:#0369a1;font-weight:bold">${rd.getMonth()+1}月${rd.getDate()}日 領収済　${pm}</div>`;})()}
             <div style="margin-bottom:8px">登録番号 T5-0104-0109-2630</div>
             <div style="font-weight:bold;font-size:10px;margin-bottom:2px">オルク株式会社</div>
             <div style="position:relative">
