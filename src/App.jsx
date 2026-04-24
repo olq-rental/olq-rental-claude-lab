@@ -1722,6 +1722,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                   {rLns.map((ln,i)=>(
                     <label key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,cursor:"pointer",padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,background:returnModal.selectedLines?.[i]?"#eff6ff":"#fff"}}>
                       <input type="checkbox" checked={!!returnModal.selectedLines?.[i]}
+                        disabled={!!getLineReturnDate(ln,targetRec)}
                         onChange={e=>setReturnModal(p=>({...p,selectedLines:{...p.selectedLines,[i]:e.target.checked}}))}/>
                       <span style={{fontSize:12}}>{ln.equipmentName||`機材${i+1}`}</span>
                       {targetRec.isExtension&&(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec)&&(
@@ -1987,7 +1988,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                           setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
                                         }} style={{...S.ib("#0369a1"),marginRight:4,fontSize:10}}>🔄 延長</button>
                                         {(r.endDateOpen||(!r.endDate&&r.billingType==="monthly"))&&!r.returnDate&&(
-                                          <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today(),selectedLines:Object.fromEntries(getLines(r).map((_,i)=>[i,true])),returnQtys:Object.fromEntries(getLines(r).map((ln,i)=>[i,Number(ln.quantity)||1]))});}}
+                                          <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today(),selectedLines:Object.fromEntries(getLines(r).map((ln,i)=>[i,!getLineReturnDate(ln,r)])),returnQtys:Object.fromEntries(getLines(r).map((ln,i)=>[i,Number(ln.quantity)||1]))});}}
                                             style={{...S.ib("#7c3aed"),marginRight:4,fontSize:10}}>📦 戻り[終了]</button>
                                         )}
                                         {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>計上終了:{r.returnDate}</span>}
