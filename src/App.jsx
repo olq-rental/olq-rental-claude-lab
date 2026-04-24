@@ -1973,6 +1973,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                       <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a",whiteSpace:"nowrap"}}>{fmt(r.amount)}</td>
                                       <td style={{padding:"8px 12px",whiteSpace:"nowrap",textAlign:"right"}}>
                                         {locked&&<span style={{fontSize:10,marginRight:4,color:"#15803d"}}>🔒</span>}
+                                        {!r.isExtension&&!(records||[]).some(x=>x.extendedFromNo===r.deliveryNo&&r.deliveryNo)&&(
                                         <button onClick={e=>{
                                           e.stopPropagation();
                                           const rLns=getLines(r);
@@ -1987,6 +1988,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                           });
                                           setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
                                         }} style={{...S.ib("#0369a1"),marginRight:4,fontSize:10}}>🔄 延長</button>
+                                        )}
                                         {(r.endDateOpen||(!r.endDate&&r.billingType==="monthly"))&&!r.returnDate&&(
                                           <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today(),selectedLines:Object.fromEntries(getLines(r).map((ln,i)=>[i,!getLineReturnDate(ln,r)])),returnQtys:Object.fromEntries(getLines(r).map((ln,i)=>[i,Number(ln.quantity)||1]))});}}
                                             style={{...S.ib("#7c3aed"),marginRight:4,fontSize:10}}>📦 戻り[終了]</button>
@@ -3176,6 +3178,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                                     <td style={{padding:"8px 12px",fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
                                     <td style={{padding:"8px 12px",fontWeight:700,color:"#16a34a"}}>{fmt(r.amount)}</td>
                                     <td style={{padding:"8px 12px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
+                                      {!r.isExtension&&!(records||[]).some(x=>x.extendedFromNo===r.deliveryNo&&r.deliveryNo)&&(
                                       <button onClick={()=>{
                                         const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
                                         const units=[];
@@ -3189,6 +3192,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                                         });
                                         setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
                                       }} style={{...S.ib("#0369a1"),fontSize:11,marginRight:4}}>🔄 延長</button>
+                                      )}
                                       <button onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)} style={{...S.ib("#16a34a"),fontSize:11}}>
                                         <Ico d={I.file} size={11}/>{r.issueReceipt?"納品書・領収証":"納品書"}
                                       </button>
