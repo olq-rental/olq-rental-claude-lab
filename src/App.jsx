@@ -1779,8 +1779,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                   const allClosed=updatedLines.every(ln=>ln.returnDate);
                   // ライン単位で金額を再計算
                   const newAmount=updatedLines.reduce((s,ln)=>{
-                    const lineEnd=ln.returnDate||returnModal.billingEndDate;
-                    const d=calcDays(targetRec.startDate,lineEnd);
+                    if(!ln.returnDate) return s;
+                    const d=calcDays(targetRec.startDate,ln.returnDate);
                     const noDisc=ln.noBillingDiscount;
                     const qty=noDisc?d:calcBillingDays(d);
                     return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
