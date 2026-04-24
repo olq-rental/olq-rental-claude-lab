@@ -3488,7 +3488,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                 const grandBase = base + autoAdj;
                 const tax = Math.round(grandBase*0.1);
                 const total = grandBase + tax;
-                const memo = [g.customerName, g.projectName].filter(Boolean).join(" / ");
+                const ri=g.items.find(r=>r.issueReceipt&&r.receiptDate);
+                const receiptMemo=ri?(()=>{const rd=new Date(ri.receiptDate+"T00:00:00");const pm=ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット";return ` 領収済(${rd.getMonth()+1}月${rd.getDate()}日 ${pm})`;})():"";
+                const memo = [g.customerName, g.projectName].filter(Boolean).join(" / ")+receiptMemo;
                 rows.push([dateStr, total, g.customerName, "売上高", "課税売上10%", memo].join(","));
               });
               const blob = new Blob([rows.join("\r\n")], {type:"text/csv;charset=utf-8"});
