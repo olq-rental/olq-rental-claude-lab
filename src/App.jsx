@@ -2990,6 +2990,7 @@ ${css}
 </div>
 <div style="margin-top:52px">${body}</div>
 <script>
+${type==="invoice"?`
 window.onbeforeprint=function(){
   var h=1122;
   var total=Math.ceil(document.body.scrollHeight/h);
@@ -3005,7 +3006,7 @@ window.onbeforeprint=function(){
 };
 window.onafterprint=function(){
   document.querySelectorAll('.pn-el').forEach(function(e){e.remove();});
-};
+};`:""}
 </script>
 </body></html>`;
   const newTab = window.open('', '_blank');
