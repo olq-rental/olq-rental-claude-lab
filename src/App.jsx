@@ -2062,7 +2062,50 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                           <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today(),selectedLines:Object.fromEntries(getLines(r).map((ln,i)=>[i,!getLineReturnDate(ln,r)])),returnQtys:Object.fromEntries(getLines(r).map((ln,i)=>[i,Number(ln.quantity)||1]))});}}
                                             style={{...S.ib("#7c3aed"),marginRight:4,fontSize:10}}>📦 戻り[終了]</button>
                                         )}
-                                        {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>計上終了:{r.returnDate}</span>}
+                                        {r.isProvisionalClose&&!isRecordLocked(r)&&(
+                                          <button onClick={async e=>{
+                                            e.stopPropagation();
+                                            const continuingRec=(records||[]).find(x=>
+                                              x.extendedFromNo===(r.extendedFromNo||r.deliveryNo)
+                                              && x.endDateOpen===true
+                                              && !x.isProvisionalClose
+                                              && x.startDate
+                                              && r.returnDate
+                                              && x.startDate>r.returnDate
+                                            );
+                                            if(continuingRec){
+                                              const isModified=(continuingRec.amount&&continuingRec.amount>0)
+                                                ||continuingRec.returnDate
+                                                ||(continuingRec.lines&&continuingRec.lines.some(ln=>ln.returnDate));
+                                              if(isModified){
+                                                showToast("継続レコードが既に編集されているため取り消しできません",false);
+                                                return;
+                                              }
+                                            }
+                                            const restoredOriginal={
+                                              ...r,
+                                              endDate:r.startDate,
+                                              endDateOpen:true,
+                                              returnDate:undefined,
+                                              actualReturnDate:undefined,
+                                              isProvisionalClose:false,
+                                              days:undefined,
+                                              billingDays:undefined,
+                                              amount:0,
+                                              insuranceAmount:0,
+                                            };
+                                            const newRecords=(records||[])
+                                              .filter(x=>!continuingRec||x.id!==continuingRec.id)
+                                              .map(x=>x.id===r.id?restoredOriginal:x);
+                                            await onSave(newRecords,{
+                                              action:"暫定締め取消",
+                                              name:r.deliveryNo||"",
+                                              detail:continuingRec?`継続レコード ${continuingRec.deliveryNo||""} を削除`:"継続レコードなし"
+                                            });
+                                            showToast("暫定締めを取り消しました");
+                                          }} style={{...S.ib("#0891b2"),marginRight:4,fontSize:10}}>⏪ 暫定締め取消</button>
+                                        )}
+                                        {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>{r.isProvisionalClose?"⚠️ 暫定締め:":"計上終了:"}{r.returnDate}</span>}
                                         <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"編集"))return;const rLns=getLines(r);setForm({customerId:r.customerId,projectName:r.projectName||"",projectDetail:r.projectDetail||"",ecOrderNo:r.ecOrderNo||"",ordererName:r.ordererName||"",ourStaff:r.ourStaff||"",billingType:r.billingType||"daily",months:String(r.months||1),startDate:r.startDate,endDate:r.endDate||today(),endDateOpen:!!r.endDateOpen,notes:r.notes||"",issueReceipt:!!r.issueReceipt,receiptDate:r.receiptDate||today(),paymentMethod:r.paymentMethod||"credit",adjustDays:r.adjustDays||"",adjustReason:r.adjustReason||"",includeInsurance:!!r.includeInsurance,lines:rLns.map(ln=>({productId:ln.productId||"",equipNo:ln.equipNo||"",unitPrice:String(ln.unitPrice||""),quantity:String(ln.quantity||1),lineNote:ln.lineNote||"",subItems:ln.subItems||[],equipmentName:ln.equipmentName||"",expandRows:!!ln.expandRows,isManual:!!ln.isManual,isFee:!!ln.isFee,noBillingDiscount:!!ln.noBillingDiscount}))});setLineSearches(rLns.map(()=>""));setEditId(r.id);setOpen(true);}} style={{...S.ib(locked?"#64748b":"#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/></button>
                                         <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"削除"))return;setDeleteModal({record:r,custName:customers.find(x=>x.id===r.customerId)?.name||""});}} style={S.ib(locked?"#64748b":"#991b1b")}><Ico d={I.trash} size={12}/></button>
                                       </td>
