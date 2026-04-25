@@ -2028,7 +2028,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                         {isM?<span style={{background:"#faf5ff",color:"#7c3aed",borderRadius:4,padding:"1px 5px",fontSize:10,fontWeight:700}}>月極</span>
                                             :<span style={{background:"#eff6ff",color:"#2563eb",borderRadius:4,padding:"1px 5px",fontSize:10,fontWeight:700}}>日極</span>}
                                       </td>
-                                      <td style={{padding:"8px 8px",textAlign:"center",fontWeight:600,color:isM?"#7c3aed":"#2563eb",whiteSpace:"nowrap"}}>{isM?(r.months||1)+"ヶ月":(r.billingDays||r.days)+"日"}</td>
+                                      <td style={{padding:"8px 8px",textAlign:"center",fontWeight:600,color:isM?"#7c3aed":"#2563eb",whiteSpace:"nowrap"}}>{isM?(r.months||1)+"ヶ月":r.endDateOpen?"継続中":(r.billingDays||r.days||0)+"日"}</td>
                                       <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a",whiteSpace:"nowrap"}}>{fmt(r.amount)}</td>
                                       <td style={{padding:"8px 12px",whiteSpace:"nowrap",textAlign:"right"}}>
                                         {locked&&<span style={{fontSize:10,marginRight:4,color:"#15803d"}}>🔒</span>}
