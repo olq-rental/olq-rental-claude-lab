@@ -1758,26 +1758,85 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               <button onClick={async()=>{
                 if(!returnModal.billingEndDate){showToast("計上終了日を入力してください",false);return;}
                 const targetRec=records.find(x=>x.id===returnModal.id);
-                if(targetRec){
-                  const rLns=getLines(targetRec);
-                  const selectedIdxs=Object.entries(returnModal.selectedLines||{}).filter(([,v])=>v).map(([k])=>Number(k));
-                  if(selectedIdxs.length===0){showToast("返却する機材を1つ以上選択してください",false);return;}
-                  // ライン単位で returnDate を更新
-                  const updatedLines=[];
-                  rLns.forEach((ln,i)=>{
-                    if(!selectedIdxs.includes(i)){updatedLines.push(ln);return;}
-                    const lineQty=Number(ln.quantity)||1;
-                    const retQty=Math.min(Math.max(1,Number(returnModal.returnQtys?.[i]??lineQty)),lineQty);
-                    if(retQty>=lineQty){
-                      updatedLines.push({...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate});
-                    } else {
-                      updatedLines.push({...ln,quantity:retQty,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate});
-                      updatedLines.push({...ln,quantity:lineQty-retQty,returnDate:undefined,actualReturnDate:undefined});
-                    }
-                  });
-                  // 全ライン返却済かチェック
+                if(!targetRec){setReturnModal(null);return;}
+                const rLns=getLines(targetRec);
+                const selectedIdxs=Object.entries(returnModal.selectedLines||{}).filter(([,v])=>v).map(([k])=>Number(k));
+                if(selectedIdxs.length===0){showToast("返却する機材を1つ以上選択してください",false);return;}
+                const processed=[];
+                rLns.forEach((ln,i)=>{
+                  const alreadyReturned=!!getLineReturnDate(ln,targetRec);
+                  if(alreadyReturned){processed.push({ln,isReturned:true});return;}
+                  if(!selectedIdxs.includes(i)){processed.push({ln,isReturned:false});return;}
+                  const lineQty=Number(ln.quantity)||1;
+                  const retQty=Math.min(Math.max(1,Number(returnModal.returnQtys?.[i]??lineQty)),lineQty);
+                  if(retQty>=lineQty){
+                    processed.push({ln:{...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
+                  } else {
+                    processed.push({ln:{...ln,quantity:retQty,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
+                    processed.push({ln:{...ln,quantity:lineQty-retQty,returnDate:undefined,actualReturnDate:undefined},isReturned:false});
+                  }
+                });
+                const returnedLines=processed.filter(p=>p.isReturned).map(p=>p.ln);
+                const continuingLines=processed.filter(p=>!p.isReturned).map(p=>p.ln);
+                const allLinesInOrder=processed.map(p=>p.ln);
+                const shouldSplit=continuingLines.length>0&&!!targetRec.isExtension;
+                if(shouldSplit){
+                  const origDays=calcDays(targetRec.startDate,returnModal.billingEndDate);
+                  const origBillingDays=calcBillingDays(origDays);
+                  const origAmount=returnedLines.reduce((s,ln)=>{
+                    const noDisc=ln.noBillingDiscount;
+                    const qty=noDisc?origDays:origBillingDays;
+                    return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
+                  },0);
+                  const updatedOriginal={
+                    ...targetRec,
+                    lines:returnedLines,
+                    returnDate:returnModal.billingEndDate,
+                    actualReturnDate:returnModal.returnDate,
+                    endDate:returnModal.billingEndDate,
+                    endDateOpen:false,
+                    days:origDays,
+                    billingDays:origBillingDays,
+                    amount:origAmount,
+                    insuranceAmount:targetRec.includeInsurance?Math.round(origAmount*0.1):0,
+                  };
+                  const baseNo=(targetRec.deliveryNo||"").replace(/E\d+$/,"");
+                  let maxE=0;
+                  if(baseNo){
+                    records.forEach(x=>{
+                      const dn=x.deliveryNo||"";
+                      if(!dn.startsWith(baseNo+"E"))return;
+                      const suffix=dn.slice(baseNo.length+1);
+                      if(/^\d+$/.test(suffix)){const n=parseInt(suffix);if(n>maxE)maxE=n;}
+                    });
+                  }
+                  const newDeliveryNo=baseNo?(baseNo+"E"+(maxE+1)):(await nextDeliveryNo());
+                  const _now=new Date();
+                  const _pad=n=>String(n).padStart(2,"0");
+                  const createdAtStr=_now.getFullYear()+"-"+_pad(_now.getMonth()+1)+"-"+_pad(_now.getDate())+"T"+_pad(_now.getHours())+":"+_pad(_now.getMinutes())+":"+_pad(_now.getSeconds());
+                  const continuingRec={
+                    ...targetRec,
+                    id:uid(),
+                    deliveryNo:newDeliveryNo,
+                    lines:continuingLines,
+                    returnDate:undefined,
+                    actualReturnDate:undefined,
+                    endDate:targetRec.startDate,
+                    endDateOpen:true,
+                    isExtension:true,
+                    extendedFrom:targetRec.extendedFrom||targetRec.id,
+                    extendedFromNo:targetRec.extendedFromNo||targetRec.deliveryNo||"",
+                    amount:0,
+                    insuranceAmount:0,
+                    days:undefined,
+                    billingDays:undefined,
+                    createdAt:createdAtStr,
+                  };
+                  await onSave([...records.map(x=>x.id===targetRec.id?updatedOriginal:x),continuingRec]);
+                  showToast("返却確定・継続分("+newDeliveryNo+")を作成しました");
+                } else {
+                  const updatedLines=allLinesInOrder;
                   const allClosed=updatedLines.every(ln=>ln.returnDate);
-                  // ライン単位で金額を再計算
                   const newAmount=updatedLines.reduce((s,ln)=>{
                     if(!ln.returnDate) return s;
                     const d=calcDays(targetRec.startDate,ln.returnDate);
@@ -1796,8 +1855,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                     amount:newAmount,
                     insuranceAmount:newInsurance
                   }:x));
+                  showToast("計上終了日を設定しました");
                 }
-                showToast("計上終了日を設定しました");
                 setReturnModal(null);
               }} style={S.btn("#7c3aed",true)}>設定する</button>
               <button onClick={()=>setReturnModal(null)} style={S.btn("#94a3b8")}>キャンセル</button>
