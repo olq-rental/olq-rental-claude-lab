@@ -2011,7 +2011,15 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                           {projOpen&&(
                             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                               <tbody>
-                                {pRecs.map(r=>{
+                                {[...pRecs].sort((a,b)=>{
+                                  const aBase=(a.isExtension?a.extendedFromNo:a.deliveryNo)||"";
+                                  const bBase=(b.isExtension?b.extendedFromNo:b.deliveryNo)||"";
+                                  if(aBase!==bBase) return aBase.localeCompare(bBase,"ja");
+                                  const aIsExt=a.isExtension?1:0;
+                                  const bIsExt=b.isExtension?1:0;
+                                  if(aIsExt!==bIsExt) return aIsExt-bIsExt;
+                                  return (a.deliveryNo||"").localeCompare(b.deliveryNo||"","ja");
+                                }).map(r=>{
                                   const isM=r.billingType==="monthly";
                                   const rL=getLines(r);
                                   const locked=isRecordLocked(r);
