@@ -3559,6 +3559,56 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           </div>
         </div>
 
+        {/* 月末暫定締めの警告バー */}
+        {selMonth && (() => {
+          const pendingProvisional = (records||[]).filter(r =>
+            r.endDateOpen === true
+            && r.isExtension === true
+            && !r.returnDate
+            && r.startDate
+            && r.startDate.slice(0,7) < selMonth
+          );
+          if (pendingProvisional.length === 0) return null;
+          const [sy, sm] = selMonth.split("-").map(Number);
+          const prevMonthEnd = new Date(sy, sm - 1, 0);
+          const prevMonthEndStr = `${prevMonthEnd.getFullYear()}-${String(prevMonthEnd.getMonth()+1).padStart(2,'0')}-${String(prevMonthEnd.getDate()).padStart(2,'0')}`;
+          return (
+            <div style={{padding:"12px 16px",marginBottom:14,background:"#fef3c7",border:"1px solid #fbbf24",borderRadius:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <span style={{fontSize:14}}>⚠️</span>
+                <div style={{flex:1,minWidth:200}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#78350f",marginBottom:2}}>
+                    {selMonth.replace("-","年")+"月"}に未処理の延長中案件があります（{pendingProvisional.length}件）
+                  </div>
+                  <div style={{fontSize:11,color:"#92400e"}}>
+                    前月末（{prevMonthEndStr}）で暫定的に締めて、当月分の請求書を発行できます。
+                  </div>
+                </div>
+                <button onClick={() => {
+                  showToast("Step 2 で実装予定です（"+pendingProvisional.length+"件）", false);
+                }} style={{...S.btn("#d97706",true),fontSize:11,whiteSpace:"nowrap"}}>
+                  📅 前月末で暫定締め
+                </button>
+              </div>
+              <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #fcd34d",fontSize:11,color:"#78350f"}}>
+                {pendingProvisional.slice(0,5).map(r => {
+                  const c = customers.find(x=>x.id===r.customerId);
+                  return (
+                    <div key={r.id} style={{padding:"2px 0"}}>
+                      ・{r.deliveryNo||""} {c?.name||""} {r.projectName||""}（{r.startDate}〜継続中）
+                    </div>
+                  );
+                })}
+                {pendingProvisional.length > 5 && (
+                  <div style={{padding:"2px 0",fontStyle:"italic"}}>
+                    ・他 {pendingProvisional.length - 5} 件
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* 月合計バー */}
         {/* 統計カード */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:18}}>
