@@ -1852,6 +1852,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                     actualReturnDate:allClosed?returnModal.returnDate:x.actualReturnDate,
                     endDate:allClosed?returnModal.billingEndDate:x.endDate,
                     endDateOpen:!allClosed,
+                    days:allClosed?calcDays(x.startDate,returnModal.billingEndDate):x.days,
+                    billingDays:allClosed?calcBillingDays(calcDays(x.startDate,returnModal.billingEndDate)):x.billingDays,
                     amount:newAmount,
                     insuranceAmount:newInsurance
                   }:x));
