@@ -689,6 +689,8 @@ async function sGet(k) {
   } catch(e) { console.error('sGet exception', k, e); return null; }
 }
 
+const getLines = r => (r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
+
 async function sSet(k, val) {
   try {
     if (_TABLE[k]) {
