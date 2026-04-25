@@ -1143,7 +1143,7 @@ export default function App() {
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
         {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
         {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
-        {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} products={products} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
+        {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} products={products} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records} onSaveRec={saveRec}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
         {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
@@ -3359,7 +3359,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
 // =========================================================
 // InvoiceTab（請求書タブ） — 月選択・ステータス管理・調整行
 // =========================================================
-function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records}){
+function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records, onSaveRec}){
   const months = [...new Set(groups.map(g=>g.month).filter(Boolean))].sort().reverse();
   const currentMonth = today().slice(0,7);
   const [selMonth, setSelMonth] = useState(months.includes(currentMonth)?currentMonth:(months[0]||""));
@@ -3592,8 +3592,72 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                     前月末（{prevMonthEndStr}）で暫定的に締めて、当月分の請求書を発行できます。
                   </div>
                 </div>
-                <button onClick={() => {
-                  showToast("Step 2 で実装予定です（"+pendingProvisional.length+"件）", false);
+                <button onClick={async () => {
+                  const currentMonthFirstStr = `${sy}-${String(sm).padStart(2,'0')}-01`;
+                  const _now = new Date();
+                  const _pad = n => String(n).padStart(2, "0");
+                  const createdAtStr = _now.getFullYear()+"-"+_pad(_now.getMonth()+1)+"-"+_pad(_now.getDate())+"T"+_pad(_now.getHours())+":"+_pad(_now.getMinutes())+":"+_pad(_now.getSeconds());
+                  let allRecords = [...(records||[])];
+                  const updatesById = {};
+                  const newRecords = [];
+                  pendingProvisional.forEach(r => {
+                    const newDays = calcDays(r.startDate, prevMonthEndStr);
+                    const newBillingDays = calcBillingDays(newDays);
+                    const rLines = getLines(r);
+                    const newAmount = rLines.reduce((s, ln) => {
+                      const noDisc = ln.noBillingDiscount;
+                      const qty = noDisc ? newDays : newBillingDays;
+                      return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * qty;
+                    }, 0);
+                    updatesById[r.id] = {
+                      ...r,
+                      endDate: prevMonthEndStr,
+                      endDateOpen: false,
+                      returnDate: prevMonthEndStr,
+                      isProvisionalClose: true,
+                      days: newDays,
+                      billingDays: newBillingDays,
+                      amount: newAmount,
+                      insuranceAmount: r.includeInsurance ? Math.round(newAmount * 0.1) : 0,
+                    };
+                    const baseNo = (r.deliveryNo || "").replace(/E\d+$/, "");
+                    let maxE = 0;
+                    allRecords.forEach(x => {
+                      const dn = x.deliveryNo || "";
+                      if (!baseNo || !dn.startsWith(baseNo + "E")) return;
+                      const suffix = dn.slice(baseNo.length + 1);
+                      if (/^\d+$/.test(suffix)) { const n = parseInt(suffix); if (n > maxE) maxE = n; }
+                    });
+                    const newDeliveryNo = baseNo ? (baseNo + "E" + (maxE + 1)) : r.deliveryNo;
+                    const continuingRec = {
+                      ...r,
+                      id: uid(),
+                      deliveryNo: newDeliveryNo,
+                      startDate: currentMonthFirstStr,
+                      endDate: currentMonthFirstStr,
+                      endDateOpen: true,
+                      isExtension: true,
+                      isProvisionalClose: false,
+                      extendedFrom: r.extendedFrom || r.id,
+                      extendedFromNo: r.extendedFromNo || r.deliveryNo || "",
+                      returnDate: undefined,
+                      actualReturnDate: undefined,
+                      amount: 0,
+                      insuranceAmount: 0,
+                      days: undefined,
+                      billingDays: undefined,
+                      lines: rLines.map(ln => ({...ln, returnDate: undefined, actualReturnDate: undefined})),
+                      createdAt: createdAtStr,
+                    };
+                    newRecords.push(continuingRec);
+                    allRecords.push(continuingRec);
+                  });
+                  const finalRecords = [
+                    ...(records||[]).map(x => updatesById[x.id] || x),
+                    ...newRecords
+                  ];
+                  await onSaveRec(finalRecords);
+                  showToast(`${pendingProvisional.length}件を前月末で暫定締めしました`);
                 }} style={{...S.btn("#d97706",true),fontSize:11,whiteSpace:"nowrap"}}>
                   📅 前月末で暫定締め
                 </button>
