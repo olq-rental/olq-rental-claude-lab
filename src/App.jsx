@@ -1718,28 +1718,76 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               const isExtRec=targetRec?.isExtension;
               const hasMultiLine=rLns.length>1;
               const hasPartialQty=isExtRec&&rLns.some(ln=>(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec));
-              return (hasMultiLine||hasPartialQty)&&(
+              const hasSubItems=isExtRec&&rLns.some(ln=>ln.subItems&&ln.subItems.length>0&&!getLineReturnDate(ln,targetRec));
+              return (hasMultiLine||hasPartialQty||hasSubItems)&&(
                 <div style={{marginBottom:12}}>
                   <label style={{...S.lbl,marginBottom:6}}>返却する機材を選択</label>
-                  {rLns.map((ln,i)=>(
-                    <label key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,cursor:"pointer",padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,background:returnModal.selectedLines?.[i]?"#eff6ff":"#fff"}}>
-                      <input type="checkbox" checked={!!returnModal.selectedLines?.[i]}
-                        disabled={!!getLineReturnDate(ln,targetRec)}
-                        onChange={e=>setReturnModal(p=>({...p,selectedLines:{...p.selectedLines,[i]:e.target.checked}}))}/>
-                      <span style={{fontSize:12}}>{ln.equipmentName||`機材${i+1}`}</span>
-                      {targetRec.isExtension&&(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec)&&(
-                        <span style={{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}>
-                          <span style={{fontSize:11,color:"#64748b"}}>返却数</span>
-                          <input type="text" inputMode="numeric" value={returnModal.returnQtys?.[i]??(Number(ln.quantity)||1)}
-                            onClick={e=>e.stopPropagation()}
-                            onChange={e=>{const raw=e.target.value.replace(/[^0-9]/g,"");const v=raw===""?"":(Math.min(Math.max(1,Number(raw)),Number(ln.quantity)||1));setReturnModal(p=>({...p,returnQtys:{...p.returnQtys,[i]:v}}));}}
-                            style={{width:48,padding:"2px 4px",border:"1px solid #e2e8f0",borderRadius:4,fontSize:12,textAlign:"center"}}/>
-                          <span style={{fontSize:11,color:"#64748b"}}>/{Number(ln.quantity)||1}台</span>
-                        </span>
-                      )}
-                      {getLineReturnDate(ln,targetRec)&&<span style={{fontSize:10,color:"#16a34a",marginLeft:"auto"}}>✓ 返却済</span>}
-                    </label>
-                  ))}
+                  {rLns.map((ln,i)=>{
+                    const lineReturned=!!getLineReturnDate(ln,targetRec);
+                    const hasSI=ln.subItems&&ln.subItems.length>0;
+                    const showSubItemsList=isExtRec&&hasSI&&!lineReturned&&!!returnModal.selectedLines?.[i];
+                    return (
+                      <div key={i} style={{marginBottom:6,border:"1px solid #e2e8f0",borderRadius:6,background:returnModal.selectedLines?.[i]?"#eff6ff":"#fff",overflow:"hidden"}}>
+                        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"6px 10px"}}>
+                          <input type="checkbox" checked={!!returnModal.selectedLines?.[i]}
+                            disabled={lineReturned}
+                            onChange={e=>setReturnModal(p=>{
+                              const checked=e.target.checked;
+                              const newSelectedLines={...p.selectedLines,[i]:checked};
+                              const newSelectedSubItems={...(p.selectedSubItems||{})};
+                              if(isExtRec&&hasSI){
+                                if(checked){
+                                  newSelectedSubItems[i]=Object.fromEntries(ln.subItems.map((_,si)=>[si,true]));
+                                } else {
+                                  delete newSelectedSubItems[i];
+                                }
+                              }
+                              return {...p,selectedLines:newSelectedLines,selectedSubItems:newSelectedSubItems};
+                            })}/>
+                          <span style={{fontSize:12}}>{ln.equipmentName||`機材${i+1}`}</span>
+                          {isExtRec&&(Number(ln.quantity)||1)>1&&!lineReturned&&!hasSI&&(
+                            <span style={{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}>
+                              <span style={{fontSize:11,color:"#64748b"}}>返却数</span>
+                              <input type="text" inputMode="numeric" value={returnModal.returnQtys?.[i]??(Number(ln.quantity)||1)}
+                                onClick={e=>e.stopPropagation()}
+                                onChange={e=>{const raw=e.target.value.replace(/[^0-9]/g,"");const v=raw===""?"":(Math.min(Math.max(1,Number(raw)),Number(ln.quantity)||1));setReturnModal(p=>({...p,returnQtys:{...p.returnQtys,[i]:v}}));}}
+                                style={{width:48,padding:"2px 4px",border:"1px solid #e2e8f0",borderRadius:4,fontSize:12,textAlign:"center"}}/>
+                              <span style={{fontSize:11,color:"#64748b"}}>/{Number(ln.quantity)||1}台</span>
+                            </span>
+                          )}
+                          {hasSI&&!lineReturned&&isExtRec&&(
+                            <span style={{fontSize:11,color:"#64748b",marginLeft:"auto"}}>
+                              {(()=>{const ss=returnModal.selectedSubItems?.[i]||{};const cnt=Object.values(ss).filter(Boolean).length;return `${cnt}/${ln.subItems.length}台`;})()}
+                            </span>
+                          )}
+                          {lineReturned&&<span style={{fontSize:10,color:"#16a34a",marginLeft:"auto"}}>✓ 返却済</span>}
+                        </label>
+                        {showSubItemsList&&(
+                          <div style={{padding:"8px 10px 10px 32px",borderTop:"1px solid #e2e8f0",background:"#f8fafc"}}>
+                            <div style={{display:"flex",gap:6,marginBottom:6}}>
+                              <button type="button" onClick={e=>{e.stopPropagation();setReturnModal(p=>({...p,selectedSubItems:{...(p.selectedSubItems||{}),[i]:Object.fromEntries(ln.subItems.map((_,si)=>[si,true]))}}));}}
+                                style={{padding:"3px 10px",fontSize:11,border:"1px solid #cbd5e1",borderRadius:4,background:"#fff",color:"#475569",cursor:"pointer"}}>全選択</button>
+                              <button type="button" onClick={e=>{e.stopPropagation();setReturnModal(p=>({...p,selectedSubItems:{...(p.selectedSubItems||{}),[i]:Object.fromEntries(ln.subItems.map((_,si)=>[si,false]))}}));}}
+                                style={{padding:"3px 10px",fontSize:11,border:"1px solid #cbd5e1",borderRadius:4,background:"#fff",color:"#475569",cursor:"pointer"}}>全解除</button>
+                            </div>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:4}}>
+                              {ln.subItems.map((si,siIdx)=>{
+                                const siChecked=!!returnModal.selectedSubItems?.[i]?.[siIdx];
+                                return (
+                                  <label key={siIdx} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 6px",border:"1px solid #e2e8f0",borderRadius:4,background:siChecked?"#dbeafe":"#fff",cursor:"pointer",fontSize:11}}>
+                                    <input type="checkbox" checked={siChecked}
+                                      onClick={e=>e.stopPropagation()}
+                                      onChange={e=>{const checked=e.target.checked;setReturnModal(p=>({...p,selectedSubItems:{...(p.selectedSubItems||{}),[i]:{...(p.selectedSubItems?.[i]||{}),[siIdx]:checked}}}));}}/>
+                                    <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>No.{si.no}{si.note?` (${si.note})`:""}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })()}
