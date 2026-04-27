@@ -1818,6 +1818,23 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                   if(alreadyReturned){processed.push({ln,isReturned:true});return;}
                   if(!selectedIdxs.includes(i)){processed.push({ln,isReturned:false});return;}
                   const lineQty=Number(ln.quantity)||1;
+                  const hasSI=ln.subItems&&ln.subItems.length>0;
+                  if(hasSI&&targetRec.isExtension){
+                    const siSel=returnModal.selectedSubItems?.[i]||{};
+                    const returnedSubItems=ln.subItems.filter((_,siIdx)=>!!siSel[siIdx]);
+                    const continuingSubItems=ln.subItems.filter((_,siIdx)=>!siSel[siIdx]);
+                    if(returnedSubItems.length===0){
+                      processed.push({ln,isReturned:false});
+                      return;
+                    }
+                    if(continuingSubItems.length===0){
+                      processed.push({ln:{...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
+                      return;
+                    }
+                    processed.push({ln:{...ln,subItems:returnedSubItems,quantity:returnedSubItems.length,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
+                    processed.push({ln:{...ln,subItems:continuingSubItems,quantity:continuingSubItems.length,returnDate:undefined,actualReturnDate:undefined},isReturned:false});
+                    return;
+                  }
                   const retQty=Math.min(Math.max(1,Number(returnModal.returnQtys?.[i]??lineQty)),lineQty);
                   if(retQty>=lineQty){
                     processed.push({ln:{...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
