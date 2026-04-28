@@ -3577,7 +3577,10 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     const crossRecs=(records||[]).filter(r=>{
       if(!r.startDate||!r.endDate||r.billingType==="monthly") return false;
       const rs=r.startDate.slice(0,7),re=r.endDate.slice(0,7);
-      return rs!==re&&(rs===selMonth||re===selMonth||(rs<selMonth&&re>selMonth));
+      if(rs===re||!(rs===selMonth||re===selMonth||(rs<selMonth&&re>selMonth))) return false;
+      if(statusFilter==="receipt"&&!r.issueReceipt) return false;
+      if((statusFilter==="open"||statusFilter==="locked")&&r.issueReceipt) return false;
+      return true;
     });
     crossRecs.forEach(r=>{
       const sp=crossMonthSplits[r.id];
@@ -3669,8 +3672,16 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
         finalResult.push({...g,_isReceiptGroup:false});
       }
     });
-    return finalResult;
-  },[filtered,crossMonthSplits,selMonth,records,customers,products]);
+    // 後段防御：statusFilter を再適用
+    const reFiltered=finalResult.filter(g=>{
+      if(statusFilter==="receipt") return g._isReceiptGroup;
+      if(statusFilter==="all") return true;
+      if(g._isReceiptGroup) return false;
+      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`);
+      return statusFilter==="locked"?d.status==="locked":d.status!=="locked";
+    });
+    return reFiltered;
+  },[filtered,crossMonthSplits,selMonth,records,customers,products,statusFilter]);
 
   const monthTotal = crossAdjustedFiltered.reduce((s,g)=>{
     const key=`${g.customerId}||${g.projectName}||${g.month}`;
