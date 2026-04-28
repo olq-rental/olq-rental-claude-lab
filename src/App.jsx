@@ -3594,7 +3594,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           if(existingSame){
             result=result.map(g=>g===existingSame?{...g,items:[...g.items,{...r,amount:monthAmt}]}:g);
           } else {
-            result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[{...r,amount:monthAmt}],split:true,consolidate:false,_synthetic:true});
+            result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[{...r,amount:monthAmt}],split:true,consolidate:false,_synthetic:true,_isReceiptGroup:!!r.issueReceipt});
           }
         }
         return;
@@ -3649,7 +3649,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           if(existingSame){
             result=result.map(g=>g!==existingSame?g:injectAutoAdj({...g,items:[...g.items,splitItem]}));
           } else {
-            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[splitItem],split:true,consolidate:false,_synthetic:true}));
+            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[splitItem],split:true,consolidate:false,_synthetic:true,_isReceiptGroup:!!r.issueReceipt}));
           }
         }
       }
