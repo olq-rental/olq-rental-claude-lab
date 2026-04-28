@@ -3908,7 +3908,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               crossAdjustedFiltered.forEach(g=>{
                 const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0)+(Number(r.insuranceAmount)||0),0);
                 const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
-                const grandBase = base + autoAdj;
+                const key=`${g.customerId}||${g.projectName}||${g.month}`;
+                const manualAdj=getInvData(key,g.month).adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
+                const grandBase = base + autoAdj + manualAdj;
                 const tax = Math.round(grandBase*0.1);
                 const total = grandBase + tax;
                 const memo = [g.customerName, g.projectName].filter(Boolean).join(" / ");
