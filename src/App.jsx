@@ -3875,19 +3875,60 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               const [y,m] = selMonth.split("-").map(Number);
               const lastDay = new Date(y, m, 0).getDate();
               const dateStr = `${y}/${String(m).padStart(2,"0")}/${String(lastDay).padStart(2,"0")}`;
-              const bom = "\uFEFF"; const rows = [bom+"発生日,金額,取引先,勘定科目,税区分,摘要"];
+              const parsePaymentDue = (cycle, sm) => {
+                const [cy, cm] = sm.split("-").map(Number);
+                if (/翌々月末日/.test(cycle)) {
+                  const nm = cm >= 11 ? cm - 10 : cm + 2;
+                  const ny = cm >= 11 ? cy + 1 : cy;
+                  return `${ny}年${nm}月${new Date(ny, nm, 0).getDate()}日`;
+                }
+                if (/翌月末日/.test(cycle)) {
+                  const nm = cm === 12 ? 1 : cm + 1;
+                  const ny = cm === 12 ? cy + 1 : cy;
+                  return `${ny}年${nm}月${new Date(ny, nm, 0).getDate()}日`;
+                }
+                const m2 = cycle.match(/翌々月(\d+)日/);
+                if (m2) {
+                  const nm = cm >= 11 ? cm - 10 : cm + 2;
+                  const ny = cm >= 11 ? cy + 1 : cy;
+                  return `${ny}年${nm}月${m2[1]}日`;
+                }
+                const m1 = cycle.match(/翌月(\d+)日/);
+                if (m1) {
+                  const nm = cm === 12 ? 1 : cm + 1;
+                  const ny = cm === 12 ? cy + 1 : cy;
+                  return `${ny}年${nm}月${m1[1]}日`;
+                }
+                return "";
+              };
+              const bom = "\uFEFF";
+              const header = bom+"発生日,金額,取引先,勘定科目,支払情報,摘要";
+              const transferRows = [];
+              const receiptRows = [];
               crossAdjustedFiltered.forEach(g=>{
                 const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0)+(Number(r.insuranceAmount)||0),0);
                 const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
                 const grandBase = base + autoAdj;
                 const tax = Math.round(grandBase*0.1);
                 const total = grandBase + tax;
-                const ri=g.items.find(r=>r.issueReceipt&&r.receiptDate);
-                const receiptMemo=ri?(()=>{const rd=new Date(ri.receiptDate+"T00:00:00");const pm=ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット";return ` 領収済(${rd.getMonth()+1}月${rd.getDate()}日 ${pm})`;})():"";
-                const memo = [g.customerName, g.projectName].filter(Boolean).join(" / ")+receiptMemo;
-                rows.push([dateStr, total, g.customerName, "売上高", "課税売上10%", memo].join(","));
+                const memo = [g.customerName, g.projectName].filter(Boolean).join(" / ");
+                if (g._isReceiptGroup) {
+                  const ri = g.items.find(r=>r.issueReceipt&&r.receiptDate);
+                  const paymentInfo = ri ? (()=>{
+                    const rd = new Date(ri.receiptDate+"T00:00:00");
+                    const pm = ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット";
+                    return `${rd.getFullYear()}年${rd.getMonth()+1}月${rd.getDate()}日 ${pm}領収済`;
+                  })() : "";
+                  receiptRows.push([dateStr, total, g.customerName, "売上高", paymentInfo, memo].join(","));
+                } else {
+                  const cycle = g.customer?.paymentCycle || customers.find(c=>c.id===g.customerId)?.paymentCycle || "";
+                  const paymentInfo = parsePaymentDue(cycle, selMonth);
+                  transferRows.push([dateStr, total, g.customerName, "売上高", paymentInfo, memo].join(","));
+                }
               });
-              const blob = new Blob([rows.join("\r\n")], {type:"text/csv;charset=utf-8"});
+              const allRows = [header, ...transferRows];
+              if (receiptRows.length > 0) { allRows.push(""); allRows.push(...receiptRows); }
+              const blob = new Blob([allRows.join("\r\n")], {type:"text/csv;charset=utf-8"});
               const a = document.createElement("a");
               a.href = URL.createObjectURL(blob); a.download = `freee_取引_${selMonth}.csv`;
               a.click();
