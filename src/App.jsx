@@ -1314,6 +1314,10 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
       if(!Number(form.adjustDays)||Number(form.adjustDays)<1){showToast("調整日数を1以上で入力してください",false);return;}
       if(!form.adjustReason.trim()){showToast("調整理由を入力してください",false);return;}
     }
+    if(form.issueReceipt){
+      if(!form.receiptDate){showToast("領収日を入力してください",false);return;}
+      if(!form.paymentMethod){showToast("支払方法を選択してください",false);return;}
+    }
     const validLines=(form.lines||[]).filter(ln=>{
       if(ln.isManual) return !!ln.equipmentName;
       return !!ln.productId;
@@ -3534,7 +3538,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   const toggleExpand = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
 
   // 領収済案件の判定ヘルパー
-  const isReceiptItem = r => !!(r.issueReceipt && r.receiptDate);
+  const isReceiptItem = r => !!r.issueReceipt;
 
   // 領収済案件と振込案件が混在するグループを2分割
   const splitGroups = [];
