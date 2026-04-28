@@ -3923,7 +3923,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                 } else {
                   const cycle = g.customer?.paymentCycle || customers.find(c=>c.id===g.customerId)?.paymentCycle || "";
                   const paymentInfo = parsePaymentDue(cycle, selMonth);
-                  transferRows.push([dateStr, total, g.customerName, projectName, paymentInfo, paymentInfo].join(","));
+                  transferRows.push([dateStr, total, g.customerName, projectName, paymentInfo, cycle].join(","));
                 }
               });
               const allRows = [header, ...transferRows];
