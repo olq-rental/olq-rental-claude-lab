@@ -4100,7 +4100,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           <td colSpan={2} style={{padding:"8px 12px",textAlign:"center"}}>
                             {(()=>{
                               const total=cust.groups.length;
-                              const issued=cust.groups.filter(g=>{const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);return (d.printCount||0)>0;}).length;
+                              const issued=cust.groups.filter(g=>{const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);return (d.printCount||0)>0||g.items.some(r=>r.issueReceipt);}).length;
                               if(issued===0) return null;
                               if(issued===total) return <span style={{fontSize:10,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>✅ 全件発行済</span>;
                               return <span style={{fontSize:10,color:"#0369a1",fontWeight:700,whiteSpace:"nowrap"}}>{total}件中{issued}件発行済 残{total-issued}件</span>;
