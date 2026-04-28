@@ -2912,7 +2912,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
       body += `<tr>
         <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">${a.label||"調整"}</td>
-        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">${fn(Number(a.amount)||0)}</td>
+        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(Number(a.amount)||0)}</td>
       </tr>`;
     });
     if(showDiscountLine && totalDiscount > 0){
