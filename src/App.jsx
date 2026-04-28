@@ -4050,7 +4050,15 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{cust.groups.length}</td>
                           <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(custTotEx)}</td>
                           <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(custTotEx+custTax)}</td>
-                          <td colSpan={2}></td>
+                          <td colSpan={2} style={{padding:"8px 12px",textAlign:"center"}}>
+                            {(()=>{
+                              const total=cust.groups.length;
+                              const issued=cust.groups.filter(g=>{const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);return (d.printCount||0)>0;}).length;
+                              if(issued===0) return null;
+                              if(issued===total) return <span style={{fontSize:10,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>✅ 全件発行済</span>;
+                              return <span style={{fontSize:10,color:"#0369a1",fontWeight:700,whiteSpace:"nowrap"}}>{total}件中{issued}件発行済 残{total-issued}件</span>;
+                            })()}
+                          </td>
                         </tr>
                         {/* 層2: 案件行 */}
                         {custOpen&&cust.groups.map(g=>{
