@@ -2910,9 +2910,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if(_hasBoth&&_ri===_lastMIdx){body+=`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`;}});})();
     // 調整行
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
-      body += `<tr style="background:#fefce8">
-        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e">${a.label||"調整"}</td>
-        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold;color:${Number(a.amount)<0?"#dc2626":"#16a34a"}">${fn(Number(a.amount)||0)}</td>
+      body += `<tr>
+        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">${a.label||"調整"}</td>
+        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">${fn(Number(a.amount)||0)}</td>
       </tr>`;
     });
     if(showDiscountLine && totalDiscount > 0){
@@ -4196,9 +4196,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
                                             <input value={a.label} onChange={e=>updateAdj(key,a.id,{label:e.target.value})}
                                               placeholder="内容（例: 値引き）" style={{...S.inp,flex:1,fontSize:11,padding:"4px 8px"}} disabled={locked}/>
-                                            <input type="number" value={a.amount} onChange={e=>updateAdj(key,a.id,{amount:Number(e.target.value)})}
+                                            <input type="text" inputMode="numeric" value={a.amount} onChange={e=>{const raw=e.target.value.replace(/[^0-9\-]/g,"");updateAdj(key,a.id,{amount:raw===""?0:Number(raw)});}}
                                               style={{...S.inp,width:110,fontSize:11,padding:"4px 8px",textAlign:"right"}} disabled={locked}/>
-                                            <span style={{fontSize:11,color:Number(a.amount)<0?"#dc2626":"#16a34a",minWidth:64,textAlign:"right"}}>{fmt(Number(a.amount)||0)}</span>
+                                            <span style={{fontSize:11,color:"#374151",minWidth:64,textAlign:"right"}}>{fmt(Number(a.amount)||0)}</span>
                                             {!locked&&<button onClick={()=>removeAdj(key,a.id)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={12} color="#ef4444"/></button>}
                                           </div>
                                         ))}
