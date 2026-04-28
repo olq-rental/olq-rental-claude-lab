@@ -3533,11 +3533,31 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   };
   const toggleExpand = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
 
-  const filtered = groups
+  // 領収済案件の判定ヘルパー
+  const isReceiptItem = r => !!(r.issueReceipt && r.receiptDate);
+
+  // 領収済案件と振込案件が混在するグループを2分割
+  const splitGroups = [];
+  groups.forEach(g => {
+    const receiptItems = (g.items||[]).filter(isReceiptItem);
+    const transferItems = (g.items||[]).filter(r => !isReceiptItem(r));
+    if (receiptItems.length > 0 && transferItems.length > 0) {
+      splitGroups.push({...g, items: transferItems, _isReceiptGroup: false});
+      splitGroups.push({...g, items: receiptItems, _isReceiptGroup: true});
+    } else if (receiptItems.length > 0) {
+      splitGroups.push({...g, items: receiptItems, _isReceiptGroup: true});
+    } else {
+      splitGroups.push({...g, items: transferItems, _isReceiptGroup: false});
+    }
+  });
+
+  const filtered = splitGroups
     .filter(g=>!selMonth||g.month===selMonth)
     .filter(g=>(!custQ||g.customerName.toLowerCase().includes(custQ.toLowerCase()))&&(!globalQ||g.customerName.toLowerCase().includes(globalQ.toLowerCase())||g.projectName?.toLowerCase().includes(globalQ.toLowerCase())))
     .filter(g=>{
+      if(statusFilter==="receipt") return g._isReceiptGroup;
       if(statusFilter==="all") return true;
+      if(g._isReceiptGroup) return false;
       const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`);
       return statusFilter==="locked"?d.status==="locked":d.status!=="locked";
     })
@@ -3665,7 +3685,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             </div>
             {/* ステータスフィルター */}
             <div style={{display:"flex",gap:2,background:"#e2e8f0",borderRadius:6,padding:2}}>
-              {[{k:"all",l:"全て"},{k:"open",l:"未締め"},{k:"locked",l:"締め済み"}].map(t=>(
+              {[{k:"all",l:"全て"},{k:"open",l:"未締め"},{k:"locked",l:"締め済み"},{k:"receipt",l:"領収済"}].map(t=>(
                 <button key={t.k} onClick={()=>setStatusFilter(t.k)} style={{
                   background:statusFilter===t.k?"#fff":"transparent",border:"none",borderRadius:5,
                   padding:"4px 10px",fontSize:11,fontWeight:statusFilter===t.k?700:500,
