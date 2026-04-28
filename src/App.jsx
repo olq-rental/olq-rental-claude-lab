@@ -1714,8 +1714,9 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
       {/* 戻り[終了]モーダル */}
       {returnModal&&(
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:12,padding:24,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:24,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>📦 戻り[終了]の設定</div>
+            <div style={{overflowY:"auto",flex:1,marginBottom:8}}>
             {returnModal&&(()=>{
               const targetRec=records.find(x=>x.id===returnModal.id);
               const rLns=targetRec?getLines(targetRec):[];
@@ -1795,6 +1796,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                 </div>
               );
             })()}
+            </div>
             <div style={{marginBottom:12}}>
               <label style={S.lbl}>返却日（機材が戻った日）</label>
               <input type="date" value={returnModal.returnDate}
