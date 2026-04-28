@@ -1940,9 +1940,10 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
       {/* 延長モーダル */}
       {extModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",overflowY:"auto"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
             <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
             <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
+            <div style={{overflowY:"auto",flex:1,marginBottom:16}}>
             {(extModal.units||[]).map((u,i)=>(
               <label key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[i]?"#eff6ff":"#fff"}}>
                 <input type="checkbox" checked={!!extModal.selected[i]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[i]:e.target.checked}}))}/>
@@ -1952,7 +1953,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                 </div>
               </label>
             ))}
-            <div style={{display:"flex",gap:10,marginTop:16}}>
+            </div>
+            <div style={{display:"flex",gap:10}}>
               <button onClick={async()=>{
                 const r=extModal.record;
                 const selectedUnits=extModal.units.filter((_,i)=>extModal.selected[i]);
@@ -3399,9 +3401,10 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
       {/* 延長モーダル */}
       {extModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",overflowY:"auto"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
             <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
             <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
+            <div style={{overflowY:"auto",flex:1,marginBottom:16}}>
             {(extModal.units||[]).map((u,i)=>(
               <label key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[i]?"#eff6ff":"#fff"}}>
                 <input type="checkbox" checked={!!extModal.selected[i]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[i]:e.target.checked}}))}/>
@@ -3411,7 +3414,8 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                 </div>
               </label>
             ))}
-            <div style={{display:"flex",gap:10,marginTop:16}}>
+            </div>
+            <div style={{display:"flex",gap:10}}>
               <button onClick={async()=>{
                 const r=extModal.record;
                 const selectedUnits=extModal.units.filter((_,i)=>extModal.selected[i]);
