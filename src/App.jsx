@@ -3939,6 +3939,18 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               a.href = URL.createObjectURL(blob); a.download = `freee_取引_${selMonth}.csv`;
               a.click();
             }} style={{...S.btn("#0ea5e9",true),fontSize:11,marginLeft:"auto"}}>📤 freee CSV</button>
+            <button onClick={async()=>{
+              if(!window.confirm("領収済以外の請求書発行履歴（printCount）をリセットしますか？")) return;
+              const next={...invoiceData};
+              Object.keys(next).forEach(key=>{
+                const [cid,,month]=key.split("||");
+                const grpRecords=records.filter(r=>r.customerId===cid&&(r.startDate||"").startsWith(month));
+                const hasReceipt=grpRecords.some(r=>r.issueReceipt);
+                if(!hasReceipt) next[key]={...next[key],printCount:0,invNo:"",lastPrintDate:""};
+              });
+              await onSaveInv(next);
+              showToast("リセット完了しました",true);
+            }} style={{...S.btn("#dc2626",true),fontSize:11}}>🗑 発行履歴リセット</button>
           </div>
         )}
 
