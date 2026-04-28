@@ -3583,18 +3583,19 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
       const sp=crossMonthSplits[r.id];
       if(!sp) return;
       const c=customers.find(x=>x.id===r.customerId);
+      const recIsReceipt=!!r.issueReceipt;
       if(sp.type==='full'){
         const monthAmt=sp.targetMonth===selMonth?(r.amount||0):0;
         if(monthAmt<=0) return;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id));
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
         if(existingGroup){
-          result=result.map(g=>({...g,items:g.items.map(item=>item.id===r.id?{...item,amount:monthAmt}:item)}));
+          result=result.map(g=>(g===existingGroup?{...g,items:g.items.map(item=>item.id===r.id?{...item,amount:monthAmt}:item)}:g));
         } else {
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===(r.projectName||"")&&g.month===selMonth);
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===(r.projectName||"")&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
           if(existingSame){
             result=result.map(g=>g===existingSame?{...g,items:[...g.items,{...r,amount:monthAmt}]}:g);
           } else {
-            result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[{...r,amount:monthAmt}],split:true,consolidate:false,_synthetic:true,_isReceiptGroup:!!r.issueReceipt});
+            result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[{...r,amount:monthAmt}],split:true,consolidate:false,_synthetic:true,_isReceiptGroup:recIsReceipt});
           }
         }
         return;
@@ -3638,23 +3639,37 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
         }
         const splitItem={...r,startDate:spItem.startDate,endDate:spItem.endDate,days:splitDays,billingDays:splitBillingDays,amount:monthAmt,lines:rebuiltLines};
         const injectAutoAdj=g=>autoAdj?{...g,_autoAdjustments:[...(g._autoAdjustments||[]).filter(a=>a.id!==autoAdj.id),autoAdj]}:g;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id));
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
         if(existingGroup){
           result=result.map(g=>{
-            if(!g.items.some(item=>item.id===r.id)) return g;
+            if(g!==existingGroup) return g;
             return injectAutoAdj({...g,items:g.items.map(item=>item.id===r.id?splitItem:item)});
           });
         } else {
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===(r.projectName||"")&&g.month===selMonth);
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===(r.projectName||"")&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
           if(existingSame){
             result=result.map(g=>g!==existingSame?g:injectAutoAdj({...g,items:[...g.items,splitItem]}));
           } else {
-            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[splitItem],split:true,consolidate:false,_synthetic:true,_isReceiptGroup:!!r.issueReceipt}));
+            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[splitItem],split:true,consolidate:false,_synthetic:true,_isReceiptGroup:recIsReceipt}));
           }
         }
       }
     });
-    return result;
+    // 最終保険：itemsの中身に応じて _isReceiptGroup を強制再分割
+    const finalResult=[];
+    result.forEach(g=>{
+      const receiptItems=(g.items||[]).filter(isReceiptItem);
+      const transferItems=(g.items||[]).filter(r=>!isReceiptItem(r));
+      if(receiptItems.length>0&&transferItems.length>0){
+        finalResult.push({...g,items:transferItems,_isReceiptGroup:false});
+        finalResult.push({...g,items:receiptItems,_isReceiptGroup:true});
+      } else if(receiptItems.length>0){
+        finalResult.push({...g,_isReceiptGroup:true});
+      } else {
+        finalResult.push({...g,_isReceiptGroup:false});
+      }
+    });
+    return finalResult;
   },[filtered,crossMonthSplits,selMonth,records,customers,products]);
 
   const monthTotal = crossAdjustedFiltered.reduce((s,g)=>{
