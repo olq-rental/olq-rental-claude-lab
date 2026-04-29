@@ -1552,7 +1552,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                       {(ln.subItems||[]).slice(0,qty).map((si,si2)=>(
                         <div key={si2} style={{display:"grid",gridTemplateColumns:"22px 1fr 1fr",gap:4,marginBottom:4,alignItems:"center",background:si2===0?"#eff6ff":"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"5px 8px"}}>
                           <span style={{fontSize:10,fontWeight:700,color:si2===0?"#2563eb":"#94a3b8",textAlign:"center"}}>{si2===0?qty+"台":"―"}</span>
-                          <input value={si.no} onChange={e=>setSub(li,si2,{no:e.target.value})} style={{...S.inp,fontSize:11,padding:"4px 6px"}} placeholder={`機材No.（${si2+1}台目）`}/>
+                          <input value={si.no} onChange={e=>setSub(li,si2,{no:e.target.value})} style={{...S.inp,fontSize:11,padding:"4px 6px"}} placeholder={`機材No.（${si2+1}台目）`} maxLength={4}/>
                           <input value={si.note||""} onChange={e=>setSub(li,si2,{note:e.target.value})} style={{...S.inp,fontSize:11,padding:"4px 6px"}} placeholder="行備考（バッテリー数など）"/>
                         </div>
                       ))}
