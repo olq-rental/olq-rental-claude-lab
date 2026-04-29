@@ -2230,7 +2230,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
           {filtered.length>0&&(
             <div style={{background:"#eff6ff",padding:"9px 16px",display:"flex",justifyContent:"flex-end",gap:16,fontSize:12,fontWeight:700,borderTop:"2px solid #e2e8f0"}}>
               <span style={{color:"#64748b"}}>合計（税抜）</span>
-              <span style={{color:"#16a34a",fontSize:14}}>{fmt(filtered.reduce((s,r)=>s+(r.amount||0),0))}</span>
+              <span style={{color:"#16a34a",fontSize:14}}>{fmt(filtered.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0))}</span>
             </div>
           )}
         </div>
