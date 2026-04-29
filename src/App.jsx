@@ -2048,7 +2048,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
               });
               return Object.entries(custGroups).map(([cid,{c,recs}])=>{
                 const custOpen=!!expandedCust[cid]; // default open
-                const custTotal=recs.reduce((s,r)=>s+(r.amount||0),0);
+                const custTotal=recs.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
                 const hasLocked=recs.some(r=>isRecordLocked(r));
                 // 案件名ごとにグループ化
                 const projGroups={};
@@ -2071,7 +2071,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                     {custOpen&&Object.entries(projGroups).map(([projName,pRecs])=>{
                       const pk=cid+"__"+projName;
                       const projOpen=!!expandedProj[pk]; // default open
-                      const projTotal=pRecs.reduce((s,r)=>s+(r.amount||0),0);
+                      const projTotal=pRecs.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
                       return(
                         <div key={pk}>
                           {/* 案件名ヘッダー行 */}
@@ -2114,7 +2114,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                             :<span style={{background:"#eff6ff",color:"#2563eb",borderRadius:4,padding:"1px 5px",fontSize:10,fontWeight:700}}>日極</span>}
                                       </td>
                                       <td style={{padding:"8px 8px",textAlign:"center",fontWeight:600,color:isM?"#7c3aed":"#2563eb",whiteSpace:"nowrap"}}>{isM?(r.months||1)+"ヶ月":r.endDateOpen?"継続中":(()=>{const hasNoDisc=getLines(r).some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);return (hasNoDisc?(r.days||0):(r.billingDays||r.days||0))+"日";})()}</td>
-                                      <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a",whiteSpace:"nowrap"}}>{fmt(r.amount)}</td>
+                                      <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a",whiteSpace:"nowrap"}}>{fmt((r.amount||0)+(r.insuranceAmount||0))}</td>
                                       <td style={{padding:"8px 12px",whiteSpace:"nowrap",textAlign:"right"}}>
                                         {locked&&<span style={{fontSize:10,marginRight:4,color:"#15803d"}}>🔒</span>}
                                         {!r.isExtension&&!(records||[]).some(x=>x.extendedFromNo===r.deliveryNo&&r.deliveryNo)&&(
