@@ -2645,7 +2645,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
                 const useDaysForLine=r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
                 const lineAmt=showDiscountLine?Math.round(listPrice*(ln.quantity||1)*useDaysForLine):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLine);
                 return(
-                  <tr key={`${r.id}-${li}`}>
+                  <tr key={`${r.id}-${li}`} className={li===0&&rLines.length>1?"rs":undefined}>
                     {hasPerLineDate?(
                       <>
                         <td style={{...S.td,padding:"4px 6px",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"middle"}}>{fmtD(r.startDate)}〜{fmtD(lineEndDate)}{r.billingType==="monthly"&&<div style={{fontSize:10,marginTop:2}}>[月極]</div>}</td>
@@ -2773,7 +2773,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
 .sign-label{font-weight:bold;font-size:9px;margin-bottom:2px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:4px 6px}
-.empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}`;
+.empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}tr.rs{break-inside:avoid}`;
 
   let body = "";
   const fd = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
