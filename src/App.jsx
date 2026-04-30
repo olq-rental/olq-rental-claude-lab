@@ -2624,7 +2624,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
         </div>
 
         {/* 明細テーブル */}
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:10.5}}>
+        <table style={{width:"100%",borderCollapse:"separate",borderSpacing:0,fontSize:10.5}}>
           <thead>
             <tr style={{background:"#f0f0f0"}}>
               {["ご利用日","日数","ご発注者","製品名","台数","単価","金額"].map(h=>(
