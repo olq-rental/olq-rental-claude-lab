@@ -703,13 +703,6 @@ async function sSet(k, val) {
           alert('保存に失敗しました: ' + error.message);
           return;
         }
-        // 案件のみ削除処理を実行（顧客・製品は削除しない）
-        if (k === K.r) {
-          const { data: existing } = await supabase.from(_TABLE[k]).select('id');
-          const newIds = rows.map(r => r.id);
-          const toDelete = (existing||[]).map(r=>r.id).filter(id => !newIds.includes(id));
-          if (toDelete.length > 0) await supabase.from(_TABLE[k]).delete().in('id', toDelete);
-        }
       }
       return;
     }
@@ -994,6 +987,11 @@ export default function App() {
     await supabase.from('customers').delete().eq('id', String(custId));
     await logActivity("削除", "customer", custName, "顧客を削除しました");
   };
+  const deleteRec = async (id, logInfo) => {
+    setRecords(prev => prev.filter(x => x.id !== id));
+    await supabase.from('cases').delete().eq('id', String(id));
+    if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||"");
+  };
   const saveInv  = async n => { setInvoiceData(n); await sSet(K.inv, n); };
 
   const invoiceGroups = {};
@@ -1143,7 +1141,7 @@ export default function App() {
       )}
 
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
-        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
+        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec} onDeleteRec={deleteRec} showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
         {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} products={products} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records} onSaveRec={saveRec}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
@@ -1155,7 +1153,7 @@ export default function App() {
   );
 }
 
-function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ,session}){
+function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ,session}){
   // 締め済みの案件月セット
   const lockedMonths = new Set(
     Object.entries(invoiceData||{}).filter(([,d])=>d.status==="locked").map(([k])=>k.split("__")[1]).filter(Boolean)
@@ -1705,7 +1703,7 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
             <div style={{fontSize:13,color:"#374151",marginBottom:6}}>顧客：{deleteModal.custName}</div>
             <div style={{fontSize:13,color:"#374151",marginBottom:20}}>案件名：{deleteModal.record.projectName||"（案件名なし）"}</div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={async()=>{const r=deleteModal.record;setDeleteModal(null);await onSave(records.filter(x=>x.id!==r.id),{action:"削除",name:r.projectName||deleteModal.custName});showToast("削除しました");}} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>削除する</button>
+              <button onClick={async()=>{const r=deleteModal.record;setDeleteModal(null);await onDeleteRec(r.id,{action:"削除",name:r.projectName||deleteModal.custName});showToast("削除しました");}} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>削除する</button>
               <button onClick={()=>setDeleteModal(null)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
             </div>
           </div>
@@ -2169,9 +2167,8 @@ function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,
                                               amount:0,
                                               insuranceAmount:0,
                                             };
-                                            const newRecords=(records||[])
-                                              .filter(x=>!continuingRec||x.id!==continuingRec.id)
-                                              .map(x=>x.id===r.id?restoredOriginal:x);
+                                            if(continuingRec) await onDeleteRec(continuingRec.id);
+                                            const newRecords=(records||[]).map(x=>x.id===r.id?restoredOriginal:x);
                                             await onSave(newRecords,{
                                               action:"暫定締め取消",
                                               name:r.deliveryNo||"",
