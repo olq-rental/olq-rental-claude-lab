@@ -3223,7 +3223,7 @@ ${css}
 <script>
 ${type==="invoice"?`
 window.onbeforeprint=function(){
-  var h=1122;
+  var h=1050;
   var total=Math.ceil(document.body.scrollHeight/h);
   var old=document.querySelectorAll('.pn-el');
   old.forEach(function(e){e.remove();});
