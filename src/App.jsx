@@ -1088,7 +1088,7 @@ export default function App() {
 
 
 
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}tr.rs{break-inside:avoid}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}tr{break-inside:avoid}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
       <header className="app-header" style={{background:"#0f172a",color:"#fff",padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
@@ -2773,7 +2773,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
 .sign-label{font-weight:bold;font-size:9px;margin-bottom:2px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:4px 6px}
-.empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}tr.rs{break-inside:avoid}`;
+.empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}tr{break-inside:avoid}`;
 
   let body = "";
   const fd = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
