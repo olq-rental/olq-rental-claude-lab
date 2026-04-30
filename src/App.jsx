@@ -1088,7 +1088,7 @@ export default function App() {
 
 
 
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}tr{break-inside:avoid}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
       <header className="app-header" style={{background:"#0f172a",color:"#fff",padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
@@ -2766,14 +2766,14 @@ function downloadPrintHTML(type, g, products, extraDiscount) {
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
   const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tfoot{display:table-row-group}
 body{font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;margin:0}
-table{border-collapse:separate;border-spacing:0;width:100%}td,th{border-right:1px solid #aaa;border-bottom:1px solid #aaa;border-top:0;border-left:0;padding:3px 5px;font-size:10px}table{border-top:1px solid #aaa;border-left:1px solid #aaa;}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:3px 5px;font-size:10px}
 th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{text-align:center}
 .pb{page-break-after:always;width:794px;box-sizing:border-box;position:relative}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
 .sign-label{font-weight:bold;font-size:9px;margin-bottom:2px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:4px 6px}
-.empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}tr{break-inside:avoid}`;
+.empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}`;
 
   let body = "";
   const fd = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
