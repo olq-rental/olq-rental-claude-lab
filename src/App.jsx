@@ -3221,23 +3221,7 @@ ${css}
 </div>
 <div style="margin-top:52px">${body}</div>
 <script>
-${type==="invoice"?`
-window.onbeforeprint=function(){
-  var h=1050;
-  var total=Math.ceil(document.body.scrollHeight/h);
-  var old=document.querySelectorAll('.pn-el');
-  old.forEach(function(e){e.remove();});
-  for(var i=0;i<total;i++){
-    var d=document.createElement('div');
-    d.className='pn-el';
-    d.textContent=(i+1)+'/'+total;
-    d.style.cssText='position:absolute;font-size:8px;color:#999;pointer-events:none;right:10px;top:'+(i*h+60)+'px;';
-    document.body.appendChild(d);
-  }
-};
-window.onafterprint=function(){
-  document.querySelectorAll('.pn-el').forEach(function(e){e.remove();});
-};`:""}
+${type==="invoice"?``:""}
 </script>
 </body></html>`;
   const newTab = window.open('', '_blank');
