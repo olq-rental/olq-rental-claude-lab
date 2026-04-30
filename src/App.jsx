@@ -1088,7 +1088,7 @@ export default function App() {
 
 
 
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}tr.rs{break-inside:avoid}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
       <header className="app-header" style={{background:"#0f172a",color:"#fff",padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
