@@ -976,9 +976,14 @@ export default function App() {
     await sSet(K.c, n);
     if (logInfo) await logActivity(logInfo.action, 'customer', logInfo.name, logInfo.detail||"");
   };
-  const saveRec = async (n, logInfo) => {
+  const saveRec = async (n, logInfo, changed) => {
     setRecords(n);
-    await sSet(K.r, n);
+    const toUpsert = changed || n;
+    const rows = toUpsert.map(item => ({ id: String(item.id), data: item, updated_at: new Date().toISOString() }));
+    if (rows.length > 0) {
+      const { error } = await supabase.from('cases').upsert(rows, { onConflict: 'id' });
+      if (error) { console.error('saveRec upsert error', error); alert('保存に失敗しました: ' + error.message); return; }
+    }
     if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||"");
   };
   const deleteCust = async (custId, custName) => {
@@ -1353,7 +1358,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
     }
     const custName=customers.find(x=>x.id===form.customerId)?.name||"";
     try {
-      await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName});
+      await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName},[rec]);
     } catch(e) {
       showToast("保存に失敗しました。もう一度登録ボタンを押してください。",false);
       console.error("save error",e);
@@ -1903,7 +1908,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                     billingDays:undefined,
                     createdAt:createdAtStr,
                   };
-                  await onSave([...records.map(x=>x.id===targetRec.id?updatedOriginal:x),continuingRec]);
+                  await onSave([...records.map(x=>x.id===targetRec.id?updatedOriginal:x),continuingRec],null,[updatedOriginal,continuingRec]);
                   showToast("返却確定・継続分("+newDeliveryNo+")を作成しました");
                 } else {
                   const updatedLines=allLinesInOrder;
@@ -1916,18 +1921,8 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                     return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
                   },0);
                   const newInsurance=targetRec.includeInsurance?Math.round(newAmount*0.1):0;
-                  await onSave(records.map(x=>x.id===returnModal.id?{
-                    ...x,
-                    lines:updatedLines,
-                    returnDate:allClosed?returnModal.billingEndDate:x.returnDate,
-                    actualReturnDate:allClosed?returnModal.returnDate:x.actualReturnDate,
-                    endDate:allClosed?returnModal.billingEndDate:x.endDate,
-                    endDateOpen:!allClosed,
-                    days:allClosed?calcDays(x.startDate,returnModal.billingEndDate):x.days,
-                    billingDays:allClosed?calcBillingDays(calcDays(x.startDate,returnModal.billingEndDate)):x.billingDays,
-                    amount:newAmount,
-                    insuranceAmount:newInsurance
-                  }:x));
+                  const updatedRec={...records.find(x=>x.id===returnModal.id),lines:updatedLines,returnDate:allClosed?returnModal.billingEndDate:records.find(x=>x.id===returnModal.id)?.returnDate,actualReturnDate:allClosed?returnModal.returnDate:records.find(x=>x.id===returnModal.id)?.actualReturnDate,endDate:allClosed?returnModal.billingEndDate:records.find(x=>x.id===returnModal.id)?.endDate,endDateOpen:!allClosed,days:allClosed?calcDays(records.find(x=>x.id===returnModal.id)?.startDate,returnModal.billingEndDate):records.find(x=>x.id===returnModal.id)?.days,billingDays:allClosed?calcBillingDays(calcDays(records.find(x=>x.id===returnModal.id)?.startDate,returnModal.billingEndDate)):records.find(x=>x.id===returnModal.id)?.billingDays,amount:newAmount,insuranceAmount:newInsurance};
+                  await onSave(records.map(x=>x.id===returnModal.id?updatedRec:x),null,[updatedRec]);
                   showToast("計上終了日を設定しました");
                 }
                 setReturnModal(null);
@@ -1994,7 +1989,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                   createdAt:new Date().toISOString(),
                 };
                 try {
-                  await onSave([...records,newRec]);
+                  await onSave([...records,newRec],null,[newRec]);
                   setExtModal(null);
                   showToast("延長案件を作成しました");
                 } catch(e) {
@@ -2173,7 +2168,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                                               action:"暫定締め取消",
                                               name:r.deliveryNo||"",
                                               detail:continuingRec?`継続レコード ${continuingRec.deliveryNo||""} を削除`:"継続レコードなし"
-                                            });
+                                            },[restoredOriginal]);
                                             showToast("暫定締めを取り消しました");
                                           }} style={{...S.ib("#0891b2"),marginRight:4,fontSize:10}}>⏪ 暫定締め取消</button>
                                         )}
@@ -3440,7 +3435,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                   createdAt:new Date().toISOString(),
                 };
                 try {
-                  await onSave([...records,newRec]);
+                  await onSave([...records,newRec],null,[newRec]);
                   setExtModal(null);
                   showToast("延長案件を作成しました");
                 } catch(e) {
@@ -3803,7 +3798,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                     ...(records||[]).map(x => updatesById[x.id] || x),
                     ...newRecords
                   ];
-                  await onSaveRec(finalRecords);
+                  await onSaveRec(finalRecords,null,[...Object.values(updatesById),...newRecords]);
                   showToast(`${pendingProvisional.length}件を前月末で暫定締めしました`);
                 }} style={{...S.btn("#d97706",true),fontSize:11,whiteSpace:"nowrap"}}>
                   📅 前月末で暫定締め
