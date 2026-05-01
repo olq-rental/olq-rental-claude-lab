@@ -2560,13 +2560,14 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
   const adjSum=adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
   const showDiscountLine=!!g.customer?.showDiscountLine;
   const listTot=showDiscountLine?g.items.reduce((s,r)=>{
+    if(r.billingType==="monthly") return s+(r.amount||0);
     const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,unitPrice:r.unitPrice,quantity:r.quantity}];
     const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
     return s+rLines.reduce((s2,ln)=>{
       const prod=(products||[]).find(p=>p.id===ln.productId);
       const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
       const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;
-      const days=r.billingType==="monthly"?(r.months||1):hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
+      const days=hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
       return s2+Math.round(listPrice*(ln.quantity||1)*days);
     },0);
   },0):equipBaseTot;
@@ -2815,13 +2816,14 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     const showDiscountLine = !!g.customer?.showDiscountLine;
     const extraDiscountAmt = Number(extraDiscount)||0;
     const listTot = showDiscountLine ? g.items.reduce((s,r)=>{
+      if(r.billingType==="monthly") return s+(r.amount||0);
       const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,unitPrice:r.unitPrice,quantity:r.quantity}];
       const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
       return s+rLines.reduce((s2,ln)=>{
         const prod=(products||[]).find(p=>p.id===ln.productId);
         const lp=prod?prod.priceEx:(ln.unitPrice||0);
         const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;
-      const days=r.billingType==="monthly"?(r.months||1):hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
+        const days=hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
         return s2+Math.round(lp*(ln.quantity||1)*days);
       },0);
     },0) : tot;
