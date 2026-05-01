@@ -5894,7 +5894,7 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
   const [custQ,setCustQ]=useState("");
   const [selectedProjectName,setSelectedProjectName]=useState("");
   const [recQ,setRecQ]=useState("");
-  const E={type:"loss",customerId:"",relatedRecordId:"",relatedProjectName:"",occurredDate:today(),itemName:"",chargeAmount:"",description:"",separateInvoice:false,status:"pending",invoiceMonth:filterMonth};
+  const E={type:"loss",customerId:"",relatedRecordId:"",relatedProjectName:"",occurredDate:today(),itemName:"",unitPrice:"",quantity:"1",chargeAmount:"",description:"",separateInvoice:false,status:"pending",invoiceMonth:filterMonth};
   const [form,setForm]=useState(E);
   const [saving,setSaving]=useState(false);
 
@@ -5916,13 +5916,13 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
   const typeColor=t=>t==="loss"?"#dc2626":"#d97706";
 
   const openNew=()=>{setForm({...E,invoiceMonth:filterMonth});setModal("new");};
-  const openEdit=inc=>{setForm({type:inc.type,customerId:inc.customer_id,relatedRecordId:inc.related_record_id,relatedProjectName:inc.related_project_name||"",occurredDate:inc.occurred_date,itemName:inc.item_name,chargeAmount:String(inc.charge_amount||""),description:inc.description||"",separateInvoice:!!inc.separate_invoice,status:inc.status||"pending",invoiceMonth:inc.invoice_month||""});setCustQ(customers.find(c=>c.id===inc.customer_id)?.name||"");setSelectedProjectName(inc.related_project_name||"");setModal(inc.id);};
+  const openEdit=inc=>{setForm({type:inc.type,customerId:inc.customer_id,relatedRecordId:inc.related_record_id,relatedProjectName:inc.related_project_name||"",occurredDate:inc.occurred_date,itemName:inc.item_name,unitPrice:String(inc.unit_price||""),quantity:String(inc.quantity||"1"),chargeAmount:String(inc.charge_amount||""),description:inc.description||"",separateInvoice:!!inc.separate_invoice,status:inc.status||"pending",invoiceMonth:inc.invoice_month||""});setCustQ(customers.find(c=>c.id===inc.customer_id)?.name||"");setSelectedProjectName(inc.related_project_name||"");setModal(inc.id);};
 
   const save=async()=>{
     if(!form.customerId){showToast("顧客を選択してください",false);return;}
     if(!form.itemName){showToast("品目を入力してください",false);return;}
     setSaving(true);
-    const payload={type:form.type,customer_id:form.customerId,related_record_id:form.relatedRecordId,related_project_name:form.relatedProjectName,occurred_date:form.occurredDate,item_name:form.itemName,charge_amount:Number(form.chargeAmount)||0,description:form.description,separate_invoice:form.separateInvoice,status:form.status,invoice_month:form.invoiceMonth};
+    const payload={type:form.type,customer_id:form.customerId,related_record_id:form.relatedRecordId,related_project_name:form.relatedProjectName,occurred_date:form.occurredDate,item_name:form.itemName,unit_price:Number(form.unitPrice)||0,quantity:Number(form.quantity)||1,charge_amount:(Number(form.unitPrice)||0)*(Number(form.quantity)||1),description:form.description,separate_invoice:form.separateInvoice,status:form.status,invoice_month:form.invoiceMonth};
     if(modal==="new"){
       const{data,error}=await supabase.from('incidents').insert([payload]).select().single();
       if(error){showToast("保存に失敗しました",false);}else{setIncidents(prev=>[data,...prev]);showToast("登録しました");}
@@ -6077,8 +6077,18 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
                 <input type="text" value={form.itemName} onChange={e=>setForm(f=>({...f,itemName:e.target.value}))} placeholder="例：XLRケーブル 5m" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
               </div>
               <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>請求額</div>
-                <input type="text" inputMode="numeric" value={form.chargeAmount} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setForm(f=>({...f,chargeAmount:v}));}} placeholder="0" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>単価</div>
+                <input type="text" inputMode="numeric" value={form.unitPrice} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setForm(f=>({...f,unitPrice:v}));}} placeholder="0" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>数量</div>
+                <input type="text" inputMode="numeric" value={form.quantity} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setForm(f=>({...f,quantity:v||"1"}));}} placeholder="1" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>請求額（自動計算）</div>
+                <div style={{padding:"8px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,fontWeight:600,color:"#16a34a"}}>
+                  {new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY"}).format((Number(form.unitPrice)||0)*(Number(form.quantity)||1))}
+                </div>
               </div>
               <div>
                 <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>請求月</div>
