@@ -1161,7 +1161,7 @@ export default function App() {
         {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
-        {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast}/>}
+        {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
       </div>
     </div>
   );
@@ -5883,7 +5883,7 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
   );
 }
 
-function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
+function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoToDelivery}){
   const today=()=>{const d=new Date();return d.getFullYear()+"-"+(String(d.getMonth()+1).padStart(2,"0"))+"-"+(String(d.getDate()).padStart(2,"0"));};
   const fmt=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY"}).format(n||0);
   const fmtD=s=>s?s.replace(/-/g,"/"):"";
@@ -5985,7 +5985,10 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
                   <td style={S2.td}>{inc.item_name}</td>
                   <td style={{...S2.td,fontWeight:600}}>{fmt(inc.charge_amount)}</td>
                   <td style={S2.td}><span style={{color:statusColor(inc.status),fontWeight:600,fontSize:11}}>{statusLabel(inc.status)}</span></td>
-                  <td style={{...S2.td,textAlign:"right"}}>
+                  <td style={{...S2.td,textAlign:"right",whiteSpace:"nowrap"}}>
+                    {inc.related_record_id&&inc.related_record_id!=="none"&&(
+                      <button onClick={e=>{e.stopPropagation();onGoToDelivery(inc.related_record_id);}} style={{padding:"3px 10px",background:"none",border:"1px solid #93c5fd",color:"#2563eb",borderRadius:4,cursor:"pointer",fontSize:11,marginRight:6}}>→ 納品書</button>
+                    )}
                     <button onClick={e=>{e.stopPropagation();if(window.confirm("削除しますか？"))del(inc.id);}} style={{padding:"3px 10px",background:"none",border:"1px solid #fca5a5",color:"#dc2626",borderRadius:4,cursor:"pointer",fontSize:11}}>削除</button>
                   </td>
                 </tr>
