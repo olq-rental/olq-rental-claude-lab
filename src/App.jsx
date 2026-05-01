@@ -1156,7 +1156,7 @@ export default function App() {
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
         {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec} onDeleteRec={deleteRec} showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
         {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
-        {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} products={products} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records} onSaveRec={saveRec}/>}
+        {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} products={products} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records} onSaveRec={saveRec} incidents={incidents}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
         {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
@@ -2549,10 +2549,12 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
     </div>
   );
 }
-function InvoicePreview({type,g,forPrint,products,extraDiscount}){
+function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
+  const gIncidents=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month);
+  const incidentTot=gIncidents.reduce((s,x)=>s+(x.charge_amount||0),0);
   const equipTot=g.items.reduce((s,r)=>s+(r.amount||0),0);
   const insurTot=g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
-  const baseTot=equipTot+insurTot;
+  const baseTot=equipTot+insurTot+incidentTot;
   const adjustments=g.adjustments||[];
   const adjSum=adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
   const showDiscountLine=!!g.customer?.showDiscountLine;
@@ -2681,6 +2683,16 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
               if(_hb&&_ri===_lm){rows.push(<tr key={`div-${_ri}`}><td colSpan={7} style={{padding:"5px 0",border:"none",background:"#f8fafc"}}></td></tr>);}
               return rows;
             });})()}
+            {gIncidents.map(inc=>(
+              <tr key={`inc-${inc.id}`}>
+                <td colSpan={2} style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}}>{inc.type==="loss"?"紛失":"修理"}</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"middle"}}></td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{inc.item_name}</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>1</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(inc.charge_amount)}</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontWeight:"bold"}}>{fmt(inc.charge_amount)}</td>
+              </tr>
+            ))}
             {showDiscountLine&&totalDiscount>0&&(
               <tr>
                 <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right"}}>お値引き</td>
@@ -2767,7 +2779,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount}){
 }
 
 // 印刷用HTML生成 & ダウンロード
-function downloadPrintHTML(type, g, products, extraDiscount) {
+function downloadPrintHTML(type, g, products, extraDiscount, incidents) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
   const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tfoot{display:table-row-group}
@@ -2785,9 +2797,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
   const fd = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
   const fm = n => `¥${Number(n||0).toLocaleString()}`;
   const fn = n => Number(n||0).toLocaleString();
+  const gIncidentsPdf=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month);
+  const incidentTotPdf=gIncidentsPdf.reduce((s,x)=>s+(x.charge_amount||0),0);
   const equipTotG = g.items.reduce((s,r) => s+(r.amount||0), 0);
   const insurTotG = g.items.reduce((s,r) => s+(r.insuranceAmount||0), 0);
-  const tot = equipTotG + insurTotG;
+  const tot = equipTotG + insurTotG + incidentTotPdf;
   const tax = Math.round(tot * 0.1);
 
   if (type === "invoice") {
@@ -2920,6 +2934,16 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`;
       }
       if(_hasBoth&&_ri===_lastMIdx){body+=`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`;}});})();
+    gIncidentsPdf.forEach(inc=>{
+      body+=`<tr>
+        <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理"}</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle"></td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.item_name}</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">1</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.charge_amount)}</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.charge_amount)}</td>
+      </tr>`;
+    });
     // 調整行
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
       body += `<tr>
@@ -3471,7 +3495,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
 // =========================================================
 // InvoiceTab（請求書タブ） — 月選択・ステータス管理・調整行
 // =========================================================
-function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records, onSaveRec}){
+function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records, onSaveRec, incidents}){
   const months = [...new Set(groups.map(g=>g.month).filter(Boolean))].sort().reverse();
   const currentMonth = today().slice(0,7);
   const [selMonth, setSelMonth] = useState(months.includes(currentMonth)?currentMonth:(months[0]||""));
@@ -4166,7 +4190,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                   <button onClick={async()=>{
                                     const cur=getInvData(key);
                                     const invNo=cur.invNo||(g.month?`${g.month}-???`:"");
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products);
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents);
                                   }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
                                     <Ico d={I.print} size={10}/>確認
                                   </button>
@@ -4182,7 +4206,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     }
                                     await updateInvData(key,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
                                     const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products);
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents);
                                   }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
                                     🖨
                                   </button>
@@ -4310,13 +4334,13 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   else{count=(cur.printCount||1)+1;}
   await updateInvData(preview.key,{invNo:baseNo,printCount:count});
   const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-  downloadPrintHTML("invoice",{...livePreviewG,adjustments:[...(cur.adjustments||[]),...(livePreviewG._autoAdjustments||[])],invNo,issueDate:cur.issueDate||""},products,getInvData(preview.key)?.extraDiscount||0);
+  downloadPrintHTML("invoice",{...livePreviewG,adjustments:[...(cur.adjustments||[]),...(livePreviewG._autoAdjustments||[])],invNo,issueDate:cur.issueDate||""},products,getInvData(preview.key)?.extraDiscount||0,incidents);
 }} style={{...S.btn("#1d4ed8",true),fontSize:11}}>🖨 PDF</button>
               <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
             </div>
           </div>
           <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bfdbfe"}}>
-            <InvoicePreview type="invoice" g={{...livePreviewG,adjustments:[...(getInvData(preview.key).adjustments||[]),...(livePreviewG._autoAdjustments||[])]}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0}/>
+            <InvoicePreview type="invoice" g={{...livePreviewG,adjustments:[...(getInvData(preview.key).adjustments||[]),...(livePreviewG._autoAdjustments||[])]}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0} incidents={incidents}/>
           </div>
         </div>
       )}
