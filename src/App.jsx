@@ -2685,7 +2685,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
             });})()}
             {gIncidents.map(inc=>(
               <tr key={`inc-${inc.id}`}>
-                <td colSpan={2} style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}}>{inc.type==="loss"?"紛失":"修理"}</td>
+                <td colSpan={2} style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}}>{inc.type==="loss"?"紛失":"修理/破損"}</td>
                 <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"middle"}}></td>
                 <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{inc.item_name}</td>
                 <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>1</td>
@@ -2936,7 +2936,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if(_hasBoth&&_ri===_lastMIdx){body+=`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`;}});})();
     gIncidentsPdf.forEach(inc=>{
       body+=`<tr>
-        <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理"}</td>
+        <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理/破損"}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle"></td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.item_name}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">1</td>
@@ -4113,7 +4113,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                       const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);
                       const base=g.items.reduce((t,r)=>t+(r.amount||0)+(r.insuranceAmount||0),0);
                       const adj=d.adjustments.reduce((t,a)=>t+(Number(a.amount)||0),0);
-                      return s+base+adj;
+                      const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month).reduce((t,x)=>t+(x.charge_amount||0),0);
+                      return s+base+adj+inc;
                     },0);
                     const custTax=Math.round(custTotEx*0.1);
                     return(
@@ -4140,7 +4141,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           const key=`${g.customerId}||${g.projectName}||${g.month}`;
                           const d=getInvData(key,g.month);
                           const locked=d.status==="locked";
-                          const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
+                          const gInc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month);
+                          const incTot=gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
+                          const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
                           const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
                           const grandTot=baseTot+adjSum;
                           const tax=Math.round(grandTot*0.1);
@@ -4259,6 +4262,19 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           </React.Fragment>));})()}
                                         </tbody>
                                       </table>
+                                      {/* 修理/紛失行 */}
+                                      {gInc.length>0&&(
+                                        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,padding:"8px 12px",marginBottom:8}}>
+                                          <div style={{fontSize:11,fontWeight:700,color:"#dc2626",marginBottom:6}}>修理/紛失</div>
+                                          {gInc.map(inc=>(
+                                            <div key={inc.id} style={{display:"flex",gap:8,marginBottom:4,alignItems:"center",fontSize:11}}>
+                                              <span style={{background:inc.type==="loss"?"#fef2f2":"#fffbeb",color:inc.type==="loss"?"#dc2626":"#d97706",padding:"1px 6px",borderRadius:4,fontWeight:600,minWidth:60,textAlign:"center"}}>{inc.type==="loss"?"紛失":"修理/破損"}</span>
+                                              <span style={{flex:1,color:"#374151"}}>{inc.item_name}</span>
+                                              <span style={{fontWeight:600,color:"#16a34a"}}>{fmt(inc.charge_amount)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                       {/* 調整行 */}
                                       <div style={{background:"#fefce8",border:"1px solid #fde68a",borderRadius:6,padding:"8px 12px"}}>
                                         <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -5896,7 +5912,7 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
 
   const statusLabel=s=>s==="pending"?"未請求":s==="invoiced"?"請求済":s==="paid"?"回収済":"";
   const statusColor=s=>s==="pending"?"#dc2626":s==="invoiced"?"#2563eb":s==="paid"?"#16a34a":"#64748b";
-  const typeLabel=t=>t==="loss"?"紛失":"修理";
+  const typeLabel=t=>t==="loss"?"紛失":"修理/破損";
   const typeColor=t=>t==="loss"?"#dc2626":"#d97706";
 
   const openNew=()=>{setForm({...E,invoiceMonth:filterMonth});setModal("new");};
@@ -5940,7 +5956,7 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
 
       {/* 集計カード */}
       <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-        {[{label:"合計",val:totalAmt,color:"#1e293b"},{label:"紛失",val:lossAmt,color:"#dc2626"},{label:"修理",val:repairAmt,color:"#d97706"}].map(c=>(
+        {[{label:"合計",val:totalAmt,color:"#1e293b"},{label:"紛失",val:lossAmt,color:"#dc2626"},{label:"修理/破損",val:repairAmt,color:"#d97706"}].map(c=>(
           <div key={c.label} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,padding:"12px 20px",minWidth:160}}>
             <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>{c.label}（{filtered.filter(x=>c.label==="合計"||(c.label==="紛失"?x.type==="loss":x.type==="repair")).length}件）</div>
             <div style={{fontSize:20,fontWeight:700,color:c.color}}>{fmt(c.val)}</div>
@@ -5988,7 +6004,7 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
               <div>
                 <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>種別 *</div>
                 <div style={{display:"flex",gap:8}}>
-                  {[{v:"loss",l:"紛失"},{v:"repair",l:"修理"}].map(o=>(
+                  {[{v:"loss",l:"紛失"},{v:"repair",l:"修理/破損"}].map(o=>(
                     <button key={o.v} onClick={()=>setForm(f=>({...f,type:o.v}))} style={{flex:1,padding:"8px",border:`2px solid ${form.type===o.v?"#2563eb":"#e2e8f0"}`,borderRadius:6,background:form.type===o.v?"#eff6ff":"#fff",color:form.type===o.v?"#2563eb":"#64748b",fontWeight:600,cursor:"pointer",fontSize:13}}>{o.l}</button>
                   ))}
                 </div>
