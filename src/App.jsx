@@ -3711,7 +3711,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     const base=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
     const adj=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
     const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
-    return s+base+adj+autoAdj;
+    const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
+    return s+base+adj+autoAdj+inc;
   },0);
   const livePreviewG = preview ? (crossAdjustedFiltered.find(g=>`${g.customerId}||${g.projectName}||${g.month}`===preview.key)||preview.g) : null;
 
