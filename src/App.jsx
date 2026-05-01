@@ -2554,7 +2554,8 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
   const incidentTot=gIncidents.reduce((s,x)=>s+(x.charge_amount||0),0);
   const equipTot=g.items.reduce((s,r)=>s+(r.amount||0),0);
   const insurTot=g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
-  const baseTot=equipTot+insurTot+incidentTot;
+  const equipBaseTot=equipTot+insurTot;
+  const baseTot=equipBaseTot+incidentTot;
   const adjustments=g.adjustments||[];
   const adjSum=adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
   const showDiscountLine=!!g.customer?.showDiscountLine;
