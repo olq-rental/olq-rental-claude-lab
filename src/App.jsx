@@ -2688,8 +2688,8 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
                 <td colSpan={2} style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}}>{inc.type==="loss"?"紛失":"修理/破損"}</td>
                 <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"middle"}}></td>
                 <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{inc.item_name}</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>1</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(inc.charge_amount)}</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{inc.quantity||1}</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(inc.unit_price||inc.charge_amount)}</td>
                 <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontWeight:"bold"}}>{fmt(inc.charge_amount)}</td>
               </tr>
             ))}
@@ -2939,8 +2939,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理/破損"}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle"></td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.item_name}</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">1</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.charge_amount)}</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.quantity||1}</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.unit_price||inc.charge_amount)}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.charge_amount)}</td>
       </tr>`;
     });
