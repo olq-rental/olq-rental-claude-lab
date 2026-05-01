@@ -2550,7 +2550,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
   );
 }
 function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
-  const gIncidents=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&x.related_project_name===(g.projectName||""));
+  const gIncidents=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(x.related_project_name||"")===(g.projectName||""));
   const incidentTot=gIncidents.reduce((s,x)=>s+(x.charge_amount||0),0);
   const equipTot=g.items.reduce((s,r)=>s+(r.amount||0),0);
   const insurTot=g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
@@ -2797,7 +2797,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
   const fd = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
   const fm = n => `¥${Number(n||0).toLocaleString()}`;
   const fn = n => Number(n||0).toLocaleString();
-  const gIncidentsPdf=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&x.related_project_name===(g.projectName||""));
+  const gIncidentsPdf=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(x.related_project_name||"")===(g.projectName||""));
   const incidentTotPdf=gIncidentsPdf.reduce((s,x)=>s+(x.charge_amount||0),0);
   const equipTotG = g.items.reduce((s,r) => s+(r.amount||0), 0);
   const insurTotG = g.items.reduce((s,r) => s+(r.insuranceAmount||0), 0);
@@ -4141,7 +4141,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           const key=`${g.customerId}||${g.projectName}||${g.month}`;
                           const d=getInvData(key,g.month);
                           const locked=d.status==="locked";
-                          const gInc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&x.related_project_name===(g.projectName||""));
+                          const gInc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(x.related_project_name||"")===(g.projectName||""));
                           const incTot=gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
                           const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
                           const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
@@ -6038,7 +6038,7 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
                           <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>案件名を選択してください</div>
                           <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:220,overflowY:"auto"}}>
                             {projectNames.map(pn=>(
-                              <div key={pn} onClick={()=>{setSelectedProjectName(pn);setForm(f=>({...f,relatedProjectName:pn,relatedRecordId:""}));}} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9",background:"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                              <div key={pn} onClick={()=>{setSelectedProjectName(pn);setForm(f=>({...f,relatedProjectName:pn==="（案件名なし）"?"":pn,relatedRecordId:""}));}} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9",background:"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
                                 {pn}
                                 <span style={{fontSize:11,color:"#94a3b8",marginLeft:8}}>{custRecords.filter(r=>(r.projectName||"（案件名なし）")===pn).length}件</span>
                               </div>
