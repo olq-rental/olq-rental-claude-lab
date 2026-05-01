@@ -6082,7 +6082,7 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
               </div>
               <div>
                 <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>数量</div>
-                <input type="text" inputMode="numeric" value={form.quantity} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setForm(f=>({...f,quantity:v||"1"}));}} placeholder="1" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
+                <input type="text" inputMode="numeric" value={form.quantity} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setForm(f=>({...f,quantity:v}));}} placeholder="1" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
               </div>
               <div>
                 <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>請求額（自動計算）</div>
