@@ -888,6 +888,7 @@ export default function App() {
   const [records,   setRecords]   = useState([]);
   const [invoiceData, setInvoiceData] = useState({});
   const [tab,       setTab]       = useState("records");
+  const [incidents, setIncidents] = useState([]);
   const [newsFeed, setNewsFeed] = React.useState([]);
   React.useEffect(()=>{ supabase.from('settings').select('value').eq('key','news_feed').maybeSingle().then(({data})=>{ if(data?.value){try{setNewsFeed(JSON.parse(data.value));}catch{}} }); }, []);
   const [openCustomerId, setOpenCustomerId] = useState(null);
@@ -918,6 +919,12 @@ export default function App() {
       if (inv) setInvoiceData(inv);
     })();
   }, [session]);
+
+  useEffect(()=>{
+    supabase.from('incidents').select('*').order('occurred_date',{ascending:false}).then(({data})=>{
+      if(data) setIncidents(data);
+    });
+  },[]);
 
   // ---- Realtime（5PC同時同期）----
   useEffect(() => {
@@ -1075,6 +1082,7 @@ export default function App() {
     {id:"customers",label:"顧客管理",    icon:I.users},
     {id:"products", label:"製品マスタ",  icon:I.box},
     {id:"actlogs",  label:"作業履歴",    icon:I.list},
+    {id:"incidents",label:"修理/紛失",   icon:I.list},
   ];
 
   // ---- auth guard ----
@@ -1153,6 +1161,7 @@ export default function App() {
         {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
+        {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast}/>}
       </div>
     </div>
   );
@@ -5830,6 +5839,186 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
+  const today=()=>{const d=new Date();return d.getFullYear()+"-"+(String(d.getMonth()+1).padStart(2,"0"))+"-"+(String(d.getDate()).padStart(2,"0"));};
+  const fmt=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY"}).format(n||0);
+  const fmtD=s=>s?s.replace(/-/g,"/"):"";
+  const [filterMonth,setFilterMonth]=useState(()=>{const d=new Date();return d.getFullYear()+"-"+(String(d.getMonth()+1).padStart(2,"0"));});
+  const [filterCust,setFilterCust]=useState("");
+  const [modal,setModal]=useState(null);
+  const E={type:"loss",customerId:"",relatedRecordId:"",occurredDate:today(),itemName:"",chargeAmount:"",description:"",separateInvoice:false,status:"pending",invoiceMonth:filterMonth};
+  const [form,setForm]=useState(E);
+  const [saving,setSaving]=useState(false);
+
+  const filtered=incidents.filter(x=>{
+    const monthOk=!filterMonth||x.occurred_date?.slice(0,7)===filterMonth;
+    const custOk=!filterCust||x.customer_id===filterCust;
+    return monthOk&&custOk;
+  });
+
+  const totalAmt=filtered.reduce((s,x)=>s+(x.charge_amount||0),0);
+  const lossAmt=filtered.filter(x=>x.type==="loss").reduce((s,x)=>s+(x.charge_amount||0),0);
+  const repairAmt=filtered.filter(x=>x.type==="repair").reduce((s,x)=>s+(x.charge_amount||0),0);
+
+  const custRecords=records.filter(r=>r.customerId===form.customerId);
+
+  const statusLabel=s=>s==="pending"?"未請求":s==="invoiced"?"請求済":s==="paid"?"回収済":"";
+  const statusColor=s=>s==="pending"?"#dc2626":s==="invoiced"?"#2563eb":s==="paid"?"#16a34a":"#64748b";
+  const typeLabel=t=>t==="loss"?"紛失":"修理";
+  const typeColor=t=>t==="loss"?"#dc2626":"#d97706";
+
+  const openNew=()=>{setForm({...E,invoiceMonth:filterMonth});setModal("new");};
+  const openEdit=inc=>{setForm({type:inc.type,customerId:inc.customer_id,relatedRecordId:inc.related_record_id,occurredDate:inc.occurred_date,itemName:inc.item_name,chargeAmount:String(inc.charge_amount||""),description:inc.description||"",separateInvoice:!!inc.separate_invoice,status:inc.status||"pending",invoiceMonth:inc.invoice_month||""});setModal(inc.id);};
+
+  const save=async()=>{
+    if(!form.customerId){showToast("顧客を選択してください",false);return;}
+    if(!form.relatedRecordId){showToast("元案件を選択してください",false);return;}
+    if(!form.itemName){showToast("品目を入力してください",false);return;}
+    setSaving(true);
+    const payload={type:form.type,customer_id:form.customerId,related_record_id:form.relatedRecordId,occurred_date:form.occurredDate,item_name:form.itemName,charge_amount:Number(form.chargeAmount)||0,description:form.description,separate_invoice:form.separateInvoice,status:form.status,invoice_month:form.invoiceMonth};
+    if(modal==="new"){
+      const{data,error}=await supabase.from('incidents').insert([payload]).select().single();
+      if(error){showToast("保存に失敗しました",false);}else{setIncidents(prev=>[data,...prev]);showToast("登録しました");}
+    } else {
+      const{data,error}=await supabase.from('incidents').update(payload).eq('id',modal).select().single();
+      if(error){showToast("保存に失敗しました",false);}else{setIncidents(prev=>prev.map(x=>x.id===modal?data:x));showToast("更新しました");}
+    }
+    setSaving(false);setModal(null);
+  };
+
+  const del=async id=>{
+    await supabase.from('incidents').delete().eq('id',id);
+    setIncidents(prev=>prev.filter(x=>x.id!==id));
+    showToast("削除しました");
+  };
+
+  const S2={td:{padding:"8px 10px",borderBottom:"1px solid #e2e8f0",fontSize:12},th:{padding:"8px 10px",background:"#f8fafc",fontSize:12,fontWeight:600,borderBottom:"1px solid #e2e8f0",textAlign:"left"}};
+
+  return(
+    <div style={{padding:"20px 24px",maxWidth:1100,margin:"0 auto"}}>
+      {/* フィルター */}
+      <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
+        <input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13}}/>
+        <select value={filterCust} onChange={e=>setFilterCust(e.target.value)} style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,minWidth:160}}>
+          <option value="">全顧客</option>
+          {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <button onClick={openNew} style={{marginLeft:"auto",padding:"7px 18px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontSize:13,fontWeight:600,cursor:"pointer"}}>＋ 新規登録</button>
+      </div>
+
+      {/* 集計カード */}
+      <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
+        {[{label:"合計",val:totalAmt,color:"#1e293b"},{label:"紛失",val:lossAmt,color:"#dc2626"},{label:"修理",val:repairAmt,color:"#d97706"}].map(c=>(
+          <div key={c.label} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,padding:"12px 20px",minWidth:160}}>
+            <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>{c.label}（{filtered.filter(x=>c.label==="合計"||(c.label==="紛失"?x.type==="loss":x.type==="repair")).length}件）</div>
+            <div style={{fontSize:20,fontWeight:700,color:c.color}}>{fmt(c.val)}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 一覧テーブル */}
+      <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead>
+            <tr>
+              {["発生日","種別","顧客","品目","請求額","状態",""].map(h=><th key={h} style={S2.th}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length===0&&<tr><td colSpan={7} style={{...S2.td,textAlign:"center",color:"#94a3b8",padding:32}}>該当するレコードがありません</td></tr>}
+            {filtered.map(inc=>{
+              const cust=customers.find(c=>c.id===inc.customer_id);
+              const rec=records.find(r=>r.id===inc.related_record_id);
+              return(
+                <tr key={inc.id} style={{cursor:"pointer"}} onClick={()=>openEdit(inc)}>
+                  <td style={S2.td}>{fmtD(inc.occurred_date)}</td>
+                  <td style={S2.td}><span style={{background:inc.type==="loss"?"#fef2f2":"#fffbeb",color:typeColor(inc.type),padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:600}}>{typeLabel(inc.type)}</span></td>
+                  <td style={S2.td}>{cust?.name||"-"}</td>
+                  <td style={S2.td}>{inc.item_name}</td>
+                  <td style={{...S2.td,fontWeight:600}}>{fmt(inc.charge_amount)}</td>
+                  <td style={S2.td}><span style={{color:statusColor(inc.status),fontWeight:600,fontSize:11}}>{statusLabel(inc.status)}</span></td>
+                  <td style={{...S2.td,textAlign:"right"}}>
+                    <button onClick={e=>{e.stopPropagation();if(window.confirm("削除しますか？"))del(inc.id);}} style={{padding:"3px 10px",background:"none",border:"1px solid #fca5a5",color:"#dc2626",borderRadius:4,cursor:"pointer",fontSize:11}}>削除</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 登録/編集モーダル */}
+      {modal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setModal(null)}>
+          <div style={{background:"#fff",borderRadius:12,padding:28,width:520,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700}}>{modal==="new"?"新規登録":"編集"}</h3>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>種別 *</div>
+                <div style={{display:"flex",gap:8}}>
+                  {[{v:"loss",l:"紛失"},{v:"repair",l:"修理"}].map(o=>(
+                    <button key={o.v} onClick={()=>setForm(f=>({...f,type:o.v}))} style={{flex:1,padding:"8px",border:`2px solid ${form.type===o.v?"#2563eb":"#e2e8f0"}`,borderRadius:6,background:form.type===o.v?"#eff6ff":"#fff",color:form.type===o.v?"#2563eb":"#64748b",fontWeight:600,cursor:"pointer",fontSize:13}}>{o.l}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>顧客 *</div>
+                <select value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:e.target.value,relatedRecordId:""}))} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13}}>
+                  <option value="">選択してください</option>
+                  {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>元案件 *</div>
+                <select value={form.relatedRecordId} onChange={e=>setForm(f=>({...f,relatedRecordId:e.target.value}))} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13}} disabled={!form.customerId}>
+                  <option value="">選択してください</option>
+                  {custRecords.sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||"")).map(r=><option key={r.id} value={r.id}>{r.deliveryNo||r.id}　{r.startDate}〜{r.endDate||"継続中"}　{r.projectName||""}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>発生日 *</div>
+                <input type="date" value={form.occurredDate} onChange={e=>setForm(f=>({...f,occurredDate:e.target.value}))} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>品目 *</div>
+                <input type="text" value={form.itemName} onChange={e=>setForm(f=>({...f,itemName:e.target.value}))} placeholder="例：XLRケーブル 5m" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>請求額</div>
+                <input type="text" inputMode="numeric" value={form.chargeAmount} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setForm(f=>({...f,chargeAmount:v}));}} placeholder="0" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>請求月</div>
+                <input type="month" value={form.invoiceMonth} onChange={e=>setForm(f=>({...f,invoiceMonth:e.target.value}))} style={{padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13}}/>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>状態</div>
+                <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13}}>
+                  <option value="pending">未請求</option>
+                  <option value="invoiced">請求済</option>
+                  <option value="paid">回収済</option>
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>状況メモ</div>
+                <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} rows={3} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input type="checkbox" id="sep" checked={form.separateInvoice} onChange={e=>setForm(f=>({...f,separateInvoice:e.target.checked}))} style={{cursor:"pointer"}}/>
+                <label htmlFor="sep" style={{fontSize:13,cursor:"pointer"}}>別請求書で発行する</label>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:24,justifyContent:"flex-end"}}>
+              <button onClick={()=>setModal(null)} style={{padding:"8px 20px",border:"1px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer",fontSize:13}}>キャンセル</button>
+              <button onClick={save} disabled={saving} style={{padding:"8px 24px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontWeight:600,cursor:"pointer",fontSize:13}}>{saving?"保存中...":"保存"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
