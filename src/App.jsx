@@ -2648,9 +2648,9 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
                 const lineDays=ln.isFee?"手数料及び販売":r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.billingDays||r.days||0));
                 const prod=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
                 const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
-                const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:(ln.unitPrice||r.unitPrice);
+                const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:r.billingType==="monthly"?Math.round((ln.amount||0)/(ln.quantity||1)):(ln.unitPrice||r.unitPrice);
                 const useDaysForLine=ln.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
-                const lineAmt=(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLine):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLine);
+                const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLine):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLine);
                 return(
                   <tr key={`${r.id}-${li}`} className={li===0&&rLines.length>1?"rs":undefined}>
                     {ln.isFee?(
