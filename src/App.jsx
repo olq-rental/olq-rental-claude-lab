@@ -2550,7 +2550,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
   );
 }
 function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
-  const gIncidents=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(x.related_project_name||"")===(g.projectName||""));
+  const gIncidents=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
   const incidentTot=gIncidents.reduce((s,x)=>s+(x.charge_amount||0),0);
   const equipTot=g.items.reduce((s,r)=>s+(r.amount||0),0);
   const insurTot=g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
@@ -2797,7 +2797,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
   const fd = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
   const fm = n => `¥${Number(n||0).toLocaleString()}`;
   const fn = n => Number(n||0).toLocaleString();
-  const gIncidentsPdf=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(x.related_project_name||"")===(g.projectName||""));
+  const gIncidentsPdf=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
   const incidentTotPdf=gIncidentsPdf.reduce((s,x)=>s+(x.charge_amount||0),0);
   const equipTotG = g.items.reduce((s,r) => s+(r.amount||0), 0);
   const insurTotG = g.items.reduce((s,r) => s+(r.insuranceAmount||0), 0);
@@ -4141,7 +4141,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           const key=`${g.customerId}||${g.projectName}||${g.month}`;
                           const d=getInvData(key,g.month);
                           const locked=d.status==="locked";
-                          const gInc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(x.related_project_name||"")===(g.projectName||""));
+                          const gInc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
                           const incTot=gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
                           const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
                           const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
