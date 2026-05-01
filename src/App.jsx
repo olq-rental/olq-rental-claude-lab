@@ -2565,7 +2565,8 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
     return s+rLines.reduce((s2,ln)=>{
       const prod=(products||[]).find(p=>p.id===ln.productId);
       const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
-      const days=r.billingType==="monthly"?(r.months||1):hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.billingDays||r.days||1);
+      const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;
+      const days=r.billingType==="monthly"?(r.months||1):hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
       return s2+Math.round(listPrice*(ln.quantity||1)*days);
     },0);
   },0):equipBaseTot;
@@ -2819,7 +2820,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       return s+rLines.reduce((s2,ln)=>{
         const prod=(products||[]).find(p=>p.id===ln.productId);
         const lp=prod?prod.priceEx:(ln.unitPrice||0);
-        const days=r.billingType==="monthly"?(r.months||1):hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.billingDays||r.days||1);
+        const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;
+      const days=r.billingType==="monthly"?(r.months||1):hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
         return s2+Math.round(lp*(ln.quantity||1)*days);
       },0);
     },0) : tot;
