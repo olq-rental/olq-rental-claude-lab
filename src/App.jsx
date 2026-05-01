@@ -4114,7 +4114,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                       const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);
                       const base=g.items.reduce((t,r)=>t+(r.amount||0)+(r.insuranceAmount||0),0);
                       const adj=d.adjustments.reduce((t,a)=>t+(Number(a.amount)||0),0);
-                      const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month).reduce((t,x)=>t+(x.charge_amount||0),0);
+                      const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
                       return s+base+adj+inc;
                     },0);
                     const custTax=Math.round(custTotEx*0.1);
