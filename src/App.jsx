@@ -5852,8 +5852,9 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
   const [filterCustQ,setFilterCustQ]=useState("");
   const [modal,setModal]=useState(null);
   const [custQ,setCustQ]=useState("");
+  const [selectedProjectName,setSelectedProjectName]=useState("");
   const [recQ,setRecQ]=useState("");
-  const E={type:"loss",customerId:"",relatedRecordId:"",occurredDate:today(),itemName:"",chargeAmount:"",description:"",separateInvoice:false,status:"pending",invoiceMonth:filterMonth};
+  const E={type:"loss",customerId:"",relatedRecordId:"",relatedProjectName:"",occurredDate:today(),itemName:"",chargeAmount:"",description:"",separateInvoice:false,status:"pending",invoiceMonth:filterMonth};
   const [form,setForm]=useState(E);
   const [saving,setSaving]=useState(false);
 
@@ -5875,13 +5876,13 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
   const typeColor=t=>t==="loss"?"#dc2626":"#d97706";
 
   const openNew=()=>{setForm({...E,invoiceMonth:filterMonth});setModal("new");};
-  const openEdit=inc=>{setForm({type:inc.type,customerId:inc.customer_id,relatedRecordId:inc.related_record_id,occurredDate:inc.occurred_date,itemName:inc.item_name,chargeAmount:String(inc.charge_amount||""),description:inc.description||"",separateInvoice:!!inc.separate_invoice,status:inc.status||"pending",invoiceMonth:inc.invoice_month||""});setModal(inc.id);};
+  const openEdit=inc=>{setForm({type:inc.type,customerId:inc.customer_id,relatedRecordId:inc.related_record_id,relatedProjectName:inc.related_project_name||"",occurredDate:inc.occurred_date,itemName:inc.item_name,chargeAmount:String(inc.charge_amount||""),description:inc.description||"",separateInvoice:!!inc.separate_invoice,status:inc.status||"pending",invoiceMonth:inc.invoice_month||""});setCustQ(customers.find(c=>c.id===inc.customer_id)?.name||"");setSelectedProjectName(inc.related_project_name||"");setModal(inc.id);};
 
   const save=async()=>{
     if(!form.customerId){showToast("顧客を選択してください",false);return;}
     if(!form.itemName){showToast("品目を入力してください",false);return;}
     setSaving(true);
-    const payload={type:form.type,customer_id:form.customerId,related_record_id:form.relatedRecordId,occurred_date:form.occurredDate,item_name:form.itemName,charge_amount:Number(form.chargeAmount)||0,description:form.description,separate_invoice:form.separateInvoice,status:form.status,invoice_month:form.invoiceMonth};
+    const payload={type:form.type,customer_id:form.customerId,related_record_id:form.relatedRecordId,related_project_name:form.relatedProjectName,occurred_date:form.occurredDate,item_name:form.itemName,charge_amount:Number(form.chargeAmount)||0,description:form.description,separate_invoice:form.separateInvoice,status:form.status,invoice_month:form.invoiceMonth};
     if(modal==="new"){
       const{data,error}=await supabase.from('incidents').insert([payload]).select().single();
       if(error){showToast("保存に失敗しました",false);}else{setIncidents(prev=>[data,...prev]);showToast("登録しました");}
@@ -5983,20 +5984,46 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast}){
               </div>
               <div>
                 <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>元案件</div>
-                {!form.customerId?<div style={{fontSize:12,color:"#94a3b8",padding:"8px 0"}}>先に顧客を選択してください</div>:(
-                  <>
-                    <input type="text" value={recQ} onChange={e=>setRecQ(e.target.value)} placeholder="納品No・案件名で検索..." style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box",marginBottom:6}}/>
-                    <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:220,overflowY:"auto"}}>
-                      <div onClick={()=>setForm(f=>({...f,relatedRecordId:"none"}))} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9",background:form.relatedRecordId==="none"?"#eff6ff":"#fff",color:form.relatedRecordId==="none"?"#2563eb":"#64748b",fontWeight:form.relatedRecordId==="none"?600:400}} onMouseEnter={e=>e.currentTarget.style.background=form.relatedRecordId==="none"?"#eff6ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=form.relatedRecordId==="none"?"#eff6ff":"#fff"}>選択しないで作成</div>
-                      {custRecords.filter(r=>!recQ||(r.deliveryNo||"").includes(recQ)||(r.projectName||"").includes(recQ)).sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||"")).map(r=>(
-                        <div key={r.id} onClick={()=>setForm(f=>({...f,relatedRecordId:r.id}))} style={{padding:"8px 10px",cursor:"pointer",fontSize:12,borderBottom:"1px solid #f1f5f9",background:form.relatedRecordId===r.id?"#eff6ff":"#fff",color:form.relatedRecordId===r.id?"#2563eb":"#1e293b"}} onMouseEnter={e=>e.currentTarget.style.background=form.relatedRecordId===r.id?"#eff6ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=form.relatedRecordId===r.id?"#eff6ff":"#fff"}>
-                          <div style={{fontWeight:600}}>{r.deliveryNo||r.id}　{r.projectName||"（案件名なし）"}</div>
-                          <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{r.startDate}〜{r.endDate||"継続中"}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
+                {!form.customerId?<div style={{fontSize:12,color:"#94a3b8",padding:"8px 0"}}>先に顧客を選択してください</div>:(()=>{
+                  const projectNames=[...new Set(custRecords.map(r=>r.projectName||"（案件名なし）"))].sort();
+                  const slipsForProject=custRecords.filter(r=>(r.projectName||"（案件名なし）")===selectedProjectName).sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
+                  return(
+                    <>
+                      {/* Step2: 案件名選択 */}
+                      {!selectedProjectName?(
+                        <>
+                          <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>案件名を選択してください</div>
+                          <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:220,overflowY:"auto"}}>
+                            {projectNames.map(pn=>(
+                              <div key={pn} onClick={()=>{setSelectedProjectName(pn);setForm(f=>({...f,relatedProjectName:pn,relatedRecordId:""}));}} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9",background:"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                                {pn}
+                                <span style={{fontSize:11,color:"#94a3b8",marginLeft:8}}>{custRecords.filter(r=>(r.projectName||"（案件名なし）")===pn).length}件</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ):(
+                        <>
+                          {/* Step3: 伝票選択 */}
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                            <div style={{fontSize:12,fontWeight:600,color:"#2563eb"}}>{selectedProjectName}</div>
+                            <button onClick={()=>{setSelectedProjectName("");setForm(f=>({...f,relatedProjectName:"",relatedRecordId:""}));}} style={{fontSize:11,color:"#64748b",background:"none",border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 8px",cursor:"pointer"}}>変更</button>
+                          </div>
+                          <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:220,overflowY:"auto"}}>
+                            <div onClick={()=>setForm(f=>({...f,relatedRecordId:"none"}))} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9",background:form.relatedRecordId==="none"?"#eff6ff":"#fff",color:form.relatedRecordId==="none"?"#2563eb":"#64748b",fontWeight:form.relatedRecordId==="none"?600:400}} onMouseEnter={e=>e.currentTarget.style.background=form.relatedRecordId==="none"?"#eff6ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=form.relatedRecordId==="none"?"#eff6ff":"#fff"}>選択しないで作成</div>
+                            {slipsForProject.map(r=>(
+                              <div key={r.id} onClick={()=>setForm(f=>({...f,relatedRecordId:r.id}))} style={{padding:"8px 10px",cursor:"pointer",fontSize:12,borderBottom:"1px solid #f1f5f9",background:form.relatedRecordId===r.id?"#eff6ff":"#fff",color:form.relatedRecordId===r.id?"#2563eb":"#1e293b"}} onMouseEnter={e=>e.currentTarget.style.background=form.relatedRecordId===r.id?"#eff6ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=form.relatedRecordId===r.id?"#eff6ff":"#fff"}>
+                                <div style={{fontWeight:600}}>{r.deliveryNo||r.id}</div>
+                                <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{r.startDate}〜{r.endDate||"継続中"}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {form.relatedRecordId&&<div style={{fontSize:11,color:"#2563eb",marginTop:4}}>✓ {form.relatedRecordId==="none"?"選択なし（案件名のみ紐付け）":records.find(r=>r.id===form.relatedRecordId)?.deliveryNo||"選択済"}</div>}
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>発生日 *</div>
