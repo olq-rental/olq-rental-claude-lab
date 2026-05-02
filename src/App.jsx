@@ -2846,8 +2846,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
 
     const invCustomerName = g.customer?.invoiceName || g.customerName || "";
-    const ROWS_PER_PAGE_INV = 22;
-    const ROWS_PER_PAGE_INV_REST = 36;
+    const ROWS_PER_PAGE_INV = 30;
+    const ROWS_PER_PAGE_INV_REST = 44;
     const allInvRows = [];
     const invHeaderHtml = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
         <!-- 左: 顧客名・住所 -->
