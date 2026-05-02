@@ -2845,9 +2845,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     // 顧客住所
 
 
-    body += `<div style="padding:0px 38px;max-width:760px;margin:0 auto;font-size:10px">
-      <!-- grid 3列: 左=顧客, 中=タイトル, 右=管理情報 -->
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
+    const invCustomerName = g.customer?.invoiceName || g.customerName || "";
+    const ROWS_PER_PAGE_INV = 22;
+    const ROWS_PER_PAGE_INV_REST = 36;
+    const allInvRows = [];
+    const invHeaderHtml = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
         <!-- 左: 顧客名・住所 -->
         <div style="padding-bottom:6px">
           <div style="font-size:14px;font-weight:bold;margin-bottom:6px">${g.customer?.invoiceName || g.customerName}　御中</div>
@@ -2887,21 +2889,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <span style="font-size:10px">（税込）</span>
           </div>
         </div>
-      </div>
-      <!-- 明細テーブル -->
-      <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0">
-        <thead>
-          <tr style="background:#f0f0f0">
-            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;white-space:nowrap">ご利用日</th>
-            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:40px">日数</th>
-            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:70px">ご発注者</th>
-            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center">製品名</th>
-            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:36px">台数</th>
-            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:72px">単価</th>
-            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:80px">金額</th>
-          </tr>
-        </thead>
-        <tbody>`;
+      </div>`;
+    const invTableHeadHtml = `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0"><thead><tr style="background:#f0f0f0"><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;white-space:nowrap">ご利用日</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:40px">日数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:70px">ご発注者</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">製品名</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:36px">台数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:72px">単価</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:80px">金額</th></tr></thead>`;
     (()=>{const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;return(a.endDate||"").localeCompare(b.endDate||"");});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");_sorted.forEach((r,_ri) => {
       const orderer = r.ordererName ? r.ordererName+"　様" : "";
       const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
@@ -2923,7 +2912,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
           : (r.projectDetail || "");
         const nameExtra = projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
-        body += `<tr>
+        allInvRows.push(`<tr>
           ${ln.isFee
             ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
             : hasPerLineDate
@@ -2933,31 +2922,31 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
-        </tr>`;
+        </tr>`);
       });
       if((r.insuranceAmount||0)>0){
-        body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`;
+        allInvRows.push(`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`);
       }
-      if(_hasBoth&&_ri===_lastMIdx){body+=`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`;}});})();
+      if(_hasBoth&&_ri===_lastMIdx){allInvRows.push(`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`);}});})();
     gIncidentsPdf.forEach(inc=>{
-      body+=`<tr>
+      allInvRows.push(`<tr>
         <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理/破損"}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle"></td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.item_name}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.quantity||1}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.unit_price||inc.charge_amount)}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.charge_amount)}</td>
-      </tr>`;
+      </tr>`);
     });
     // 調整行
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
-      body += `<tr>
+      allInvRows.push(`<tr>
         <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">${a.label||"調整"}</td>
         <td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(Number(a.amount)||0)}</td>
-      </tr>`;
+      </tr>`);
     });
     if(showDiscountLine && totalDiscount > 0){
-      body += `<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">お値引き</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">▲${fn(totalDiscount)}</td></tr>`;
+      allInvRows.push(`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">お値引き</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">▲${fn(totalDiscount)}</td></tr>`);
     }
     const pcH = g.customer?.paymentCycle||"";
     const [myH,mmH] = (g.month||"").split("-").map(Number);
@@ -2972,8 +2961,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     }
     const dueHtml = dueStrH ? `<div>お支払い期日：<span style="color:#c00;font-weight:bold">${dueStrH}</span></div>` : "";
     const pcHtml = pcH&&pcH!=="スクエア"&&pcH!=="その他" ? `<div>お支払い条件：${pcH}</div>` : "";
-    body += `</tbody>
-        <tbody style="break-inside:avoid;page-break-inside:avoid">
+    const invFooterHtml = `<tbody style="break-inside:avoid;page-break-inside:avoid">
           <tr>
             <td colspan="4" rowspan="3" style="border:1px solid #aaa;padding:6px 10px;vertical-align:middle;font-size:8px;line-height:1.8;text-align:center">
               <div style="display:inline-flex;gap:24px;text-align:left">
@@ -3000,9 +2988,32 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <td colspan="2" style="border:1px solid #aaa;padding:3px 6px;text-align:center">税込合計</td>
             <td style="border:1px solid #aaa;padding:3px 6px;text-align:center">${fn(grandTot+taxAmt)}</td>
           </tr>
-        </tbody>
-      </table>
-    </div>`;
+        </tbody>`;
+    const invQrHtml = `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://rental.olq.co.jp&ecc=H&color=444444&qzone=2" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>`;
+    const invPages=[];
+    {let remaining=[...allInvRows];let isFirst=true;
+     while(remaining.length>0){const limit=isFirst?ROWS_PER_PAGE_INV:ROWS_PER_PAGE_INV_REST;invPages.push(remaining.slice(0,limit));remaining=remaining.slice(limit);isFirst=false;}
+     if(invPages.length===0)invPages.push([]);
+    }
+    const totalInvPages=invPages.length;
+    invPages.forEach((pageRows,pageIdx)=>{
+      const isFirstPage=pageIdx===0;
+      const isLastPage=pageIdx===totalInvPages-1;
+      const pageNo=pageIdx+1;
+      body+=`<div class="pb" style="padding:${isFirstPage?"20px":"28px"} 34px 28px 34px;position:relative;font-size:10px">`;
+      if(isFirstPage){
+        body+=invHeaderHtml;
+      } else {
+        body+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999"><div style="font-size:11px;font-weight:bold">${invCustomerName}　御中　ご請求書（続き）</div><div style="font-size:9px;color:#666">管理No：${invNo}　${pageNo}/${totalInvPages}ページ</div></div>`;
+      }
+      body+=invTableHeadHtml+`<tbody>`+pageRows.join("")+`</tbody>`;
+      if(isLastPage){
+        body+=invFooterHtml+`</table>`+invQrHtml;
+      } else {
+        body+=`</table><div style="text-align:right;font-size:9px;color:#666;margin-top:4px">${pageNo}/${totalInvPages}ページ</div>`;
+      }
+      body+=`</div>`;
+    });
   } else {
     // 納品書HTML（各案件 → 納品書1ページ + 控え1ページ）
     g.items.forEach((r, idx) => {
