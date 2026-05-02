@@ -4361,8 +4361,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
             </div>
           </div>
-          <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflow:"auto",border:"2px solid #bfdbfe",paddingBottom:8}}>
+          <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflow:"auto",border:"2px solid #bfdbfe"}}>
             <InvoicePreview type="invoice" g={{...livePreviewG,adjustments:[...(getInvData(preview.key).adjustments||[]),...(livePreviewG._autoAdjustments||[])]}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0} incidents={incidents}/>
+            <div style={{height:8}}/>
           </div>
         </div>
       )}
