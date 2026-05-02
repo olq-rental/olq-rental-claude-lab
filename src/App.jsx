@@ -2587,7 +2587,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
     const issueDateStr = rawDate ? (()=>{const d=new Date(rawDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;})() : "";
     const staff = g.customer?.staff || "井上 雄太";
     return(
-      <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",padding:"24px 28px 48px 28px",color:"#111",background:"#fff",fontSize:11}}>
+      <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",padding:"24px 28px",color:"#111",background:"#fff",fontSize:11}}>
         {/* タイトル */}
         <div style={{textAlign:"center",fontSize:16,fontWeight:"bold",marginBottom:14}}>ご請求書</div>
         {/* grid 2列×2行: 左=顧客/挨拶, 右=管理No〜MAIL */}
@@ -2786,7 +2786,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
 function downloadPrintHTML(type, g, products, extraDiscount, incidents) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
-  const css = `@page{margin:0mm 0mm 12mm 0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tfoot{display:table-row-group}
+  const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tfoot{display:table-row-group}tr{page-break-inside:avoid}
 body{font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;margin:0}
 table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:3px 5px;font-size:10px}
 th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{text-align:center}
@@ -3177,7 +3177,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const tax = Math.round(subTot * 0.1);
         const grandTot = subTot + tax;
 
-        body += `<div class="pb" style="padding:80px 34px 30px 34px">
+        body += `<div class="pb" style="padding:80px 34px 48px 34px">
           <div style="position:relative">
             <div class="title" style="letter-spacing:8px">領 収 証</div>
             <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>領収証No.　<strong>${receiptNo}</strong></div><div>登録番号　T5-0104-0109-2630</div><div>領収日　${receiptDateStr}</div></div>
@@ -4361,7 +4361,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
             </div>
           </div>
-          <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bfdbfe"}}>
+          <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflow:"auto",border:"2px solid #bfdbfe"}}>
             <InvoicePreview type="invoice" g={{...livePreviewG,adjustments:[...(getInvData(preview.key).adjustments||[]),...(livePreviewG._autoAdjustments||[])]}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0} incidents={incidents}/>
           </div>
         </div>
