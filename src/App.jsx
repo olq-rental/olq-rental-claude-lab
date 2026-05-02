@@ -2790,7 +2790,7 @@ function downloadPrintHTML(type, g, products, extraDiscount, incidents) {
 body{font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;margin:0}
 table{border-collapse:separate;border-spacing:0;width:100%;border-top:1px solid #aaa;border-left:1px solid #aaa}td,th{border-right:1px solid #aaa;border-bottom:1px solid #aaa;padding:3px 5px;font-size:10px}
 th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{text-align:center}
-.pb{page-break-after:always;width:794px;box-sizing:border-box;position:relative}.pb:last-child{page-break-after:auto}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
+.pb{page-break-after:always;width:794px;box-sizing:border-box;position:relative}.pb-last{width:794px;box-sizing:border-box;position:relative}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
@@ -3000,7 +3000,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const isFirstPage=pageIdx===0;
       const isLastPage=pageIdx===totalInvPages-1;
       const pageNo=pageIdx+1;
-      body+=`<div class="pb" style="padding:${isFirstPage?"0px":"20px"} 34px 28px 34px;position:relative;font-size:10px">`;
+      body+=`<div class="${isLastPage?"pb-last":"pb"}" style="padding:${isFirstPage?"0px":"20px"} 34px 28px 34px;position:relative;font-size:10px">`;
       if(isFirstPage){
         body+=invHeaderHtml;
       } else {
