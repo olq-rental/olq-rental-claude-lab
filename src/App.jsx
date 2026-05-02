@@ -2587,7 +2587,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
     const issueDateStr = rawDate ? (()=>{const d=new Date(rawDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;})() : "";
     const staff = g.customer?.staff || "井上 雄太";
     return(
-      <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",padding:"24px 28px",color:"#111",background:"#fff",fontSize:11}}>
+      <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",padding:"24px 28px 48px 28px",color:"#111",background:"#fff",fontSize:11}}>
         {/* タイトル */}
         <div style={{textAlign:"center",fontSize:16,fontWeight:"bold",marginBottom:14}}>ご請求書</div>
         {/* grid 2列×2行: 左=顧客/挨拶, 右=管理No〜MAIL */}
