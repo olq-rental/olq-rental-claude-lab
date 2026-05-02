@@ -2572,7 +2572,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
     },0);
   },0):equipBaseTot;
   const extraDiscountAmt=Number(extraDiscount)||0;
-  const totalDiscount=showDiscountLine?(listTot-baseTot+extraDiscountAmt):0;
+  const totalDiscount=showDiscountLine?(listTot-equipBaseTot+extraDiscountAmt):0;
   const tot=baseTot+adjSum-extraDiscountAmt;
   const tax=Math.round(tot*0.1);
   if(type==="invoice"){
@@ -2827,7 +2827,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         return s2+Math.round(lp*(ln.quantity||1)*days);
       },0);
     },0) : tot;
-    const totalDiscount = showDiscountLine ? (listTot - tot + extraDiscountAmt) : 0;
+    const totalDiscount = showDiscountLine ? (listTot - (equipTotG + insurTotG) + extraDiscountAmt) : 0;
     const grandTot = showDiscountLine ? (tot + adjSum - extraDiscountAmt) : (tot + adjSum);
     const taxAmt = Math.round(grandTot * 0.1);
     // 管理No：先頭案件のcreatedAtから生成
