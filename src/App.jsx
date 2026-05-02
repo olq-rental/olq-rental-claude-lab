@@ -2673,7 +2673,7 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
                     )}
                     <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>
                       {ln.equipmentName||r.equipmentName}
-                      {li===0&&r.projectDetail&&<span style={{color:"#555",fontSize:10}}>　[{r.projectDetail}]</span>}
+                      {r.projectDetail&&<span style={{color:"#555",fontSize:10}}>　[{r.projectDetail}]</span>}
                     </td>
                     <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{ln.quantity||1}</td>
                     <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(dispPrice)}</td>
@@ -2922,7 +2922,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const projInfo = !isSplit && r.projectName
           ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
           : (r.projectDetail || "");
-        const nameExtra = li===0 && projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
+        const nameExtra = projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
         body += `<tr>
           ${ln.isFee
             ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
