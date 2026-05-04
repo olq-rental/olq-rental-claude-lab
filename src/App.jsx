@@ -2923,7 +2923,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
-        </tr>`, weight: r.billingType==="monthly"?2:strWidth(equipName)>65?2:1});
+        </tr>`, weight: r.billingType==="monthly"?2:strWidth(equipName)>53?2:1});
       });
       if((r.insuranceAmount||0)>0){
         allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
