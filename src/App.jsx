@@ -2846,8 +2846,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
 
     const invCustomerName = g.customer?.invoiceName || g.customerName || "";
-    const PAGE_WEIGHT_1 = 42;
-    const PAGE_WEIGHT_REST = 50;
+    const PAGE_WEIGHT_REST = 43;
     const allInvRows = [];
     const strWidth = str => [...(str||"")].reduce((w,c) => w+(c.match(/[^\x01-\x7E]/)?2:1),0);
     const invHeaderHtml = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
@@ -2991,18 +2990,20 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           </tr>
         </tbody>`;
     const invQrHtml = `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://rental.olq.co.jp&ecc=H&color=444444&qzone=2" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>`;
-    const invPages=[];
-    {let remaining=[...allInvRows];let isFirst=true;
-     let currentPage=[];let currentWeight=0;
-     for(const row of remaining){
-       const limit=isFirst?PAGE_WEIGHT_1:PAGE_WEIGHT_REST;
-       if(currentWeight+row.weight>limit&&currentPage.length>0){
-         invPages.push(currentPage);currentPage=[row];currentWeight=row.weight;isFirst=false;
-       }else{currentPage.push(row);currentWeight+=row.weight;}
-     }
-     if(currentPage.length>0)invPages.push(currentPage);
-     if(invPages.length===0)invPages.push([]);
-    }
+    const buildInvPages=(w1,wRest)=>{
+      const pages=[];let current=[],currentW=0,isFirst=true;
+      for(const row of allInvRows){
+        const limit=isFirst?w1:wRest;
+        if(currentW+row.weight>limit&&current.length>0){
+          pages.push(current);current=[row];currentW=row.weight;isFirst=false;
+        }else{current.push(row);currentW+=row.weight;}
+      }
+      if(current.length>0)pages.push(current);
+      if(pages.length===0)pages.push([]);
+      return pages;
+    };
+    let invPages=buildInvPages(39,PAGE_WEIGHT_REST);
+    if(invPages.length===1)invPages=buildInvPages(37,PAGE_WEIGHT_REST);
     const totalInvPages=invPages.length;
     invPages.forEach((pageRows,pageIdx)=>{
       const isFirstPage=pageIdx===0;
