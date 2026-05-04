@@ -2846,9 +2846,10 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
 
     const invCustomerName = g.customer?.invoiceName || g.customerName || "";
-    const ROWS_PER_PAGE_INV = 29;
-    const ROWS_PER_PAGE_INV_REST = 42;
+    const PAGE_WEIGHT_1 = 42;
+    const PAGE_WEIGHT_REST = 50;
     const allInvRows = [];
+    const strWidth = str => [...(str||"")].reduce((w,c) => w+(c.match(/[^\x01-\x7E]/)?2:1),0);
     const invHeaderHtml = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
         <!-- 左: 顧客名・住所 -->
         <div style="padding-bottom:6px">
@@ -2912,7 +2913,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
           : (r.projectDetail || "");
         const nameExtra = projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
-        allInvRows.push(`<tr>
+        allInvRows.push({html:`<tr>
           ${ln.isFee
             ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
             : hasPerLineDate
@@ -2922,31 +2923,31 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
-        </tr>`);
+        </tr>`, weight: r.billingType==="monthly"?2:strWidth(equipName)>65?2:1});
       });
       if((r.insuranceAmount||0)>0){
-        allInvRows.push(`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`);
+        allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
       }
-      if(_hasBoth&&_ri===_lastMIdx){allInvRows.push(`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`);}});})();
+      if(_hasBoth&&_ri===_lastMIdx){allInvRows.push({html:`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`, weight:1});}});})();
     gIncidentsPdf.forEach(inc=>{
-      allInvRows.push(`<tr>
+      allInvRows.push({html:`<tr>
         <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理/破損"}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle"></td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.item_name}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.quantity||1}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.unit_price||inc.charge_amount)}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.charge_amount)}</td>
-      </tr>`);
+      </tr>`, weight:1});
     });
     // 調整行
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
-      allInvRows.push(`<tr>
+      allInvRows.push({html:`<tr>
         <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">${a.label||"調整"}</td>
         <td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(Number(a.amount)||0)}</td>
-      </tr>`);
+      </tr>`, weight:1});
     });
     if(showDiscountLine && totalDiscount > 0){
-      allInvRows.push(`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">お値引き</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">▲${fn(totalDiscount)}</td></tr>`);
+      allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">お値引き</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">▲${fn(totalDiscount)}</td></tr>`, weight:1});
     }
     const pcH = g.customer?.paymentCycle||"";
     const [myH,mmH] = (g.month||"").split("-").map(Number);
@@ -2992,7 +2993,14 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     const invQrHtml = `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://rental.olq.co.jp&ecc=H&color=444444&qzone=2" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>`;
     const invPages=[];
     {let remaining=[...allInvRows];let isFirst=true;
-     while(remaining.length>0){const limit=isFirst?ROWS_PER_PAGE_INV:ROWS_PER_PAGE_INV_REST;invPages.push(remaining.slice(0,limit));remaining=remaining.slice(limit);isFirst=false;}
+     let currentPage=[];let currentWeight=0;
+     for(const row of remaining){
+       const limit=isFirst?PAGE_WEIGHT_1:PAGE_WEIGHT_REST;
+       if(currentWeight+row.weight>limit&&currentPage.length>0){
+         invPages.push(currentPage);currentPage=[row];currentWeight=row.weight;isFirst=false;
+       }else{currentPage.push(row);currentWeight+=row.weight;}
+     }
+     if(currentPage.length>0)invPages.push(currentPage);
      if(invPages.length===0)invPages.push([]);
     }
     const totalInvPages=invPages.length;
@@ -3006,7 +3014,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       } else {
         body+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999"><div style="font-size:11px;font-weight:bold">${invCustomerName}　御中　ご請求書（続き）</div><div style="font-size:9px;color:#666">管理No：${invNo}　${pageNo}/${totalInvPages}ページ</div></div>`;
       }
-      body+=invTableHeadHtml+`<tbody>`+pageRows.join("")+`</tbody>`;
+      body+=invTableHeadHtml+`<tbody>`+pageRows.map(r=>r.html).join("")+`</tbody>`;
       if(isLastPage){
         body+=invFooterHtml+`</table>`+invQrHtml;
       } else {
