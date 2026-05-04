@@ -4323,7 +4323,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
                                             <input value={a.label} onChange={e=>updateAdj(key,a.id,{label:e.target.value})}
                                               placeholder="内容（例: 値引き）" style={{...S.inp,flex:1,fontSize:11,padding:"4px 8px"}} disabled={locked}/>
-                                            <input type="text" inputMode="numeric" value={a.amount} onChange={e=>{const raw=e.target.value.replace(/[^0-9\-]/g,"");if(raw==="-")return;updateAdj(key,a.id,{amount:raw===""?0:Number(raw)});}}
+                                            <input type="text" inputMode="numeric" value={a.amount} onChange={e=>{const v=e.target.value.replace(/[^0-9\-]/g,"");const raw=v.replace(/(?!^)-/g,"");if(raw==="-")return;const num=raw===""?0:Number(raw);if(!isNaN(num))updateAdj(key,a.id,{amount:num});}}
                                               style={{...S.inp,width:110,fontSize:11,padding:"4px 8px",textAlign:"right"}} disabled={locked}/>
                                             <span style={{fontSize:11,color:"#374151",minWidth:64,textAlign:"right"}}>{fmt(Number(a.amount)||0)}</span>
                                             {!locked&&<button onClick={()=>removeAdj(key,a.id)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={12} color="#ef4444"/></button>}
