@@ -2783,6 +2783,26 @@ function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
   );
 }
 
+function AdjAmountInput({value,onChange,disabled,style}){
+  const [str,setStr]=React.useState(value===0?"":String(value));
+  React.useEffect(()=>{setStr(value===0?"":String(value));},[value]);
+  return <input
+    type="text" inputMode="numeric"
+    value={str}
+    style={style}
+    disabled={disabled}
+    onChange={e=>{
+      const v=e.target.value.replace(/[^0-9\-]/g,"");
+      const raw=v.startsWith("-")?"-"+v.slice(1).replace(/-/g,""):v.replace(/-/g,"");
+      setStr(raw);
+      if(raw===""){onChange(0);return;}
+      if(raw==="-")return;
+      const num=Number(raw);
+      if(!isNaN(num))onChange(num);
+    }}
+  />;
+}
+
 // 印刷用HTML生成 & ダウンロード
 function downloadPrintHTML(type, g, products, extraDiscount, incidents) {
   if (!g || !g.items || !g.items.length) return;
@@ -4323,8 +4343,12 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
                                             <input value={a.label} onChange={e=>updateAdj(key,a.id,{label:e.target.value})}
                                               placeholder="内容（例: 値引き）" style={{...S.inp,flex:1,fontSize:11,padding:"4px 8px"}} disabled={locked}/>
-                                            <input type="text" inputMode="numeric" value={a.amount===0?"":a.amount} onChange={e=>{const v=e.target.value.replace(/[^0-9\-]/g,"");const raw=v.startsWith("-")?"-"+v.slice(1).replace(/-/g,""):v.replace(/-/g,"");if(raw==="-")return;const num=raw===""?0:Number(raw);if(!isNaN(num))updateAdj(key,a.id,{amount:num});}}
-                                              style={{...S.inp,width:110,fontSize:11,padding:"4px 8px",textAlign:"right"}} disabled={locked}/>
+                                            <AdjAmountInput
+                                              value={a.amount}
+                                              onChange={num=>updateAdj(key,a.id,{amount:num})}
+                                              disabled={locked}
+                                              style={{...S.inp,width:110,fontSize:11,padding:"4px 8px",textAlign:"right"}}
+                                            />
                                             <span style={{fontSize:11,color:"#374151",minWidth:64,textAlign:"right"}}>{fmt(Number(a.amount)||0)}</span>
                                             {!locked&&<button onClick={()=>removeAdj(key,a.id)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={12} color="#ef4444"/></button>}
                                           </div>
