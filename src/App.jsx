@@ -3761,6 +3761,19 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
     return s+base+adj+autoAdj+inc;
   },0);
+  // 各案件の税込を積み上げた正確な合計（顧客への請求総額）
+  const monthTotalInc = crossAdjustedFiltered.reduce((s,g)=>{
+    const key=`${g.customerId}||${g.projectName}||${g.month}`;
+    const d=getInvData(key,g.month);
+    const base=g.items.reduce((s2,r)=>s2+(r.amount||0)+(r.insuranceAmount||0),0);
+    const adj=d.adjustments.reduce((s2,a)=>s2+(Number(a.amount)||0),0);
+    const autoAdj=(g._autoAdjustments||[]).reduce((s2,a)=>s2+(Number(a.amount)||0),0);
+    const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
+    const gt=base+adj+autoAdj+inc;
+    return s+gt+Math.round(gt*0.1);
+  },0);
+  const simpleInc = monthTotal+Math.round(monthTotal*0.1);
+  const incDiff = monthTotalInc - simpleInc;
   const livePreviewG = preview ? (crossAdjustedFiltered.find(g=>`${g.customerId}||${g.projectName}||${g.month}`===preview.key)||preview.g) : null;
 
   return(
@@ -3937,8 +3950,10 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           <div style={{background:"#eff6ff",borderRadius:8,padding:"8px 16px",marginBottom:10,display:"flex",gap:20,fontSize:12,alignItems:"center"}}>
             <span style={{color:"#64748b"}}>{selMonth}　{filtered.length}件</span>
             <span><span style={{color:"#64748b"}}>税抜合計: </span><strong style={{color:"#16a34a",fontSize:15}}>{fmt(monthTotal)}</strong></span>
-            <span><span style={{color:"#64748b"}}>消費税: </span>{fmt(Math.round(monthTotal*0.1))}</span>
-            <span><strong style={{color:"#9333ea",fontSize:15}}>{fmt(monthTotal+Math.round(monthTotal*0.1))}</strong><span style={{color:"#64748b"}}>（税込）</span></span>
+            <span><strong style={{color:"#9333ea",fontSize:15}}>{fmt(monthTotalInc)}</strong><span style={{color:"#64748b"}}>（税込・請求総額）</span></span>
+            {incDiff===0
+              ? <span style={{fontSize:11,color:"#16a34a",fontWeight:700}}>✅ 端数整合</span>
+              : <span style={{fontSize:11,color:"#dc2626",fontWeight:700}}>⚠️ 端数差異 {incDiff>0?"+":""}{incDiff.toLocaleString()}円</span>}
             <button onClick={()=>setShowPwSetting(p=>!p)} style={{...S.btn("#f59e0b",true),fontSize:11}}>🔑 PW設定</button>
             <button onClick={()=>{
               // freee 取引インポートCSV出力
@@ -4164,6 +4179,14 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                       const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
                       return s+base+adj+inc;
                     },0);
+                    const custTotInc=cust.groups.reduce((s,g)=>{
+                      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);
+                      const base=g.items.reduce((t,r)=>t+(r.amount||0)+(r.insuranceAmount||0),0);
+                      const adj=d.adjustments.reduce((t,a)=>t+(Number(a.amount)||0),0);
+                      const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
+                      const gt=base+adj+inc;
+                      return s+gt+Math.round(gt*0.1);
+                    },0);
                     const custTax=Math.round(custTotEx*0.1);
                     return(
                       <React.Fragment key={cust.customerId}>
@@ -4173,7 +4196,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           <td colSpan={2} style={{padding:"8px 12px",fontWeight:700,fontSize:13}}>{cust.customerName}</td>
                           <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{cust.groups.length}</td>
                           <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(custTotEx)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(custTotEx+custTax)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(custTotInc)}</td>
                           <td colSpan={2} style={{padding:"8px 12px",textAlign:"center"}}>
                             {(()=>{
                               const total=cust.groups.length;
