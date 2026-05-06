@@ -2550,238 +2550,6 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
     </div>
   );
 }
-function InvoicePreview({type,g,forPrint,products,extraDiscount,incidents}){
-  const gIncidents=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
-  const incidentTot=gIncidents.reduce((s,x)=>s+(x.charge_amount||0),0);
-  const equipTot=g.items.reduce((s,r)=>s+(r.amount||0),0);
-  const insurTot=g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
-  const equipBaseTot=equipTot+insurTot;
-  const baseTot=equipBaseTot+incidentTot;
-  const adjustments=g.adjustments||[];
-  const adjSum=adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-  const showDiscountLine=!!g.customer?.showDiscountLine;
-  const listTot=showDiscountLine?g.items.reduce((s,r)=>{
-    if(r.billingType==="monthly") return s+(r.amount||0);
-    const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,unitPrice:r.unitPrice,quantity:r.quantity}];
-    const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
-    return s+rLines.reduce((s2,ln)=>{
-      const prod=(products||[]).find(p=>p.id===ln.productId);
-      const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
-      const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;
-      const days=hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
-      return s2+Math.round(listPrice*(ln.quantity||1)*days);
-    },0);
-  },0):equipBaseTot;
-  const extraDiscountAmt=Number(extraDiscount)||0;
-  const totalDiscount=showDiscountLine?(listTot-equipBaseTot+extraDiscountAmt):0;
-  const tot=baseTot+adjSum-extraDiscountAmt;
-  const tax=Math.round(tot*0.1);
-  if(type==="invoice"){
-    const firstRec = g.items[0];
-    const invNo = g.invNo || (g.month ? `${g.month}-???` : genDeliveryNo(firstRec,0));
-    const monthStr = g.month || "";
-    const rawDate = g.issueDate||(()=>{
-      const [y,m] = (monthStr).split("-").map(Number);
-      if(y&&m){ const ld=new Date(y,m,0); return `${y}-${String(m).padStart(2,"0")}-${String(ld.getDate()).padStart(2,"0")}`; }
-      return "";
-    })();
-    const issueDateStr = rawDate ? (()=>{const d=new Date(rawDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;})() : "";
-    const staff = g.customer?.staff || "井上 雄太";
-    return(
-      <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",padding:"24px 28px",color:"#111",background:"#fff",fontSize:11}}>
-        {/* タイトル */}
-        <div style={{textAlign:"center",fontSize:16,fontWeight:"bold",marginBottom:14}}>ご請求書</div>
-        {/* grid 2列×2行: 左=顧客/挨拶, 右=管理No〜MAIL */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr auto",alignItems:"stretch",gap:"8px 0",marginBottom:14}}>
-          {/* 左上: 顧客名・住所 */}
-          <div style={{gridColumn:1,gridRow:1,paddingBottom:6}}>
-            <div style={{fontSize:16,fontWeight:"bold",marginBottom:6}}>{g.customer?.invoiceName || g.customerName}　御中</div>
-            {g.projectName&&<div style={{fontSize:12,fontWeight:"bold",marginBottom:4}}>{ g.projectName}</div>}
-            {g.customer?.zipCode&&<div style={{marginBottom:1}}>〒{ g.customer.zipCode}</div>}
-            {g.customer?.address&&(g.customer.address).split("\n").map((line,i)=><div key={{i}} style={{marginBottom:1}}>{line}</div>)}
-            {g.customer?.contact&&<div style={{marginBottom:1}}>{g.customer.contact}　様</div>}
-          </div>
-          {/* 右列（2行分）: 管理No〜MAIL */}
-          <div style={{gridColumn:2,gridRow:"1/3",fontSize:10,lineHeight:1.9,whiteSpace:"nowrap",paddingLeft:16,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
-            <div>
-              <div style={{display:"flex",gap:4}}><span style={{minWidth:52}}>管理No</span><strong>{invNo}</strong></div>
-              <div style={{display:"flex",gap:4}}><span style={{minWidth:52}}>日付</span><span>{issueDateStr}</span></div>
-              <div style={{marginBottom:8}}>登録番号 T5-0104-0109-2630</div>
-              <div style={{fontWeight:"bold",fontSize:11.5,marginBottom:2}}>オルク株式会社</div>
-              <div style={{position:"relative"}}>
-                <div>〒105-0004</div>
-                <div>東京都港区新橋6-10-2</div>
-                <div>第二新洋ビル 1F</div>
-                <img src="data:image/png;base64,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" style={{position:"absolute",top:-4,right:-4,width:62,height:62,mixBlendMode:"multiply",background:"#fff"}}/>
-              </div>
-            </div>
-            <div style={{height:"1em"}}/>
-            <div>担当：{staff}</div>
-            <div>TEL：03-5777-1100</div>
-            <div>MAIL：invoice@olq.co.jp</div>
-          </div>
-          {/* 左下: 挨拶文・ご請求金額 */}
-          <div style={{gridColumn:1,gridRow:2,paddingTop:0,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-            <div style={{fontSize:10.5,marginBottom:8}}>毎度ありがとうございます。下記の通りご請求申し上げます。</div>
-            <div style={{display:"flex",alignItems:"baseline",gap:12}}>
-              <span style={{fontSize:13,fontWeight:"bold"}}>ご請求金額</span>
-              <span style={{fontSize:22,fontWeight:"bold",borderBottom:"2px solid #111",padding:"0 10px"}}>{ fmt(tot+tax)}</span>
-              <span style={{fontSize:11}}>（税込）</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 明細テーブル */}
-        <table style={{width:"100%",borderCollapse:"separate",borderSpacing:0,fontSize:10.5}}>
-          <thead>
-            <tr style={{background:"#f0f0f0"}}>
-              {["ご利用日","日数","ご発注者","製品名","台数","単価","金額"].map(h=>(
-                <th key={h} style={{...S.td,textAlign:"center",fontWeight:"bold",padding:"5px 6px",whiteSpace:"nowrap",background:"#f0f0f0"}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(()=>{const _s=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1,bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;return(a.endDate||"").localeCompare(b.endDate||"");});const _lm=_s.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hb=_lm>=0&&_s.some(r=>r.billingType!=="monthly");return _s.flatMap((r,_ri)=>{
-              const rLines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
-              const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
-              const rows=rLines.map((ln,li)=>{
-                const lineEndDate=ln.returnDate||r.endDate;
-                const lineDays=ln.isFee?"手数料及び販売":r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.billingDays||r.days||0));
-                const prod=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
-                const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
-                const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:r.billingType==="monthly"?Math.round((ln.amount||0)/(ln.quantity||1)):(ln.unitPrice||r.unitPrice);
-                const useDaysForLine=ln.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
-                const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLine):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLine);
-                return(
-                  <tr key={`${r.id}-${li}`} className={li===0&&rLines.length>1?"rs":undefined}>
-                    {ln.isFee?(
-                      <>
-                        <td colSpan={2} style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}}>手数料及び販売</td>
-                        <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"middle"}}>{r.ordererName ? r.ordererName+"　様" : ""}</td>
-                      </>
-                    ):hasPerLineDate?(
-                      <>
-                        <td style={{...S.td,padding:"4px 6px",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"middle"}}>{fmtD(r.startDate)}〜{fmtD(lineEndDate)}{r.billingType==="monthly"&&<div style={{fontSize:10,marginTop:2}}>[月極]</div>}</td>
-                        <td style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}}>{lineDays}</td>
-                        <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"middle"}}>{r.ordererName ? r.ordererName+"　様" : ""}</td>
-                      </>
-                    ):(
-                      <>
-                        <td style={{...S.td,padding:"4px 6px",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"middle"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.billingType==="monthly"&&<div style={{fontSize:10,marginTop:2}}>[月極]</div>}{r.ecOrderNo&&<div style={{fontSize:10,marginTop:2}}>EC:{r.ecOrderNo}</div>}</td>
-                        <td style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}}>{lineDays}</td>
-                        <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"middle"}}>{r.ordererName ? r.ordererName+"　様" : ""}</td>
-                      </>
-                    )}
-                    <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>
-                      {ln.equipmentName||r.equipmentName}
-                      {r.projectDetail&&<span style={{color:"#555",fontSize:10}}>　[{r.projectDetail}]</span>}
-                    </td>
-                    <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{ln.quantity||1}</td>
-                    <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(dispPrice)}</td>
-                    <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontWeight:"bold"}}>{fmt(lineAmt)}</td>
-                  </tr>
-                );
-              });
-              if((r.insuranceAmount||0)>0){
-                rows.push(<tr key={`${r.id}-ins`}><td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right"}}>補償料</td><td style={{...S.td,padding:"4px 6px",textAlign:"right",fontWeight:600}}>{fmt(r.insuranceAmount)}</td></tr>);
-              }
-              if(_hb&&_ri===_lm){rows.push(<tr key={`div-${_ri}`}><td colSpan={7} style={{padding:"5px 0",border:"none",background:"#f8fafc"}}></td></tr>);}
-              return rows;
-            });})()}
-            {gIncidents.map(inc=>(
-              <tr key={`inc-${inc.id}`}>
-                <td colSpan={2} style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"middle"}}>{inc.type==="loss"?"紛失":"修理/破損"}</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"middle"}}></td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{inc.item_name}</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{inc.quantity||1}</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(inc.unit_price||inc.charge_amount)}</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontWeight:"bold"}}>{fmt(inc.charge_amount)}</td>
-              </tr>
-            ))}
-            {showDiscountLine&&totalDiscount>0&&(
-              <tr>
-                <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right"}}>お値引き</td>
-                <td style={{...S.td,padding:"4px 6px",textAlign:"right",fontWeight:600}}>▲{fmt(totalDiscount)}</td>
-              </tr>
-            )}
-          </tbody>
-          <tfoot>
-            {(()=>{
-              const pc=g.customer?.paymentCycle||"";
-              const [my,mm]=(g.month||"").split("-").map(Number);
-              let dueStr="";
-              if(my&&mm&&pc&&pc!=="スクエア"&&pc!=="その他"){
-                let addM=0,dayVal=0;
-                if(pc.includes("翌月"))addM=1;else if(pc.includes("翌々月"))addM=2;
-                const m2=(mm-1+addM)%12+1,y2=my+Math.floor((mm-1+addM)/12);
-                if(pc.endsWith("末日")){dayVal=new Date(y2,m2,0).getDate();}
-                else{const n=parseInt((pc.match(/[0-9]+日/)||[])[0])||0;dayVal=n;}
-                if(dayVal)dueStr=y2+"年"+m2+"月"+dayVal+"日";
-              }
-              return(<>
-                <tr>
-                  <td colSpan={4} rowSpan={3+adjustments.filter(a=>a.label||a.amount).length} style={{...S.td,padding:"10px 12px",verticalAlign:"middle",fontSize:10.5,lineHeight:1.9,textAlign:"center"}}>
-                    <div style={{display:"inline-flex",gap:24,textAlign:"left"}}>
-                      <div>
-                        <div style={{fontWeight:"bold",marginBottom:2}}>お振込先</div>
-                        <div>みずほ銀行　新橋中央支店　店番号　051</div>
-                        <div>普通口座　2333044</div>
-                        <div>口座名義　オルク株式会社</div>
-                      </div>
-                      <div style={{paddingTop:"2em"}}>
-                        {pc&&pc!=="スクエア"&&pc!=="その他"&&<div>お支払い条件：{pc}</div>}
-                        {dueStr&&<div>お支払い期日：<span style={{color:"#c00",fontWeight:"bold"}}>{dueStr}</span></div>}
-                        <div>※振込み手数料はご負担願います。</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td colSpan={2} style={{...S.td,padding:"5px 8px",textAlign:"center",fontWeight:"bold",background:"#f0f0f0"}}>小計[10%対象]</td>
-                  <td style={{...S.td,padding:"5px 8px",textAlign:"right",fontWeight:"bold",background:"#f0f0f0"}}>{fmt(baseTot)}</td>
-                </tr>
-                {adjustments.filter(a=>a.label||a.amount).map(a=>(
-                  <tr key={a.id} style={{background:"#fefce8"}}>
-                    <td colSpan={2} style={{...S.td,padding:"4px 8px",textAlign:"right",color:"#92400e"}}>{a.label||"調整"}</td>
-                    <td style={{...S.td,padding:"4px 8px",textAlign:"right",fontWeight:"bold",color:Number(a.amount)<0?"#dc2626":"#16a34a"}}>{fmt(Number(a.amount)||0)}</td>
-                  </tr>
-                ))}
-                <tr>
-                  <td colSpan={2} style={{...S.td,padding:"5px 8px",textAlign:"right"}}>消費税[10%]</td>
-                  <td style={{...S.td,padding:"5px 8px",textAlign:"right"}}>{fmt(tax)}</td>
-                </tr>
-                <tr style={{background:"#f0f0f0"}}>
-                  <td colSpan={2} style={{...S.td,padding:"6px 8px",textAlign:"center",fontWeight:"bold",fontSize:12}}>税込合計</td>
-                  <td style={{...S.td,padding:"6px 8px",textAlign:"right",fontWeight:"bold",fontSize:12}}>{fmt(tot+tax)}</td>
-                </tr>
-              </>);
-            })()}
-          </tfoot>
-        </table>
-      </div>
-    );
-  }
-  // 納品書 / 納品書・領収証: 各1ページずつ
-  return(
-    <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",color:"#111",background:"#fff",minHeight:"100%"}}>
-      {g.items.map((r,idx)=>{
-        const no = genDeliveryNo(r, idx);
-        const isLast = idx===g.items.length-1;
-        return(
-          <div key={r.id}>
-            <div style={{borderBottom:"3px solid #2563eb",marginBottom:2}}>
-              <DeliveryCopy r={r} g={g} no={no} forPrint={forPrint}/>
-            </div>
-            <div style={{borderBottom:(type==="delivery-receipt"&&r.issueReceipt)||!isLast?"4px dashed #cbd5e1":"none"}}>
-              <DeliveryCustomer r={r} g={g} no={no} forPrint={forPrint} showPrice={!!g.customer?.showDeliveryPrice}/>
-            </div>
-            {type==="delivery-receipt"&&r.issueReceipt&&(
-              <ReceiptPage r={r} g={g} no={no} isLast={isLast} forPrint={forPrint}/>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function AdjAmountInput({value,onChange,disabled,style}){
   const [str,setStr]=React.useState(value===0?"":String(value));
@@ -3312,7 +3080,6 @@ ${type==="invoice"?``:""}
 // =========================================================
 function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, autoOpenRecord, onClearAutoOpen}){
   const [fil, setFil] = useState({q:"", cid:"", month:new Date().toISOString().slice(0,7)});
-  const [preview, setPreview] = useState(null); // {type, g}
   const [extModal, setExtModal] = useState(null);
   const [expandedDates, setExpandedDates] = useState({});
   const prevDay = dateStr => {
@@ -3359,7 +3126,6 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
     return matchQ&&matchGQ&&(!fil.cid||r.customerId===fil.cid)&&(!fil.month||r.startDate?.startsWith(fil.month));
   });
 
-  const previewG = preview ? makeGroup(preview.r) : null;
 
   return(
     <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
@@ -3412,10 +3178,9 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                             <tbody>
                               {recs.map((r,i)=>{
                                 const c=customers.find(x=>x.id===r.customerId);
-                                const isActive=preview?.r?.id===r.id;
                                 const g=makeGroup(r);
                                 return(
-                                  <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:isActive?"#f0fdf4":i%2?"#fcfcfc":"#fff",cursor:"pointer"}}
+                                  <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:i%2?"#fcfcfc":"#fff",cursor:"pointer"}}
                                     onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)}>
                                     <td style={{padding:"8px 12px",fontSize:11,color:"#94a3b8",whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
                                     <td style={{padding:"8px 12px",fontWeight:600}}>{c?.name||"―"}</td>
@@ -3552,7 +3317,6 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
       setSelMonth(months.includes(currentMonth)?currentMonth:months[0]);
     }
   },[months.length]);
-  const [preview, setPreview] = useState(null);
   const [expanded, setExpanded] = useState({}); // {key: bool}
   const [statusFilter, setStatusFilter] = useState("all"); // "all"|"open"|"locked"
   const [showPwSetting, setShowPwSetting] = useState(false);
@@ -3774,7 +3538,6 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   },0);
   const simpleInc = monthTotal+Math.round(monthTotal*0.1);
   const incDiff = monthTotalInc - simpleInc;
-  const livePreviewG = preview ? (crossAdjustedFiltered.find(g=>`${g.customerId}||${g.projectName}||${g.month}`===preview.key)||preview.g) : null;
 
   return(
     <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
@@ -3785,7 +3548,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           <h2 style={{fontSize:16,fontWeight:700,margin:0}}>請求書</h2>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             {/* 月選択 */}
-            <select value={selMonth} onChange={e=>{setSelMonth(e.target.value);setExpanded({});setPreview(null);}}
+            <select value={selMonth} onChange={e=>{setSelMonth(e.target.value);setExpanded({});}}
               style={{...S.inp,width:125,fontWeight:700,fontSize:13}}>
               <option value="">全期間</option>
               {months.map(m=><option key={m} value={m}>{m}</option>)}
@@ -4219,16 +3982,15 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           const grandTot=baseTot+adjSum;
                           const tax=Math.round(grandTot*0.1);
                           const isOpen=!!expanded[key];
-                          const isActive=preview?.key===key;
                           return(
                             <React.Fragment key={key}>
                               <tr onClick={()=>toggleExpand(key)} style={{
                                 borderBottom:isOpen?"none":"1px solid #f1f5f9",
-                                background:locked?"#f0fdf4":isActive?"#eff6ff":"#f8fafc",
+                                background:locked?"#f0fdf4":"#f8fafc",
                                 cursor:"pointer",transition:"background .15s"
                               }}
                                 onMouseEnter={e=>e.currentTarget.style.background=locked?"#dcfce7":"#e8f4ff"}
-                                onMouseLeave={e=>e.currentTarget.style.background=locked?"#f0fdf4":isActive?"#eff6ff":"#f8fafc"}
+                                onMouseLeave={e=>e.currentTarget.style.background=locked?"#f0fdf4":"#f8fafc"}
                               >
                                 <td style={{padding:"8px 12px",textAlign:"center",color:"#94a3b8",fontSize:11,paddingLeft:28}}>{isOpen?"▼":"▶"}</td>
                                 <td style={{padding:"8px 12px",paddingLeft:28,color:"#64748b",fontSize:11}}>
@@ -4402,40 +4164,6 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
         </div>
       </div>
 
-      {/* プレビュー */}
-      {preview&&(
-        <div style={{width:480,flexShrink:0,position:"sticky",top:70}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700,color:"#475569",display:"flex",alignItems:"center",gap:6}}>
-              <Ico d={I.print} size={14} color="#1d4ed8"/>請求書 プレビュー
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              {livePreviewG?.customer?.showDiscountLine&&(
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
-                  <span style={{color:"#92400e",fontWeight:600}}>追加値引き（円）</span>
-                  <input type="number" min={0} value={getInvData(preview.key)?.extraDiscount||""} placeholder="0"
-                    onChange={e=>updateInvData(preview.key,{extraDiscount:Number(e.target.value)||0})}
-                    style={{width:90,padding:"3px 6px",border:"1px solid #e2e8f0",borderRadius:5,fontSize:11}}/>
-                </div>
-              )}
-              <button onClick={async()=>{
-  const cur=getInvData(preview.key,preview.g.month);
-  let baseNo=cur.invNo, count;
-  if(!baseNo){baseNo=await nextInvoiceNo(preview.g.month);count=1;}
-  else{count=(cur.printCount||1)+1;}
-  await updateInvData(preview.key,{invNo:baseNo,printCount:count});
-  const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-  downloadPrintHTML("invoice",{...livePreviewG,adjustments:[...(cur.adjustments||[]),...(livePreviewG._autoAdjustments||[])],invNo,issueDate:cur.issueDate||""},products,getInvData(preview.key)?.extraDiscount||0,incidents);
-}} style={{...S.btn("#1d4ed8",true),fontSize:11}}>🖨 PDF</button>
-              <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
-            </div>
-          </div>
-          <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflow:"auto",border:"2px solid #bfdbfe"}}>
-            <InvoicePreview type="invoice" g={{...livePreviewG,adjustments:[...(getInvData(preview.key).adjustments||[]),...(livePreviewG._autoAdjustments||[])]}} products={products} extraDiscount={getInvData(preview.key)?.extraDiscount||0} incidents={incidents}/>
-            <div style={{height:8}}/>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
