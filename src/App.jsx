@@ -5507,6 +5507,11 @@ function SnapshotScreen({onDone, showToast, setCustomers, setRecords, setInvoice
   const doRestore = async(snap) => {
     setRestoring(true);
     try {
+      if(snap.olqP7?.length){
+        const rows=snap.olqP7.map(p=>({id:String(p.id),data:p,updated_at:new Date().toISOString()}));
+        await supabase.from('products').upsert(rows,{onConflict:'id'});
+        setProducts(snap.olqP7);
+      }
       if(snap.olqC7?.length){
         const rows=snap.olqC7.map(c=>({id:String(c.id),data:c,updated_at:new Date().toISOString()}));
         await supabase.from('customers').upsert(rows,{onConflict:'id'});
@@ -5547,7 +5552,7 @@ function SnapshotScreen({onDone, showToast, setCustomers, setRecords, setInvoice
               <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderRadius:8,background:i%2?'#f8fafc':'#fff',border:'1px solid #f1f5f9',marginBottom:6}}>
                 <div>
                   <span style={{fontWeight:600,fontSize:13}}>{snap.at}</span>
-                  <span style={{fontSize:11,color:'#94a3b8',marginLeft:12}}>顧客{snap.olqC7?.length||0}件 / 案件{snap.olqR7?.length||0}件</span>
+                  <span style={{fontSize:11,color:'#94a3b8',marginLeft:12}}>製品{snap.olqP7?.length||0}件 / 顧客{snap.olqC7?.length||0}件 / 案件{snap.olqR7?.length||0}件 / 請求{snap.olqInv7?Object.keys(snap.olqInv7).length:0}件</span>
                 </div>
                 <button onClick={()=>setConfirmSnap(snap)} disabled={restoring}
                   style={{background:'#2563eb',color:'#fff',border:'none',borderRadius:6,padding:'5px 14px',cursor:restoring?'not-allowed':'pointer',fontSize:12,fontWeight:700,opacity:restoring?0.5:1}}>
@@ -5563,7 +5568,10 @@ function SnapshotScreen({onDone, showToast, setCustomers, setRecords, setInvoice
           <div style={{background:'#fff',borderRadius:12,padding:28,width:380,boxShadow:'0 8px 32px rgba(0,0,0,0.25)'}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:14,fontWeight:700,marginBottom:8,color:'#1e293b'}}>⚠️ 復元の確認</div>
             <div style={{fontSize:13,color:'#374151',marginBottom:8}}><strong>{confirmSnap.at}</strong> の状態に復元します。</div>
-            <div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',borderRadius:6,padding:'8px 12px',marginBottom:20}}>現在のデータは上書きされます。この操作は取り消せません。</div>
+            <div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',borderRadius:6,padding:'8px 12px',marginBottom:8}}>現在のデータは上書きされます。この操作は取り消せません。</div>
+            <div style={{marginTop:8,marginBottom:20,padding:"8px 12px",background:"#fef9c3",borderRadius:6,fontSize:11,color:"#92400e"}}>
+              ⚠️ スナップショット以降に追加されたデータは残ります。完全に元に戻したい場合は復元後に手動で確認してください。
+            </div>
             <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
               <button onClick={()=>setConfirmSnap(null)} style={{background:'none',border:'1.5px solid #64748b',color:'#64748b',borderRadius:6,padding:'6px 18px',cursor:'pointer'}}>キャンセル</button>
               <button onClick={()=>doRestore(confirmSnap)} disabled={restoring}
