@@ -3750,7 +3750,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                 return "";
               };
               const bom = "\uFEFF";
-              const header = bom+"発生日,金額,取引先,案件名,支払情報,摘要";
+              const csvCell = v => `"${String(v??'').replace(/"/g,'""')}"`;
+              const header = bom+[csvCell("発生日"),csvCell("金額"),csvCell("取引先"),csvCell("案件名"),csvCell("支払情報"),csvCell("摘要")].join(",");
               const transferRows = [];
               const receiptRows = [];
               crossAdjustedFiltered.forEach(g=>{
@@ -3759,19 +3760,18 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                 const key=`${g.customerId}||${g.projectName}||${g.month}`;
                 const manualAdj=getInvData(key,g.month).adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
                 const grandBase = base + autoAdj + manualAdj;
-                const tax = Math.round(grandBase*0.1);
-                const total = grandBase + tax;
+                const total = grandBase + Math.round(grandBase*0.1);
                 const projectName = g.projectName || "";
                 if (g._isReceiptGroup) {
                   const ri = g.items.find(r=>r.issueReceipt&&r.receiptDate);
                   const rd = ri ? new Date(ri.receiptDate+"T00:00:00") : null;
                   const pm = ri?.paymentMethod==="cash"?"現金":ri?.paymentMethod==="square"?"スクエア クレジット":"ECクレジット";
                   const paymentInfo = rd ? `${rd.getFullYear()}年${rd.getMonth()+1}月${rd.getDate()}日 ${pm}領収済` : "";
-                  receiptRows.push([dateStr, total, g.customerName, projectName, paymentInfo, pm].join(","));
+                  receiptRows.push([csvCell(dateStr),csvCell(total),csvCell(g.customerName),csvCell(projectName),csvCell(paymentInfo),csvCell(pm)].join(","));
                 } else {
                   const cycle = g.customer?.paymentCycle || customers.find(c=>c.id===g.customerId)?.paymentCycle || "";
                   const paymentInfo = parsePaymentDue(cycle, selMonth);
-                  transferRows.push([dateStr, total, g.customerName, projectName, paymentInfo, cycle].join(","));
+                  transferRows.push([csvCell(dateStr),csvCell(total),csvCell(g.customerName),csvCell(projectName),csvCell(paymentInfo),csvCell(cycle)].join(","));
                 }
               });
               const allRows = [header, ...transferRows];
