@@ -3759,7 +3759,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                 const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
                 const key=`${g.customerId}||${g.projectName}||${g.month}`;
                 const manualAdj=getInvData(key,g.month).adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-                const grandBase = base + autoAdj + manualAdj;
+                const incTotCsv=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
+                const grandBase = base + autoAdj + manualAdj + incTotCsv;
                 const total = grandBase + Math.round(grandBase*0.1);
                 const projectName = g.projectName || "";
                 if (g._isReceiptGroup) {
@@ -3978,8 +3979,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           const gInc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
                           const incTot=gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
                           const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
+                          const autoAdjTot=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
                           const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-                          const grandTot=baseTot+adjSum;
+                          const grandTot=baseTot+autoAdjTot+adjSum;
                           const tax=Math.round(grandTot*0.1);
                           const isOpen=!!expanded[key];
                           return(
