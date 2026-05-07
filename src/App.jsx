@@ -1264,7 +1264,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
         const p=products.find(x=>x.id===patch.productId);
         const c=customers.find(x=>x.id===f.customerId);
         updated.unitPrice=String(resolvePrice(p,c));
-        updated.equipmentName=p?.name||"";
+        updated.equipmentName=p?.fullName||"";
         updated.noBillingDiscount=!!p?.noBillingDiscount;
       }
       // expandRows切替 or quantity変更時にsubItemsを同期
@@ -1339,7 +1339,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
       const p=products.find(x=>x.id===ln.productId);
       const noDisc=p?.noBillingDiscount||ln.noBillingDiscount;
       return{...ln,unitPrice:Number(ln.unitPrice),quantity:Number(ln.quantity)||1,
-        equipmentName:ln.isManual?ln.equipmentName:(p?.name||ln.equipmentName||""),
+        equipmentName:ln.isManual?ln.equipmentName:(p?.fullName||ln.equipmentName||""),
         noBillingDiscount:ln.isManual?!!ln.noBillingDiscount:!!noDisc,
         isFee:!!ln.isFee,isManual:!!ln.isManual};
     });
