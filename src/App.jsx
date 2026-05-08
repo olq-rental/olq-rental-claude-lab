@@ -895,6 +895,7 @@ export default function App() {
   const [autoOpenDelivery, setAutoOpenDelivery] = useState(null);
   const [toast,     setToast]     = useState(null);
   const [globalQ,    setGlobalQ]    = useState("");
+  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -1163,6 +1164,39 @@ export default function App() {
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
         {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
       </div>
+
+      {/* ＋ナレッジ 浮遊ボタン */}
+      {session && (
+        <>
+          <button
+            onClick={()=>setShowKnowledgeModal(true)}
+            style={{
+              position:"fixed",bottom:24,right:24,zIndex:9000,
+              background:"#0f172a",color:"#fff",border:"none",
+              borderRadius:"50%",width:52,height:52,
+              fontSize:22,cursor:"pointer",
+              boxShadow:"0 4px 16px rgba(0,0,0,0.25)",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontWeight:700
+            }}
+            title="ナレッジを追加"
+          >＋</button>
+
+          {showKnowledgeModal && (
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9001,display:"flex",alignItems:"center",justifyContent:"center"}}
+              onClick={e=>{if(e.target===e.currentTarget)setShowKnowledgeModal(false);}}>
+              <div style={{background:"#fff",borderRadius:12,padding:24,width:"90%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <span style={{fontWeight:700,fontSize:16}}>📚 ナレッジを追加</span>
+                  <button onClick={()=>setShowKnowledgeModal(false)}
+                    style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b"}}>×</button>
+                </div>
+                <div style={{color:"#94a3b8",fontSize:13}}>（テンプレート選択UIをここに実装予定）</div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
