@@ -519,6 +519,21 @@ const PRESET_CUSTOMERS = [
 const K = { p:"olqP7", c:"olqC7", r:"olqR7", sync:"olqSync7", inv:"olqInv7", pw:"olqPw7", dno:"olqDNo7", ino:"olqINo7" };
 const calcDays = (s,e) => (!s||!e) ? 0 : Math.max(0, Math.floor((new Date(e)-new Date(s))/86400000)+1);
 
+const KNOWLEDGE_TEMPLATES = [
+  {id:"time",    icon:"⏱", label:"何時間使えますか？",    multiProduct:false},
+  {id:"combo",   icon:"🔗", label:"組み合わせは？",        multiProduct:true},
+  {id:"caution", icon:"⚠️", label:"注意点は？",            multiProduct:false},
+  {id:"tips",    icon:"💡", label:"使いこなしのコツ",      multiProduct:false},
+  {id:"flow",    icon:"🏢", label:"レンタルフローについて",multiProduct:false},
+  {id:"free",    icon:"✏️", label:"自由入力",              multiProduct:false},
+];
+
+const SCENARIO_TAGS = [
+  "インタビュー","ライブ配信","ドキュメンタリー","イベント収録",
+  "屋外撮影","暗所撮影","長時間収録","雨天対応","POV撮影",
+  "車載撮影","水中撮影","レンタルフロー",
+];
+
 // シンプルなパスワード入力コンポーネント
 function PwInput({onOk, onCancel}) {
   const [v, setV] = React.useState("");
@@ -896,6 +911,8 @@ export default function App() {
   const [toast,     setToast]     = useState(null);
   const [globalQ,    setGlobalQ]    = useState("");
   const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
+  const [knowledgeStep, setKnowledgeStep] = useState(1);
+  const [knowledgeTemplate, setKnowledgeTemplate] = useState(null);
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -1184,14 +1201,55 @@ export default function App() {
 
           {showKnowledgeModal && (
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9001,display:"flex",alignItems:"center",justifyContent:"center"}}
-              onClick={e=>{if(e.target===e.currentTarget)setShowKnowledgeModal(false);}}>
+              onClick={e=>{if(e.target===e.currentTarget){setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);}}}>
               <div style={{background:"#fff",borderRadius:12,padding:24,width:"90%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                   <span style={{fontWeight:700,fontSize:16}}>📚 ナレッジを追加</span>
-                  <button onClick={()=>setShowKnowledgeModal(false)}
+                  <button onClick={()=>{setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);}}
                     style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b"}}>×</button>
                 </div>
-                <div style={{color:"#94a3b8",fontSize:13}}>（テンプレート選択UIをここに実装予定）</div>
+                <div>
+                  {/* ステップ1：テンプレ選択 */}
+                  {knowledgeStep===1&&(
+                    <div>
+                      <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>どんな質問でしたか？</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        {KNOWLEDGE_TEMPLATES.map(t=>(
+                          <button key={t.id}
+                            onClick={()=>{setKnowledgeTemplate(t);setKnowledgeStep(2);}}
+                            style={{
+                              display:"flex",alignItems:"center",gap:12,
+                              padding:"12px 16px",borderRadius:8,border:"1px solid #e2e8f0",
+                              background:"#f8fafc",cursor:"pointer",textAlign:"left",
+                              fontSize:14,fontWeight:500,color:"#0f172a",
+                              transition:"background 0.15s"
+                            }}
+                            onMouseEnter={e=>e.currentTarget.style.background="#f1f5f9"}
+                            onMouseLeave={e=>e.currentTarget.style.background="#f8fafc"}
+                          >
+                            <span style={{fontSize:20}}>{t.icon}</span>
+                            <span>{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ステップ2：確認（仮） */}
+                  {knowledgeStep===2&&knowledgeTemplate&&(
+                    <div>
+                      <button onClick={()=>{setKnowledgeStep(1);setKnowledgeTemplate(null);}}
+                        style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:12,padding:0}}>
+                        ← 戻る
+                      </button>
+                      <div style={{padding:16,background:"#f8fafc",borderRadius:8,marginBottom:16}}>
+                        <span style={{fontSize:18,marginRight:8}}>{knowledgeTemplate.icon}</span>
+                        <span style={{fontWeight:600}}>{knowledgeTemplate.label}</span>
+                      </div>
+                      <div style={{color:"#94a3b8",fontSize:13}}>（機材選択UIをここに実装予定）</div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
