@@ -915,6 +915,10 @@ export default function App() {
   const [knowledgeTemplate, setKnowledgeTemplate] = useState(null);
   const [knowledgeSelectedProducts, setKnowledgeSelectedProducts] = useState([]);
   const [knowledgeProductSearch, setKnowledgeProductSearch] = useState("");
+  const [knowledgeQuestion, setKnowledgeQuestion] = useState("");
+  const [knowledgeAnswer, setKnowledgeAnswer] = useState("");
+  const [knowledgeSelectedTags, setKnowledgeSelectedTags] = useState([]);
+  const [knowledgeSaving, setKnowledgeSaving] = useState(false);
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -1121,6 +1125,30 @@ export default function App() {
     return subject + (suffix[template.id]||"について");
   };
 
+  const saveKnowledge = async () => {
+    if(!knowledgeQuestion.trim()||!knowledgeAnswer.trim()) return;
+    setKnowledgeSaving(true);
+    const row = {
+      question_text: knowledgeQuestion.trim(),
+      answer_text: knowledgeAnswer.trim(),
+      related_product_ids: knowledgeSelectedProducts.map(p=>String(p.id)),
+      scenario_tags: knowledgeSelectedTags,
+      created_by: session?.user?.email||"",
+    };
+    const {error} = await supabase.from('knowledge').insert([row]);
+    setKnowledgeSaving(false);
+    if(error){ alert('保存に失敗しました: '+error.message); return; }
+    showToast('ナレッジを保存しました');
+    setShowKnowledgeModal(false);
+    setKnowledgeStep(1);
+    setKnowledgeTemplate(null);
+    setKnowledgeSelectedProducts([]);
+    setKnowledgeProductSearch("");
+    setKnowledgeQuestion("");
+    setKnowledgeAnswer("");
+    setKnowledgeSelectedTags([]);
+  };
+
   // ---- auth guard ----
   if (authLoading) return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",fontFamily:"'Noto Sans JP',sans-serif",fontSize:14,color:"#64748b"}}>読み込み中...</div>
@@ -1219,11 +1247,11 @@ export default function App() {
 
           {showKnowledgeModal && (
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9001,display:"flex",alignItems:"center",justifyContent:"center"}}
-              onClick={e=>{if(e.target===e.currentTarget){setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");}}}>
+              onClick={e=>{if(e.target===e.currentTarget){setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");setKnowledgeQuestion("");setKnowledgeAnswer("");setKnowledgeSelectedTags([]);}}}>
               <div style={{background:"#fff",borderRadius:12,padding:24,width:"90%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                   <span style={{fontWeight:700,fontSize:16}}>📚 ナレッジを追加</span>
-                  <button onClick={()=>{setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");}}
+                  <button onClick={()=>{setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");setKnowledgeQuestion("");setKnowledgeAnswer("");setKnowledgeSelectedTags([]);}}
                     style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b"}}>×</button>
                 </div>
                 <div>
@@ -1333,7 +1361,7 @@ export default function App() {
                       )}
 
                       <button
-                        onClick={()=>setKnowledgeStep(3)}
+                        onClick={()=>{setKnowledgeQuestion(buildKnowledgeQuestion(knowledgeTemplate,knowledgeSelectedProducts));setKnowledgeStep(3);}}
                         disabled={
                           knowledgeTemplate.id!=="flow"&&
                           knowledgeTemplate.id!=="free"&&
@@ -1349,17 +1377,67 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* ステップ3（仮） */}
-                  {knowledgeStep===3&&(
+                  {/* ステップ3：回答入力・保存 */}
+                  {knowledgeStep===3&&knowledgeTemplate&&(
                     <div>
                       <button onClick={()=>setKnowledgeStep(2)}
                         style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:12,padding:0}}>
                         ← 戻る
                       </button>
-                      <div style={{color:"#94a3b8",fontSize:13}}>（回答入力UIをここに実装予定）</div>
-                      <div style={{marginTop:12,fontSize:13,color:"#0f172a",fontWeight:600}}>
-                        自動生成された質問：「{buildKnowledgeQuestion(knowledgeTemplate,knowledgeSelectedProducts)}」
+
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:12,color:"#64748b",marginBottom:4,fontWeight:600}}>質問</div>
+                        <input
+                          type="text"
+                          value={knowledgeQuestion}
+                          onChange={e=>setKnowledgeQuestion(e.target.value)}
+                          placeholder="質問文を入力..."
+                          style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,boxSizing:"border-box"}}
+                        />
                       </div>
+
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:12,color:"#64748b",marginBottom:4,fontWeight:600}}>回答 <span style={{color:"#ef4444"}}>*</span></div>
+                        <textarea
+                          value={knowledgeAnswer}
+                          onChange={e=>setKnowledgeAnswer(e.target.value)}
+                          placeholder="回答を入力してください..."
+                          rows={5}
+                          style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,resize:"vertical",boxSizing:"border-box"}}
+                        />
+                      </div>
+
+                      <div style={{marginBottom:18}}>
+                        <div style={{fontSize:12,color:"#64748b",marginBottom:6,fontWeight:600}}>タグ（任意）</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                          {SCENARIO_TAGS.map(tag=>{
+                            const selected=knowledgeSelectedTags.includes(tag);
+                            return(
+                              <button key={tag}
+                                onClick={()=>setKnowledgeSelectedTags(s=>selected?s.filter(t=>t!==tag):[...s,tag])}
+                                style={{
+                                  padding:"4px 10px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid",
+                                  background:selected?"#0f172a":"#f8fafc",
+                                  color:selected?"#fff":"#64748b",
+                                  borderColor:selected?"#0f172a":"#e2e8f0"
+                                }}
+                              >{tag}</button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={saveKnowledge}
+                        disabled={!knowledgeAnswer.trim()||knowledgeSaving}
+                        style={{
+                          width:"100%",padding:"11px",borderRadius:8,border:"none",
+                          background:knowledgeAnswer.trim()&&!knowledgeSaving?"#0f172a":"#e2e8f0",
+                          color:knowledgeAnswer.trim()&&!knowledgeSaving?"#fff":"#94a3b8",
+                          fontSize:14,fontWeight:700,
+                          cursor:knowledgeAnswer.trim()&&!knowledgeSaving?"pointer":"not-allowed"
+                        }}
+                      >{knowledgeSaving?"保存中...":"💾 保存する"}</button>
                     </div>
                   )}
                 </div>
