@@ -913,6 +913,8 @@ export default function App() {
   const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
   const [knowledgeStep, setKnowledgeStep] = useState(1);
   const [knowledgeTemplate, setKnowledgeTemplate] = useState(null);
+  const [knowledgeSelectedProducts, setKnowledgeSelectedProducts] = useState([]);
+  const [knowledgeProductSearch, setKnowledgeProductSearch] = useState("");
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -1103,6 +1105,22 @@ export default function App() {
     {id:"incidents",label:"修理/紛失",   icon:I.list},
   ];
 
+  // ナレッジ質問文の自動生成
+  const buildKnowledgeQuestion = (template, selectedProds) => {
+    if(!template) return "";
+    const names = selectedProds.map(p=>(p&&p.name)||"").filter(Boolean);
+    if(template.id==="flow"||template.id==="free") return "";
+    if(names.length===0) return "";
+    const subject = names.length===1 ? names[0] : names.join("と");
+    const suffix = {
+      time:"は何時間使えますか？",
+      combo:"の組み合わせについて",
+      caution:"の注意点について",
+      tips:"の使いこなしのコツについて",
+    };
+    return subject + (suffix[template.id]||"について");
+  };
+
   // ---- auth guard ----
   if (authLoading) return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",fontFamily:"'Noto Sans JP',sans-serif",fontSize:14,color:"#64748b"}}>読み込み中...</div>
@@ -1201,11 +1219,11 @@ export default function App() {
 
           {showKnowledgeModal && (
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9001,display:"flex",alignItems:"center",justifyContent:"center"}}
-              onClick={e=>{if(e.target===e.currentTarget){setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);}}}>
+              onClick={e=>{if(e.target===e.currentTarget){setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");}}}>
               <div style={{background:"#fff",borderRadius:12,padding:24,width:"90%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                   <span style={{fontWeight:700,fontSize:16}}>📚 ナレッジを追加</span>
-                  <button onClick={()=>{setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);}}
+                  <button onClick={()=>{setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");}}
                     style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b"}}>×</button>
                 </div>
                 <div>
@@ -1235,18 +1253,113 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* ステップ2：確認（仮） */}
+                  {/* ステップ2：機材選択 */}
                   {knowledgeStep===2&&knowledgeTemplate&&(
                     <div>
-                      <button onClick={()=>{setKnowledgeStep(1);setKnowledgeTemplate(null);}}
+                      <button onClick={()=>{setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");}}
                         style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:12,padding:0}}>
                         ← 戻る
                       </button>
-                      <div style={{padding:16,background:"#f8fafc",borderRadius:8,marginBottom:16}}>
-                        <span style={{fontSize:18,marginRight:8}}>{knowledgeTemplate.icon}</span>
-                        <span style={{fontWeight:600}}>{knowledgeTemplate.label}</span>
+                      <div style={{padding:"10px 14px",background:"#f8fafc",borderRadius:8,marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:18}}>{knowledgeTemplate.icon}</span>
+                        <span style={{fontWeight:600,fontSize:14}}>{knowledgeTemplate.label}</span>
                       </div>
-                      <div style={{color:"#94a3b8",fontSize:13}}>（機材選択UIをここに実装予定）</div>
+
+                      {(knowledgeTemplate.id==="flow"||knowledgeTemplate.id==="free")?(
+                        <div style={{color:"#64748b",fontSize:13,marginBottom:16}}>機材の選択は不要です。次へ進んでください。</div>
+                      ):(
+                        <div>
+                          <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>
+                            {knowledgeTemplate.multiProduct?"関連する機材を選択（複数可）":"機材を選択"}
+                          </div>
+
+                          {knowledgeSelectedProducts.length>0&&(
+                            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+                              {knowledgeSelectedProducts.map(p=>(
+                                <span key={p.id} style={{background:"#0f172a",color:"#fff",borderRadius:20,padding:"4px 10px",fontSize:12,display:"flex",alignItems:"center",gap:6}}>
+                                  {(p&&p.name)||""}
+                                  <button onClick={()=>setKnowledgeSelectedProducts(s=>s.filter(x=>x.id!==p.id))}
+                                    style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",padding:0,fontSize:14,lineHeight:1}}>×</button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <input
+                            type="text"
+                            placeholder="機材名で検索..."
+                            value={knowledgeProductSearch}
+                            onChange={e=>setKnowledgeProductSearch(e.target.value)}
+                            style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,marginBottom:6,boxSizing:"border-box"}}
+                          />
+
+                          {knowledgeProductSearch.trim()&&(
+                            <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:200,overflowY:"auto",marginBottom:10}}>
+                              {products
+                                .filter(p=>{
+                                  const n=((p&&p.name)||"").toLowerCase();
+                                  const b=((p&&p.brand)||"").toLowerCase();
+                                  const q=knowledgeProductSearch.toLowerCase();
+                                  return (n.includes(q)||b.includes(q))&&!knowledgeSelectedProducts.some(s=>s.id===p.id);
+                                })
+                                .slice(0,8)
+                                .map(p=>(
+                                  <div key={p.id}
+                                    onClick={()=>{
+                                      if(!knowledgeTemplate.multiProduct) setKnowledgeSelectedProducts([p]);
+                                      else setKnowledgeSelectedProducts(s=>[...s,p]);
+                                      setKnowledgeProductSearch("");
+                                    }}
+                                    style={{padding:"8px 12px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9"}}
+                                    onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+                                    onMouseLeave={e=>e.currentTarget.style.background="#fff"}
+                                  >
+                                    <span style={{color:"#94a3b8",fontSize:11,marginRight:6}}>{(p&&p.brand)||""}</span>
+                                    {(p&&p.name)||""}
+                                  </div>
+                                ))
+                              }
+                              {products.filter(p=>{
+                                const n=((p&&p.name)||"").toLowerCase();
+                                const b=((p&&p.brand)||"").toLowerCase();
+                                const q=knowledgeProductSearch.toLowerCase();
+                                return (n.includes(q)||b.includes(q))&&!knowledgeSelectedProducts.some(s=>s.id===p.id);
+                              }).length===0&&(
+                                <div style={{padding:"8px 12px",color:"#94a3b8",fontSize:13}}>該当なし</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={()=>setKnowledgeStep(3)}
+                        disabled={
+                          knowledgeTemplate.id!=="flow"&&
+                          knowledgeTemplate.id!=="free"&&
+                          knowledgeSelectedProducts.length===0
+                        }
+                        style={{
+                          width:"100%",padding:"10px",borderRadius:8,border:"none",
+                          background:knowledgeSelectedProducts.length>0||knowledgeTemplate.id==="flow"||knowledgeTemplate.id==="free"?"#0f172a":"#e2e8f0",
+                          color:knowledgeSelectedProducts.length>0||knowledgeTemplate.id==="flow"||knowledgeTemplate.id==="free"?"#fff":"#94a3b8",
+                          fontSize:14,fontWeight:600,cursor:knowledgeSelectedProducts.length>0||knowledgeTemplate.id==="flow"||knowledgeTemplate.id==="free"?"pointer":"not-allowed"
+                        }}
+                      >次へ →</button>
+                    </div>
+                  )}
+
+                  {/* ステップ3（仮） */}
+                  {knowledgeStep===3&&(
+                    <div>
+                      <button onClick={()=>setKnowledgeStep(2)}
+                        style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:12,padding:0}}>
+                        ← 戻る
+                      </button>
+                      <div style={{color:"#94a3b8",fontSize:13}}>（回答入力UIをここに実装予定）</div>
+                      <div style={{marginTop:12,fontSize:13,color:"#0f172a",fontWeight:600}}>
+                        自動生成された質問：「{buildKnowledgeQuestion(knowledgeTemplate,knowledgeSelectedProducts)}」
+                      </div>
                     </div>
                   )}
                 </div>
