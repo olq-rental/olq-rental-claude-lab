@@ -1188,7 +1188,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.33</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.34</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -5564,7 +5564,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
 }
 
 function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts}){
-  const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false,usageMemo:"",cautions:"",combinations:[],faqs:[],photos:[]};
+  const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false,usageMemo:"",cautions:"",combinations:[],faqs:[],photos:[],batteryLife:""};
   const [form,setForm]=useState(E);
   const [profileTab,setProfileTab]=useState("basic");
   const [comboSearch,setComboSearch]=useState("");
@@ -5633,7 +5633,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     const priceIn=Number(form.priceIn);
     const priceEx=taxEx(priceIn);
     const pid=editId||uid();
-    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount,usageMemo:form.usageMemo||"",cautions:form.cautions||"",combinations:form.combinations||[],faqs:form.faqs||[],photos:form.photos||[]};
+    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount,usageMemo:form.usageMemo||"",cautions:form.cautions||"",combinations:form.combinations||[],faqs:form.faqs||[],photos:form.photos||[],batteryLife:form.batteryLife||""};
     p.fullName=`${p.brand} ${p.name}`;
     try {
       await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
@@ -5899,54 +5899,87 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
       </div>
     </div>
   )}
-</div>
-            <div style={{gridColumn:"1/-1"}}>
-              <label style={S.lbl}>備考</label>
-              <textarea
-                value={form.memo||""}
-                onChange={e=>setForm(f=>({...f,memo:e.target.value}))}
-                rows={10}
-                style={{...S.inp,height:"auto",resize:"vertical"}}
-                placeholder="製品に関するメモ（納品書等には反映されません）"
-              />
-            </div>
-            <div style={{gridColumn:"1/-1"}}>
-              <div style={{marginTop:4,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:9,padding:16}}>
-                <div style={{fontSize:13,fontWeight:700,marginBottom:10,color:"#92400e",display:"flex",alignItems:"center",gap:6}}>
-                  <Ico d={I.star} size={14} color="#f59e0b"/>特別価格顧客（この製品専用）
-                </div>
-                {spList.map((s,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,fontSize:12}}>
-                    <span style={{flex:1,fontWeight:600}}>{s.cname}</span>
-                    <span style={{color:"#16a34a",fontWeight:700}}>{fmt(s.price)}/日（税込）</span>
-                    <button type="button" onClick={()=>setSpList(l=>l.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
-                  </div>
-                ))}
-                <div style={{marginBottom:6}}>
-                  <input value={prodSpQ} onChange={e=>setProdSpQ(e.target.value)} placeholder="顧客名で検索（1文字以上入力）..." style={{...S.inp,marginBottom:4}}/>
-                  {prodSpQ.length>=1?(
-                    <select value={spCid} onChange={e=>setSpCid(e.target.value)} style={{...S.inp,marginBottom:6}} size={Math.min(6,filteredProdCusts.length+1)}>
-                      <option value="">検索結果: {filteredProdCusts.length}件（全{customers.length}件中）</option>
-                      {filteredProdCusts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  ):(
-                    <div style={{fontSize:11,color:"#94a3b8",padding:"8px 0"}}>🔍 顧客名を入力すると全{customers.length}社から検索できます</div>
-                  )}
-                </div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <input type="number" value={spPrice} onChange={e=>setSpPrice(e.target.value)} placeholder="特別単価（税込）" style={{...S.inp,width:160}}/>
-                  <button type="button" onClick={()=>{
-                    if(!spCid||!spPrice){return;}
-                    setSpList(l=>{
-                      const cust=customers.find(c=>c.id===spCid);
-                      const filtered=l.filter(s=>s.cid!==spCid);
-                      return [...filtered,{cid:spCid,cname:cust?.name||"",price:Number(spPrice)}];
-                    });
-                    setSpCid(""); setSpPrice(""); setProdSpQ("");
-                  }} style={S.btn("#f59e0b",true)}><Ico d={I.plus} size={13}/>追加</button>
-                </div>
+
+  {profileTab==="basic"&&(
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {(()=>{
+        const prod=products.find(p=>p.id===editId);
+        if(!prod||(!prod.ecDescription&&!prod.ecRecordingTime&&!prod.ecOlqNotes&&!prod.ecHasImageData))return null;
+        return(
+          <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:12}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#0369a1",marginBottom:8}}>🌐 ECサイトデータ（読み取り専用）</div>
+            {prod.ecHasImageData&&(
+              <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,padding:"6px 10px",marginBottom:8,fontSize:12,color:"#dc2626"}}>
+                ⚠️ 収録時間データに画像が含まれています。ECサイトを直接確認してください。
               </div>
-            </div>
+            )}
+            {prod.ecDescription&&(
+              <div style={{marginBottom:8}}>
+                <div style={{fontSize:11,color:"#0369a1",fontWeight:600,marginBottom:2}}>詳細</div>
+                <div style={{fontSize:12,color:"#334155",whiteSpace:"pre-wrap",background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:8,maxHeight:200,overflowY:"auto"}}>{prod.ecDescription}</div>
+              </div>
+            )}
+            {prod.ecRecordingTime&&(
+              <div style={{marginBottom:8}}>
+                <div style={{fontSize:11,color:"#0369a1",fontWeight:600,marginBottom:2}}>収録時間</div>
+                <div style={{fontSize:12,color:"#334155",whiteSpace:"pre-wrap",background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:8}}>{prod.ecRecordingTime}</div>
+              </div>
+            )}
+            {prod.ecOlqNotes&&(
+              <div>
+                <div style={{fontSize:11,color:"#0369a1",fontWeight:600,marginBottom:2}}>OLQノート</div>
+                <div style={{fontSize:12,color:"#334155",whiteSpace:"pre-wrap",background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:8,maxHeight:150,overflowY:"auto"}}>{prod.ecOlqNotes}</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+      <div>
+        <label style={S.lbl}>バッテリー持続時間（手動入力）</label>
+        <input value={form.batteryLife||""} onChange={e=>setForm(f=>({...f,batteryLife:e.target.value}))} placeholder="例: 約90分（4K記録時）" style={S.inp}/>
+      </div>
+      <div>
+        <label style={S.lbl}>備考</label>
+        <textarea value={form.memo||""} onChange={e=>setForm(f=>({...f,memo:e.target.value}))} rows={6} style={{...S.inp,height:"auto",resize:"vertical"}} placeholder="製品に関するメモ（納品書等には反映されません）"/>
+      </div>
+      <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:9,padding:16}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:10,color:"#92400e",display:"flex",alignItems:"center",gap:6}}>
+          <Ico d={I.star} size={14} color="#f59e0b"/>特別価格顧客（この製品専用）
+        </div>
+        {spList.map((s,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,fontSize:12}}>
+            <span style={{flex:1,fontWeight:600}}>{s.cname}</span>
+            <span style={{color:"#16a34a",fontWeight:700}}>{fmt(s.price)}/日（税込）</span>
+            <button type="button" onClick={()=>setSpList(l=>l.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
+          </div>
+        ))}
+        <div style={{marginBottom:6}}>
+          <input value={prodSpQ} onChange={e=>setProdSpQ(e.target.value)} placeholder="顧客名で検索（1文字以上入力）..." style={{...S.inp,marginBottom:4}}/>
+          {prodSpQ.length>=1?(
+            <select value={spCid} onChange={e=>setSpCid(e.target.value)} style={{...S.inp,marginBottom:6}} size={Math.min(6,filteredProdCusts.length+1)}>
+              <option value="">検索結果: {filteredProdCusts.length}件（全{customers.length}件中）</option>
+              {filteredProdCusts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          ):(
+            <div style={{fontSize:11,color:"#94a3b8",padding:"8px 0"}}>🔍 顧客名を入力すると全{customers.length}社から検索できます</div>
+          )}
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <input type="number" value={spPrice} onChange={e=>setSpPrice(e.target.value)} placeholder="特別単価（税込）" style={{...S.inp,width:160}}/>
+          <button type="button" onClick={()=>{
+            if(!spCid||!spPrice){return;}
+            setSpList(l=>{
+              const cust=customers.find(c=>c.id===spCid);
+              const filtered=l.filter(s=>s.cid!==spCid);
+              return [...filtered,{cid:spCid,cname:cust?.name||"",price:Number(spPrice)}];
+            });
+            setSpCid(""); setSpPrice(""); setProdSpQ("");
+          }} style={S.btn("#f59e0b",true)}><Ico d={I.plus} size={13}/>追加</button>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <button onClick={submit} style={S.btn("#0f172a")}>{editId?"更新":"追加"}</button>
@@ -6014,7 +6047,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                         }
                       </td>
                       <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false,usageMemo:p.usageMemo||"",cautions:p.cautions||"",combinations:p.combinations||[],faqs:p.faqs||[],photos:p.photos||[]});setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);fetchProdKnowledge(p.id);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
+                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false,usageMemo:p.usageMemo||"",cautions:p.cautions||"",combinations:p.combinations||[],faqs:p.faqs||[],photos:p.photos||[],batteryLife:p.batteryLife||""});setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);fetchProdKnowledge(p.id);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
                         <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(products.filter(x=>x.id!==p.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                       </td>
                     </tr>
