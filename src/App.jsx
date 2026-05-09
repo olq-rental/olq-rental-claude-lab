@@ -5564,11 +5564,10 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
 }
 
 function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts}){
-  const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false,usageMemo:"",cautions:"",combinations:[],faqs:[],photos:[]};
+  const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false,combinations:[],photos:[]};
   const [form,setForm]=useState(E);
   const [profileTab,setProfileTab]=useState("basic");
   const [comboSearch,setComboSearch]=useState("");
-  const [faqForm,setFaqForm]=useState({question:"",answer:""});
 
   const resizeImage=(file)=>new Promise(resolve=>{
     const reader=new FileReader();
@@ -5627,7 +5626,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     const priceIn=Number(form.priceIn);
     const priceEx=taxEx(priceIn);
     const pid=editId||uid();
-    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount,usageMemo:form.usageMemo||"",cautions:form.cautions||"",combinations:form.combinations||[],faqs:form.faqs||[],photos:form.photos||[]};
+    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount,combinations:form.combinations||[],photos:form.photos||[]};
     p.fullName=`${p.brand} ${p.name}`;
     try {
       await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
@@ -5640,7 +5639,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
         });
         await saveCust(updatedCustomers);
       }
-      showToast(editId?"更新しました":"追加しました"); setProfileTab("basic");setComboSearch("");setFaqForm({question:"",answer:""});setForm(E); setEditId(null); setOpen(false); setSpList([]); setSpCid(""); setSpPrice(""); setProdSpQ("");
+      showToast(editId?"更新しました":"追加しました"); setProfileTab("basic");setComboSearch("");setForm(E); setEditId(null); setOpen(false); setSpList([]); setSpCid(""); setSpPrice(""); setProdSpQ("");
     } catch(e) {
       showToast("保存に失敗しました。もう一度お試しください。",false);
       console.error("saveProd error",e);
@@ -5681,27 +5680,13 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
             </div>
             <div style={{gridColumn:"1/-1",borderTop:"1px solid #e2e8f0",marginTop:8,paddingTop:16}}>
   <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
-    {[{k:"basic",l:"基本情報"},{k:"usage",l:"📝 使用感"},{k:"caution",l:"⚠️ 注意事項"},{k:"combo",l:"🔗 組み合わせ"},{k:"faq",l:"❓ FAQ"},{k:"photos",l:"📷 写真"}].map(t=>(
+    {[{k:"basic",l:"基本情報"},{k:"combo",l:"🔗 組み合わせ"},{k:"photos",l:"📷 写真"}].map(t=>(
       <button key={t.k} type="button" onClick={()=>setProfileTab(t.k)}
         style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:profileTab===t.k?700:400,background:profileTab===t.k?"#0f172a":"#f1f5f9",color:profileTab===t.k?"#fff":"#64748b"}}>
         {t.l}
       </button>
     ))}
   </div>
-
-  {profileTab==="usage"&&(
-    <div>
-      <label style={S.lbl}>使用感メモ</label>
-      <textarea value={form.usageMemo} onChange={e=>setForm(f=>({...f,usageMemo:e.target.value}))} rows={6} style={{...S.inp,height:"auto",resize:"vertical"}} placeholder="実際に使って感じたこと、音質・映像品質・操作感、長時間使用時の挙動など"/>
-    </div>
-  )}
-
-  {profileTab==="caution"&&(
-    <div>
-      <label style={S.lbl}>注意事項</label>
-      <textarea value={form.cautions} onChange={e=>setForm(f=>({...f,cautions:e.target.value}))} rows={6} style={{...S.inp,height:"auto",resize:"vertical"}} placeholder="接続時の注意点、電源容量、他機材との干渉、破損しやすい箇所など"/>
-    </div>
-  )}
 
   {profileTab==="combo"&&(
     <div>
@@ -5751,30 +5736,6 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
           </div>
         );
       })()}
-    </div>
-  )}
-
-  {profileTab==="faq"&&(
-    <div>
-      <div style={{background:"#f8fafc",borderRadius:8,padding:12,marginBottom:12,border:"1px solid #e2e8f0"}}>
-        <label style={S.lbl}>質問</label>
-        <input value={faqForm.question} onChange={e=>setFaqForm(f=>({...f,question:e.target.value}))} style={{...S.inp,marginBottom:8}} placeholder="例: 12時間連続収録に対応できますか？"/>
-        <label style={S.lbl}>回答</label>
-        <textarea value={faqForm.answer} onChange={e=>setFaqForm(f=>({...f,answer:e.target.value}))} rows={3} style={{...S.inp,height:"auto",marginBottom:8}} placeholder="実際の経験に基づいた回答"/>
-        <button type="button" onClick={()=>{if(!faqForm.question.trim())return;setForm(f=>({...f,faqs:[...(f.faqs||[]),{id:uid(),...faqForm}]}));setFaqForm({question:"",answer:""}); }} style={S.btn("#0f172a",true)}><Ico d={I.plus} size={13}/>FAQを追加</button>
-      </div>
-      {(form.faqs||[]).length===0&&<div style={{fontSize:12,color:"#94a3b8"}}>FAQなし</div>}
-      {(form.faqs||[]).map((f,i)=>(
-        <div key={f.id} style={{background:"#f0fdf4",borderRadius:8,padding:12,marginBottom:8,border:"1px solid #bbf7d0"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,fontSize:12,color:"#166534",marginBottom:4}}>Q: {f.question}</div>
-              <div style={{fontSize:12,color:"#374151",whiteSpace:"pre-wrap"}}>A: {f.answer}</div>
-            </div>
-            <button type="button" onClick={()=>setForm(fm=>({...fm,faqs:fm.faqs.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer",marginLeft:8}}><Ico d={I.x} size={14} color="#ef4444"/></button>
-          </div>
-        </div>
-      ))}
     </div>
   )}
 
