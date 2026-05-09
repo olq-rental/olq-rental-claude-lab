@@ -919,6 +919,9 @@ export default function App() {
   const [knowledgeAnswer, setKnowledgeAnswer] = useState("");
   const [knowledgeSelectedTags, setKnowledgeSelectedTags] = useState([]);
   const [knowledgeSaving, setKnowledgeSaving] = useState(false);
+  const [knowledgeList, setKnowledgeList] = useState([]);
+  const [knowledgeListLoading, setKnowledgeListLoading] = useState(false);
+  const [knowledgeListSearch, setKnowledgeListSearch] = useState("");
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -966,6 +969,21 @@ export default function App() {
     );
     return () => channels.forEach(ch => supabase.removeChannel(ch));
   }, [session]);
+
+  const fetchKnowledgeList = async () => {
+    setKnowledgeListLoading(true);
+    const {data,error} = await supabase
+      .from('knowledge')
+      .select('*')
+      .order('created_at',{ascending:false});
+    setKnowledgeListLoading(false);
+    if(error){console.error('knowledge fetch error',error);return;}
+    setKnowledgeList(data||[]);
+  };
+  React.useEffect(()=>{
+    if(tab==='knowledge') fetchKnowledgeList();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[tab]);
 
   const logActivity = async (action, targetType, targetName, detail="") => {
     if (!session?.user) return;
@@ -1107,6 +1125,7 @@ export default function App() {
     {id:"products", label:"製品マスタ",  icon:I.box},
     {id:"actlogs",  label:"作業履歴",    icon:I.list},
     {id:"incidents",label:"修理/紛失",   icon:I.list},
+    {id:"knowledge",label:"📚 ナレッジ"},
   ];
 
   // ナレッジ質問文の自動生成
@@ -1192,7 +1211,7 @@ export default function App() {
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{background:"none",border:"none",padding:"13px 16px",fontSize:13,fontWeight:600,cursor:"pointer",color:tab===t.id?"#2563eb":"#64748b",borderBottom:tab===t.id?"2px solid #2563eb":"2px solid transparent",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
-            <Ico d={t.icon} size={14} color={tab===t.id?"#2563eb":"#64748b"}/>{t.label}
+            {t.icon&&<Ico d={t.icon} size={14} color={tab===t.id?"#2563eb":"#64748b"}/>}{t.label}
           </button>
         ))}
       </div>
@@ -1226,6 +1245,81 @@ export default function App() {
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
         {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
+        {tab==='knowledge'&&(
+          <div style={{padding:"24px 16px",maxWidth:800,margin:"0 auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h2 style={{margin:0,fontSize:18,fontWeight:700}}>📚 ナレッジ一覧</h2>
+              <button onClick={fetchKnowledgeList}
+                style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#64748b"}}>
+                🔄 更新
+              </button>
+            </div>
+
+            {/* 検索 */}
+            <input
+              type="text"
+              placeholder="質問・回答で検索..."
+              value={knowledgeListSearch}
+              onChange={e=>setKnowledgeListSearch(e.target.value)}
+              style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,marginBottom:16,boxSizing:"border-box"}}
+            />
+
+            {knowledgeListLoading&&<div style={{color:"#94a3b8",fontSize:13}}>読み込み中...</div>}
+
+            {!knowledgeListLoading&&(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {knowledgeList
+                  .filter(k=>{
+                    const q=knowledgeListSearch.toLowerCase();
+                    if(!q) return true;
+                    return (k.question_text||"").toLowerCase().includes(q)||
+                           (k.answer_text||"").toLowerCase().includes(q);
+                  })
+                  .map(k=>{
+                    const relatedProds = (k.related_product_ids||[])
+                      .map(id=>products.find(p=>String(p.id)===String(id)))
+                      .filter(Boolean);
+                    return(
+                      <div key={k.id} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:16}}>
+                        <div style={{fontWeight:600,fontSize:14,color:"#0f172a",marginBottom:6}}>
+                          ❓ {k.question_text||"（質問なし）"}
+                        </div>
+                        <div style={{fontSize:13,color:"#334155",marginBottom:10,lineHeight:1.6,whiteSpace:"pre-wrap"}}>
+                          {k.answer_text}
+                        </div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+                          {relatedProds.map(p=>(
+                            <span key={p.id} style={{background:"#f1f5f9",color:"#475569",borderRadius:4,padding:"2px 8px",fontSize:11}}>
+                              📷 {(p&&p.name)||""}
+                            </span>
+                          ))}
+                          {(k.scenario_tags||[]).map(tag=>(
+                            <span key={tag} style={{background:"#eff6ff",color:"#3b82f6",borderRadius:4,padding:"2px 8px",fontSize:11}}>
+                              {tag}
+                            </span>
+                          ))}
+                          <span style={{marginLeft:"auto",fontSize:11,color:"#94a3b8"}}>
+                            {k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+                {knowledgeList.filter(k=>{
+                  const q=knowledgeListSearch.toLowerCase();
+                  if(!q) return true;
+                  return (k.question_text||"").toLowerCase().includes(q)||
+                         (k.answer_text||"").toLowerCase().includes(q);
+                }).length===0&&(
+                  <div style={{color:"#94a3b8",fontSize:13,textAlign:"center",padding:40}}>
+                    まだナレッジがありません。「＋」ボタンから追加してください。
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ＋ナレッジ 浮遊ボタン */}
