@@ -5597,6 +5597,12 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
   const filteredProdCusts=prodSpQ.length>=1?customers.filter(c=>c.name.includes(prodSpQ)):[];
   const [q,setQ]=useState("");
   const [syncing,setSyncing]=useState(false);
+  const [prodKnowledge, setProdKnowledge] = useState([]);
+  const [prodKnowledgeLoading, setProdKnowledgeLoading] = useState(false);
+  const [knowledgeInputMode, setKnowledgeInputMode] = useState(null);
+  const [inlineQ, setInlineQ] = useState("");
+  const [inlineA, setInlineA] = useState("");
+  const [inlineSaving, setInlineSaving] = useState(false);
   const [syncLog,setSyncLog]=useState(null);
   const [logOpen,setLogOpen]=useState(false);
 
@@ -5640,11 +5646,45 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
         });
         await saveCust(updatedCustomers);
       }
-      showToast(editId?"更新しました":"追加しました"); setProfileTab("basic");setComboSearch("");setFaqForm({question:"",answer:""});setForm(E); setEditId(null); setOpen(false); setSpList([]); setSpCid(""); setSpPrice(""); setProdSpQ("");
+      showToast(editId?"更新しました":"追加しました"); setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setForm(E); setEditId(null); setOpen(false); setProdKnowledge([]);setKnowledgeInputMode(null);setInlineQ("");setInlineA(""); setSpList([]); setSpCid(""); setSpPrice(""); setProdSpQ("");
     } catch(e) {
       showToast("保存に失敗しました。もう一度お試しください。",false);
       console.error("saveProd error",e);
     }
+  };
+
+  const fetchProdKnowledge = async (pid) => {
+    if(!pid) return;
+    setProdKnowledgeLoading(true);
+    const {data,error} = await supabase
+      .from('knowledge')
+      .select('*')
+      .contains('related_product_ids', [String(pid)])
+      .order('created_at', {ascending: false});
+    setProdKnowledgeLoading(false);
+    if(error){console.error('fetchProdKnowledge error',error);return;}
+    setProdKnowledge(data||[]);
+  };
+
+  const saveInlineKnowledge = async (pid, productName) => {
+    if(!inlineQ.trim()) return;
+    setInlineSaving(true);
+    const isQOnly = knowledgeInputMode === 'q_only';
+    const row = {
+      question_text: inlineQ.trim(),
+      answer_text: isQOnly ? null : (inlineA.trim() || null),
+      status: isQOnly || !inlineA.trim() ? 'unanswered' : 'answered',
+      related_product_ids: [String(pid)],
+      scenario_tags: [],
+      created_by: (await supabase.auth.getUser()).data?.user?.email || "",
+    };
+    const {error} = await supabase.from('knowledge').insert([row]);
+    setInlineSaving(false);
+    if(error){alert('保存に失敗しました: '+error.message);return;}
+    setInlineQ("");
+    setInlineA("");
+    setKnowledgeInputMode(null);
+    fetchProdKnowledge(pid);
   };
 
   const resetToDefault=async()=>{
@@ -5659,7 +5699,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
         <div ref={formRef} style={{...S.card,padding:24,marginBottom:18}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
             <h3 style={{margin:0,fontSize:16,fontWeight:700}}>{editId?"製品を編集":"製品を追加"}</h3>
-            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);}} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={18} color="#94a3b8"/></button>
+            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setProdKnowledge([]);setKnowledgeInputMode(null);setInlineQ("");setInlineA("");}} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={18} color="#94a3b8"/></button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"12px 20px"}}>
             <div><label style={S.lbl}>ブランド *</label><input value={form.brand} onChange={e=>setForm(f=>({...f,brand:e.target.value}))} style={S.inp} placeholder="Sony"/></div>
@@ -5681,13 +5721,110 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
             </div>
             <div style={{gridColumn:"1/-1",borderTop:"1px solid #e2e8f0",marginTop:8,paddingTop:16}}>
   <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
-    {[{k:"basic",l:"基本情報"},{k:"combo",l:"🔗 組み合わせ"},{k:"photos",l:"📷 写真"}].map(t=>(
+    {[{k:"knowledge",l:"📚 ナレッジ"},{k:"combo",l:"🔗 組み合わせ"},{k:"photos",l:"📷 写真"},{k:"basic",l:"基本情報"}].map(t=>(
       <button key={t.k} type="button" onClick={()=>setProfileTab(t.k)}
         style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:profileTab===t.k?700:400,background:profileTab===t.k?"#0f172a":"#f1f5f9",color:profileTab===t.k?"#fff":"#64748b"}}>
         {t.l}
       </button>
     ))}
   </div>
+
+  {profileTab==="knowledge"&&(
+    <div>
+      {/* 未回答バッジ */}
+      {prodKnowledge.filter(k=>k.status==='unanswered').length>0&&(
+        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,padding:"6px 12px",marginBottom:12,fontSize:12,color:"#dc2626",fontWeight:600}}>
+          ⚠️ 未回答の質問 {prodKnowledge.filter(k=>k.status==='unanswered').length}件
+        </div>
+      )}
+
+      {prodKnowledgeLoading&&<div style={{color:"#94a3b8",fontSize:13}}>読み込み中...</div>}
+
+      {/* ナレッジ一覧 */}
+      {!prodKnowledgeLoading&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16,maxHeight:320,overflowY:"auto"}}>
+          {/* 未回答を先頭に */}
+          {[...prodKnowledge.filter(k=>k.status==='unanswered'), ...prodKnowledge.filter(k=>k.status!=='unanswered')].map(k=>(
+            <div key={k.id} style={{background:k.status==='unanswered'?"#fef9f0":"#f8fafc",border:`1px solid ${k.status==='unanswered'?"#fde68a":"#e2e8f0"}`,borderRadius:8,padding:12}}>
+              <div style={{fontSize:12,fontWeight:600,color:"#0f172a",marginBottom:4}}>
+                {k.status==='unanswered'&&<span style={{color:"#d97706",marginRight:6}}>⚠️ 未回答</span>}
+                ❓ {k.question_text||"（質問なし）"}
+              </div>
+              {k.answer_text&&(
+                <div style={{fontSize:12,color:"#334155",whiteSpace:"pre-wrap",lineHeight:1.6}}>
+                  {k.answer_text}
+                </div>
+              )}
+              {k.status==='unanswered'&&(
+                <button
+                  onClick={()=>{setInlineQ(k.question_text||"");setKnowledgeInputMode('qa');}}
+                  style={{marginTop:6,fontSize:11,padding:"3px 8px",borderRadius:4,border:"1px solid #d97706",background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>
+                  ✏️ 答えを書く
+                </button>
+              )}
+              <div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>
+                {k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}
+              </div>
+            </div>
+          ))}
+          {prodKnowledge.length===0&&(
+            <div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:24}}>
+              まだナレッジがありません。下から追加してください。
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 投稿UI */}
+      {knowledgeInputMode===null&&(
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setKnowledgeInputMode('qa')}
+            style={{flex:1,padding:"8px",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:12,cursor:"pointer",color:"#0f172a",fontWeight:600}}>
+            💬 質問と回答を書く
+          </button>
+          <button onClick={()=>setKnowledgeInputMode('q_only')}
+            style={{flex:1,padding:"8px",borderRadius:6,border:"1px solid #fde68a",background:"#fffbeb",fontSize:12,cursor:"pointer",color:"#d97706",fontWeight:600}}>
+            ❓ 質問だけ登録（ベテランに聞く）
+          </button>
+        </div>
+      )}
+
+      {knowledgeInputMode!==null&&(
+        <div style={{border:"1px solid #e2e8f0",borderRadius:8,padding:12,background:"#fff"}}>
+          <div style={{fontSize:12,color:"#64748b",marginBottom:8,fontWeight:600}}>
+            {knowledgeInputMode==='q_only'?"❓ ベテランに聞きたい質問":"💬 質問と回答"}
+          </div>
+          <input
+            type="text"
+            value={inlineQ}
+            onChange={e=>setInlineQ(e.target.value)}
+            placeholder="質問を入力..."
+            style={{width:"100%",padding:"7px 10px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,marginBottom:8,boxSizing:"border-box"}}
+          />
+          {knowledgeInputMode==='qa'&&(
+            <textarea
+              value={inlineA}
+              onChange={e=>setInlineA(e.target.value)}
+              placeholder="回答を入力..."
+              rows={3}
+              style={{width:"100%",padding:"7px 10px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,marginBottom:8,resize:"vertical",boxSizing:"border-box"}}
+            />
+          )}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>saveInlineKnowledge(editId, form.name)}
+              disabled={!inlineQ.trim()||inlineSaving}
+              style={{flex:1,padding:"7px",borderRadius:6,border:"none",background:inlineQ.trim()?"#0f172a":"#e2e8f0",color:inlineQ.trim()?"#fff":"#94a3b8",fontSize:12,fontWeight:600,cursor:inlineQ.trim()?"pointer":"not-allowed"}}>
+              {inlineSaving?"保存中...":"💾 保存"}
+            </button>
+            <button onClick={()=>{setKnowledgeInputMode(null);setInlineQ("");setInlineA("");}}
+              style={{padding:"7px 12px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",fontSize:12,cursor:"pointer",color:"#64748b"}}>
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )}
 
   {profileTab==="combo"&&(
     <div>
@@ -5813,7 +5950,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
           </div>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <button onClick={submit} style={S.btn("#0f172a")}>{editId?"更新":"追加"}</button>
-            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");}} style={S.btn("#94a3b8")}>キャンセル</button>
+            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setProdKnowledge([]);setKnowledgeInputMode(null);setInlineQ("");setInlineA("");}} style={S.btn("#94a3b8")}>キャンセル</button>
           </div>
         </div>
       )}
@@ -5877,7 +6014,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                         }
                       </td>
                       <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false,usageMemo:p.usageMemo||"",cautions:p.cautions||"",combinations:p.combinations||[],faqs:p.faqs||[],photos:p.photos||[]});setProfileTab("basic");setComboSearch("");setFaqForm({question:"",answer:""});setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
+                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false,usageMemo:p.usageMemo||"",cautions:p.cautions||"",combinations:p.combinations||[],faqs:p.faqs||[],photos:p.photos||[]});setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);fetchProdKnowledge(p.id);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
                         <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(products.filter(x=>x.id!==p.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                       </td>
                     </tr>
