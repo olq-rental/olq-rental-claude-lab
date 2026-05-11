@@ -978,14 +978,6 @@ export default function App() {
     return () => channels.forEach(ch => supabase.removeChannel(ch));
   }, [session]);
 
-  const getKnowledgeAuthor = (createdBy) => {
-    const map = {
-      'y_inoue@olq.co.jp': '井上 雄太',
-      'ec_auto_generate': '自動生成',
-    };
-    return map[createdBy] || createdBy || '';
-  };
-
   const fetchKnowledgeList = async () => {
     setKnowledgeListLoading(true);
     const {data,error} = await supabase
@@ -1370,7 +1362,7 @@ export default function App() {
                           <span style={{background:k.source_type==="ec_auto"?"#f0fdf4":"#f8fafc",color:k.source_type==="ec_auto"?"#16a34a":"#64748b",borderRadius:4,padding:"2px 8px",fontSize:11}}>
                             {k.source_type==="ec_auto"?"🤖 自動EC":"✏️ 手動"}
                           </span>
-                          <span style={{marginLeft:"auto",fontSize:11,color:"#94a3b8"}}>{getKnowledgeAuthor(k.created_by)} · {new Date(k.created_at).toLocaleDateString('ja-JP')}</span>
+                          <span style={{marginLeft:"auto",fontSize:11,color:"#94a3b8"}}>{k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}</span>
                         </div>
                       </div>
                     );
