@@ -1160,7 +1160,7 @@ export default function App() {
       answer_text: knowledgeAnswer.trim(),
       related_product_ids: knowledgeSelectedProducts.map(p=>String(p.id)),
       scenario_tags: knowledgeSelectedTags,
-      created_by: session?.user?.email||"",
+      created_by: session?.user?.user_metadata?.name||session?.user?.email||"",
       source_type: 'manual',
       is_internal: knowledgeIsInternal,
     };
