@@ -922,6 +922,14 @@ export default function App() {
   const [knowledgeList, setKnowledgeList] = useState([]);
   const [knowledgeListLoading, setKnowledgeListLoading] = useState(false);
   const [knowledgeListSearch, setKnowledgeListSearch] = useState("");
+  const [knowledgeFilter, setKnowledgeFilter] = useState("all");
+  const [knowledgeIsInternal, setKnowledgeIsInternal] = useState(false);
+  const [editingKnowledge, setEditingKnowledge] = useState(null);
+  const [editKnowledgeQuestion, setEditKnowledgeQuestion] = useState("");
+  const [editKnowledgeAnswer, setEditKnowledgeAnswer] = useState("");
+  const [editKnowledgeIsInternal, setEditKnowledgeIsInternal] = useState(false);
+  const [editKnowledgeSaving, setEditKnowledgeSaving] = useState(false);
+  const [knowledgeDeleteConfirmId, setKnowledgeDeleteConfirmId] = useState(null);
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -1125,7 +1133,7 @@ export default function App() {
     {id:"products", label:"製品マスタ",  icon:I.box},
     {id:"actlogs",  label:"作業履歴",    icon:I.list},
     {id:"incidents",label:"修理/紛失",   icon:I.list},
-    {id:"knowledge",label:"📚 ナレッジ"},
+    {id:"knowledge",label:"📖 オルク辞典"},
   ];
 
   // ナレッジ質問文の自動生成
@@ -1153,19 +1161,49 @@ export default function App() {
       related_product_ids: knowledgeSelectedProducts.map(p=>String(p.id)),
       scenario_tags: knowledgeSelectedTags,
       created_by: session?.user?.email||"",
+      source_type: 'manual',
+      is_internal: knowledgeIsInternal,
     };
     const {error} = await supabase.from('knowledge').insert([row]);
     setKnowledgeSaving(false);
     if(error){ alert('保存に失敗しました: '+error.message); return; }
     showToast('ナレッジを保存しました');
     setShowKnowledgeModal(false);
-    setKnowledgeStep(1);
+    setKnowledgeStep(1);setKnowledgeIsInternal(false);
     setKnowledgeTemplate(null);
     setKnowledgeSelectedProducts([]);
     setKnowledgeProductSearch("");
     setKnowledgeQuestion("");
     setKnowledgeAnswer("");
     setKnowledgeSelectedTags([]);
+  };
+
+  const deleteKnowledge = async (id) => {
+    const {error} = await supabase.from('knowledge').delete().eq('id',id);
+    if(error){showToast('削除に失敗しました');return;}
+    showToast('削除しました');
+    setKnowledgeList(prev=>prev.filter(k=>k.id!==id));
+  };
+
+  const updateKnowledge = async () => {
+    if(!editKnowledgeQuestion.trim()||!editKnowledgeAnswer.trim()) return;
+    setEditKnowledgeSaving(true);
+    const now = new Date().toISOString();
+    const updates = {
+      question_text: editKnowledgeQuestion.trim(),
+      answer_text: editKnowledgeAnswer.trim(),
+      is_internal: editKnowledgeIsInternal,
+      edited_by_human: true,
+      edited_by: session?.user?.email||"",
+      edited_at: now,
+      updated_at: now,
+    };
+    const {error} = await supabase.from('knowledge').update(updates).eq('id',editingKnowledge.id);
+    setEditKnowledgeSaving(false);
+    if(error){showToast('更新に失敗しました');return;}
+    showToast('更新しました');
+    setKnowledgeList(prev=>prev.map(k=>k.id===editingKnowledge.id?{...k,...updates}:k));
+    setEditingKnowledge(null);
   };
 
   // ---- auth guard ----
@@ -1248,11 +1286,23 @@ export default function App() {
         {tab==='knowledge'&&(
           <div style={{padding:"24px 16px",maxWidth:800,margin:"0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <h2 style={{margin:0,fontSize:18,fontWeight:700}}>📚 ナレッジ一覧</h2>
+              <h2 style={{margin:0,fontSize:18,fontWeight:700}}>📖 オルク辞典</h2>
               <button onClick={fetchKnowledgeList}
                 style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#64748b"}}>
                 🔄 更新
               </button>
+            </div>
+
+            {/* フィルター */}
+            <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+              {[{id:"all",label:"全て"},{id:"manual",label:"✏️ 手動"},{id:"ec_auto",label:"🤖 自動EC"},{id:"internal",label:"🔒 内部のみ"}].map(f=>(
+                <button key={f.id} onClick={()=>setKnowledgeFilter(f.id)}
+                  style={{padding:"5px 12px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:500,border:"none",
+                    background:knowledgeFilter===f.id?"#0f172a":"#f1f5f9",
+                    color:knowledgeFilter===f.id?"#fff":"#64748b"}}>
+                  {f.label}
+                </button>
+              ))}
             </div>
 
             {/* 検索 */}
@@ -1270,52 +1320,94 @@ export default function App() {
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {knowledgeList
                   .filter(k=>{
+                    if(knowledgeFilter==="manual"&&k.source_type!=="manual") return false;
+                    if(knowledgeFilter==="ec_auto"&&k.source_type!=="ec_auto") return false;
+                    if(knowledgeFilter==="internal"&&!k.is_internal) return false;
                     const q=knowledgeListSearch.toLowerCase();
                     if(!q) return true;
-                    return (k.question_text||"").toLowerCase().includes(q)||
-                           (k.answer_text||"").toLowerCase().includes(q);
+                    return (k.question_text||"").toLowerCase().includes(q)||(k.answer_text||"").toLowerCase().includes(q);
                   })
                   .map(k=>{
-                    const relatedProds = (k.related_product_ids||[])
-                      .map(id=>products.find(p=>String(p.id)===String(id)))
-                      .filter(Boolean);
+                    const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
+                    const isConfirmDelete=knowledgeDeleteConfirmId===k.id;
                     return(
-                      <div key={k.id} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:16}}>
-                        <div style={{fontWeight:600,fontSize:14,color:"#0f172a",marginBottom:6}}>
-                          ❓ {k.question_text||"（質問なし）"}
+                      <div key={k.id} style={{background:"#fff",border:isConfirmDelete?"1px solid #fca5a5":"1px solid #e2e8f0",borderRadius:10,padding:16}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                          <div style={{fontWeight:600,fontSize:14,color:"#0f172a",flex:1}}>❓ {k.question_text||"（質問なし）"}</div>
+                          <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
+                            {!isConfirmDelete&&(
+                              <>
+                                <button onClick={()=>{setEditingKnowledge(k);setEditKnowledgeQuestion(k.question_text||"");setEditKnowledgeAnswer(k.answer_text||"");setEditKnowledgeIsInternal(k.is_internal||false);}}
+                                  style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#64748b"}}>編集</button>
+                                <button onClick={()=>setKnowledgeDeleteConfirmId(k.id)}
+                                  style={{background:"none",border:"1px solid #fecaca",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#ef4444"}}>削除</button>
+                              </>
+                            )}
+                            {isConfirmDelete&&(
+                              <>
+                                <button onClick={()=>{deleteKnowledge(k.id);setKnowledgeDeleteConfirmId(null);}}
+                                  style={{background:"#ef4444",border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",color:"#fff",fontWeight:600}}>本当に削除</button>
+                                <button onClick={()=>setKnowledgeDeleteConfirmId(null)}
+                                  style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#64748b"}}>キャンセル</button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div style={{fontSize:13,color:"#334155",marginBottom:10,lineHeight:1.6,whiteSpace:"pre-wrap"}}>
-                          {k.answer_text}
-                        </div>
+                        {isConfirmDelete&&<div style={{fontSize:12,color:"#ef4444",marginBottom:8}}>このエントリを削除しますか？</div>}
+                        <div style={{fontSize:13,color:"#334155",marginBottom:10,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{k.answer_text}</div>
                         <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
-                          {relatedProds.map(p=>(
-                            <span key={p.id} style={{background:"#f1f5f9",color:"#475569",borderRadius:4,padding:"2px 8px",fontSize:11}}>
-                              📷 {(p&&p.name)||""}
-                            </span>
-                          ))}
-                          {(k.scenario_tags||[]).map(tag=>(
-                            <span key={tag} style={{background:"#eff6ff",color:"#3b82f6",borderRadius:4,padding:"2px 8px",fontSize:11}}>
-                              {tag}
-                            </span>
-                          ))}
-                          <span style={{marginLeft:"auto",fontSize:11,color:"#94a3b8"}}>
-                            {k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}
+                          {relatedProds.map(p=>(<span key={p.id} style={{background:"#f1f5f9",color:"#475569",borderRadius:4,padding:"2px 8px",fontSize:11}}>📷 {(p&&p.name)||""}</span>))}
+                          {(k.scenario_tags||[]).map(tag=>(<span key={tag} style={{background:"#eff6ff",color:"#3b82f6",borderRadius:4,padding:"2px 8px",fontSize:11}}>{tag}</span>))}
+                          {k.is_internal&&(<span style={{background:"#fef3c7",color:"#d97706",borderRadius:4,padding:"2px 8px",fontSize:11}}>🔒 内部のみ</span>)}
+                          <span style={{background:k.source_type==="ec_auto"?"#f0fdf4":"#f8fafc",color:k.source_type==="ec_auto"?"#16a34a":"#64748b",borderRadius:4,padding:"2px 8px",fontSize:11}}>
+                            {k.source_type==="ec_auto"?"🤖 自動EC":"✏️ 手動"}
                           </span>
+                          <span style={{marginLeft:"auto",fontSize:11,color:"#94a3b8"}}>{k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}</span>
                         </div>
                       </div>
                     );
-                  })
-                }
+                  })}
                 {knowledgeList.filter(k=>{
+                  if(knowledgeFilter==="manual"&&k.source_type!=="manual") return false;
+                  if(knowledgeFilter==="ec_auto"&&k.source_type!=="ec_auto") return false;
+                  if(knowledgeFilter==="internal"&&!k.is_internal) return false;
                   const q=knowledgeListSearch.toLowerCase();
                   if(!q) return true;
-                  return (k.question_text||"").toLowerCase().includes(q)||
-                         (k.answer_text||"").toLowerCase().includes(q);
+                  return (k.question_text||"").toLowerCase().includes(q)||(k.answer_text||"").toLowerCase().includes(q);
                 }).length===0&&(
-                  <div style={{color:"#94a3b8",fontSize:13,textAlign:"center",padding:40}}>
-                    まだナレッジがありません。「＋」ボタンから追加してください。
-                  </div>
+                  <div style={{color:"#94a3b8",fontSize:13,textAlign:"center",padding:40}}>まだエントリがありません。「＋」ボタンから追加してください。</div>
                 )}
+              </div>
+            )}
+
+            {/* 編集モーダル */}
+            {editingKnowledge&&(
+              <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9002,display:"flex",alignItems:"center",justifyContent:"center"}}
+                onClick={e=>{if(e.target===e.currentTarget)setEditingKnowledge(null);}}>
+                <div style={{background:"#fff",borderRadius:12,padding:24,width:"90%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                    <span style={{fontWeight:700,fontSize:16}}>📖 エントリを編集</span>
+                    <button onClick={()=>setEditingKnowledge(null)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b"}}>×</button>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>質問</div>
+                    <textarea value={editKnowledgeQuestion} onChange={e=>setEditKnowledgeQuestion(e.target.value)}
+                      style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,minHeight:60,resize:"vertical",boxSizing:"border-box"}}/>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>回答</div>
+                    <textarea value={editKnowledgeAnswer} onChange={e=>setEditKnowledgeAnswer(e.target.value)}
+                      style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,minHeight:100,resize:"vertical",boxSizing:"border-box"}}/>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+                    <input type="checkbox" id="editIsInternal" checked={editKnowledgeIsInternal} onChange={e=>setEditKnowledgeIsInternal(e.target.checked)}/>
+                    <label htmlFor="editIsInternal" style={{fontSize:13,color:"#475569",cursor:"pointer"}}>🔒 内部のみ（スタッフ限定・LINE Botに出さない）</label>
+                  </div>
+                  <button onClick={updateKnowledge} disabled={editKnowledgeSaving}
+                    style={{width:"100%",padding:"10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer"}}>
+                    {editKnowledgeSaving?"保存中...":"保存する"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1341,11 +1433,11 @@ export default function App() {
 
           {showKnowledgeModal && (
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9001,display:"flex",alignItems:"center",justifyContent:"center"}}
-              onClick={e=>{if(e.target===e.currentTarget){setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");setKnowledgeQuestion("");setKnowledgeAnswer("");setKnowledgeSelectedTags([]);}}}>
+              onClick={e=>{if(e.target===e.currentTarget){setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeIsInternal(false);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");setKnowledgeQuestion("");setKnowledgeAnswer("");setKnowledgeSelectedTags([]);}}}>
               <div style={{background:"#fff",borderRadius:12,padding:24,width:"90%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                   <span style={{fontWeight:700,fontSize:16}}>📚 ナレッジを追加</span>
-                  <button onClick={()=>{setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");setKnowledgeQuestion("");setKnowledgeAnswer("");setKnowledgeSelectedTags([]);}}
+                  <button onClick={()=>{setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeIsInternal(false);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");setKnowledgeQuestion("");setKnowledgeAnswer("");setKnowledgeSelectedTags([]);}}
                     style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b"}}>×</button>
                 </div>
                 <div>
@@ -1521,6 +1613,10 @@ export default function App() {
                         </div>
                       </div>
 
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                        <input type="checkbox" id="addIsInternal" checked={knowledgeIsInternal} onChange={e=>setKnowledgeIsInternal(e.target.checked)}/>
+                        <label htmlFor="addIsInternal" style={{fontSize:13,color:"#475569",cursor:"pointer"}}>🔒 内部のみ（スタッフ限定・LINE Botに出さない）</label>
+                      </div>
                       <button
                         onClick={saveKnowledge}
                         disabled={!knowledgeAnswer.trim()||knowledgeSaving}
