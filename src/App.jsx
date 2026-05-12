@@ -934,6 +934,13 @@ export default function App() {
   const [knowledgeConceptId, setKnowledgeConceptId] = useState('');
   const [editKnowledgeConceptId, setEditKnowledgeConceptId] = useState('');
   const [knowledgeCategoryFilter, setKnowledgeCategoryFilter] = useState('');
+  const [knowledgePendingList, setKnowledgePendingList] = useState([]);
+  const [pendingListLoading, setPendingListLoading] = useState(false);
+  const [knowledgeSubTab, setKnowledgeSubTab] = useState('list');
+  const [editingPending, setEditingPending] = useState(null);
+  const [editPendingQuestion, setEditPendingQuestion] = useState('');
+  const [editPendingAnswer, setEditPendingAnswer] = useState('');
+  const [editPendingSaving, setEditPendingSaving] = useState(false);
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -982,6 +989,53 @@ export default function App() {
     return () => channels.forEach(ch => supabase.removeChannel(ch));
   }, [session]);
 
+  const fetchPendingList = async () => {
+    setPendingListLoading(true);
+    const {data,error} = await supabase
+      .from('knowledge')
+      .select('*')
+      .eq('status','pending')
+      .order('priority',{ascending:false})
+      .order('created_at',{ascending:true});
+    setPendingListLoading(false);
+    if(error){console.error('fetchPendingList error',error);return;}
+    setKnowledgePendingList(data||[]);
+  };
+
+  const approveKnowledge = async (id) => {
+    const {error} = await supabase.from('knowledge').update({status:'approved'}).eq('id',id);
+    if(error){console.error(error);return;}
+    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
+    showToast('承認しました');
+  };
+
+  const rejectKnowledge = async (id) => {
+    const {error} = await supabase.from('knowledge').update({status:'rejected'}).eq('id',id);
+    if(error){console.error(error);return;}
+    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
+    showToast('却下しました');
+  };
+
+  const updateKnowledgePriority = async (id, priority) => {
+    await supabase.from('knowledge').update({priority:Number(priority)}).eq('id',id);
+    setKnowledgePendingList(prev=>prev.map(k=>k.id===id?{...k,priority:Number(priority)}:k).sort((a,b)=>b.priority-a.priority));
+  };
+
+  const approveWithEdit = async () => {
+    if(!editingPending) return;
+    setEditPendingSaving(true);
+    const {error} = await supabase.from('knowledge').update({
+      question_text: editPendingQuestion.trim(),
+      answer_text: editPendingAnswer.trim(),
+      status: 'approved',
+    }).eq('id',editingPending.id);
+    setEditPendingSaving(false);
+    if(error){console.error(error);return;}
+    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==editingPending.id));
+    setEditingPending(null);
+    showToast('訂正して承認しました');
+  };
+
   const fetchKnowledgeConcepts = async () => {
     const {data} = await supabase
       .from('knowledge_concepts')
@@ -1002,7 +1056,7 @@ export default function App() {
     setKnowledgeList(data||[]);
   };
   React.useEffect(()=>{
-    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();}
+    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();fetchPendingList();}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab]);
 
@@ -1302,15 +1356,32 @@ export default function App() {
         {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
         {tab==='knowledge'&&(
           <div style={{padding:"24px 16px",maxWidth:800,margin:"0 auto"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <h2 style={{margin:0,fontSize:18,fontWeight:700}}>📖 オルク辞典</h2>
-              <button onClick={fetchKnowledgeList}
+              <button onClick={()=>{fetchKnowledgeList();fetchPendingList();}}
                 style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#64748b"}}>
                 🔄 更新
               </button>
             </div>
+            {session&&session.user.email==='y_inoue@olq.co.jp'&&(
+              <div style={{display:'flex',gap:6,marginBottom:12}}>
+                <button onClick={()=>setKnowledgeSubTab('list')}
+                  style={{padding:'5px 14px',borderRadius:6,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
+                    background:knowledgeSubTab==='list'?'#0f172a':'#f1f5f9',
+                    color:knowledgeSubTab==='list'?'#fff':'#64748b'}}>
+                  📚 辞典一覧
+                </button>
+                <button onClick={()=>setKnowledgeSubTab('pending')}
+                  style={{padding:'5px 14px',borderRadius:6,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
+                    background:knowledgeSubTab==='pending'?'#dc2626':'#fef2f2',
+                    color:knowledgeSubTab==='pending'?'#fff':'#dc2626'}}>
+                  ✅ 承認待ち {knowledgePendingList.length>0&&`(${knowledgePendingList.length})`}
+                </button>
+              </div>
+            )}
 
-            {/* フィルター */}
+            {knowledgeSubTab==='list'&&(
+            <>{/* フィルター */}
             <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
               {[{id:"all",label:"全て"},{id:"manual",label:"✏️ 手動"},{id:"ec_auto",label:"🤖 自動EC"},{id:"internal",label:"🔒 内部のみ"}].map(f=>(
                 <button key={f.id} onClick={()=>setKnowledgeFilter(f.id)}
@@ -1412,6 +1483,51 @@ export default function App() {
                 )}
               </div>
             )}
+            </>)}
+
+            {/* 承認待ちリスト */}
+            {knowledgeSubTab==='pending'&&session&&session.user.email==='y_inoue@olq.co.jp'&&(
+              <div>
+                {pendingListLoading&&<div style={{color:'#94a3b8',fontSize:13}}>読み込み中...</div>}
+                {!pendingListLoading&&knowledgePendingList.length===0&&(
+                  <div style={{color:'#94a3b8',fontSize:13,textAlign:'center',padding:40}}>承認待ちはありません 🎉</div>
+                )}
+                {!pendingListLoading&&knowledgePendingList.map(k=>{
+                  const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
+                  return(
+                    <div key={k.id} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16,marginBottom:12}}>
+                      <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:6}}>❓ {k.question_text||'（質問なし）'}</div>
+                      <div style={{fontSize:13,color:'#334155',marginBottom:10,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{k.answer_text}</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6,alignItems:'center',marginBottom:10}}>
+                        {relatedProds.map(p=>(<span key={p.id} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
+                        <span style={{background:k.source_type==='ec_auto'?'#f0fdf4':'#f8fafc',color:k.source_type==='ec_auto'?'#16a34a':'#64748b',borderRadius:4,padding:'2px 8px',fontSize:11}}>
+                          {k.source_type==='ec_auto'?'🤖 自動EC':'✏️ 手動'}
+                        </span>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                        <label style={{fontSize:12,color:'#64748b'}}>優先度</label>
+                        <select value={k.priority||5} onChange={e=>updateKnowledgePriority(k.id,e.target.value)}
+                          style={{padding:'3px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}}>
+                          {[10,9,8,7,6,5,4,3,2,1].map(n=>(<option key={n} value={n}>{n}</option>))}
+                        </select>
+                        <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');}}
+                          style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
+                          ✏️ 訂正して承認
+                        </button>
+                        <button onClick={()=>approveKnowledge(k.id)}
+                          style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#0f172a',color:'#fff',fontWeight:600,cursor:'pointer'}}>
+                          ✅ 承認
+                        </button>
+                        <button onClick={()=>rejectKnowledge(k.id)}
+                          style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
+                          却下
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* 編集モーダル */}
             {editingKnowledge&&(
@@ -1455,6 +1571,33 @@ export default function App() {
                   <button onClick={updateKnowledge} disabled={editKnowledgeSaving}
                     style={{width:"100%",padding:"10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer"}}>
                     {editKnowledgeSaving?"保存中...":"保存する"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 訂正して承認モーダル */}
+            {editingPending&&(
+              <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:9003,display:'flex',alignItems:'center',justifyContent:'center'}}
+                onClick={e=>{if(e.target===e.currentTarget)setEditingPending(null);}}>
+                <div style={{background:'#fff',borderRadius:12,padding:24,width:'90%',maxWidth:480,maxHeight:'80vh',overflowY:'auto'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                    <span style={{fontWeight:700,fontSize:16}}>✏️ 訂正して承認</span>
+                    <button onClick={()=>setEditingPending(null)} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#64748b'}}>×</button>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>質問</div>
+                    <textarea value={editPendingQuestion} onChange={e=>setEditPendingQuestion(e.target.value)}
+                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:60,resize:'vertical',boxSizing:'border-box'}}/>
+                  </div>
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>回答</div>
+                    <textarea value={editPendingAnswer} onChange={e=>setEditPendingAnswer(e.target.value)}
+                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:100,resize:'vertical',boxSizing:'border-box'}}/>
+                  </div>
+                  <button onClick={approveWithEdit} disabled={editPendingSaving}
+                    style={{width:'100%',padding:'10px',background:'#0f172a',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer'}}>
+                    {editPendingSaving?'保存中...':'訂正して承認する'}
                   </button>
                 </div>
               </div>
@@ -5821,6 +5964,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
       .from('knowledge')
       .select('*')
       .contains('related_product_ids', [String(pid)])
+      .eq('status','approved')
       .order('created_at', {ascending: false});
     setProdKnowledgeLoading(false);
     if(error){console.error('fetchProdKnowledge error',error);return;}
@@ -5834,7 +5978,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     const row = {
       question_text: inlineQ.trim(),
       answer_text: isQOnly ? null : (inlineA.trim() || null),
-      status: isQOnly || !inlineA.trim() ? 'unanswered' : 'answered',
+      status: 'pending',
       related_product_ids: [String(pid)],
       scenario_tags: [],
       created_by: (await supabase.auth.getUser()).data?.user?.email || "",
