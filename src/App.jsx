@@ -941,6 +941,16 @@ export default function App() {
   const [editPendingQuestion, setEditPendingQuestion] = useState('');
   const [editPendingAnswer, setEditPendingAnswer] = useState('');
   const [editPendingSaving, setEditPendingSaving] = useState(false);
+  const [questionModalStep, setQuestionModalStep] = useState(0);
+  const [questionCategory, setQuestionCategory] = useState('');
+  const [questionInput, setQuestionInput] = useState('');
+  const [questionSearchResults, setQuestionSearchResults] = useState([]);
+  const [questionSearchDone, setQuestionSearchDone] = useState(false);
+  const [questionSearching, setQuestionSearching] = useState(false);
+  const [questionSaving, setQuestionSaving] = useState(false);
+  const [questionSelectedProducts, setQuestionSelectedProducts] = useState([]);
+  const [questionProductSearch, setQuestionProductSearch] = useState('');
+  const [knowledgeSearchMode, setKnowledgeSearchMode] = useState('text');
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -988,6 +998,53 @@ export default function App() {
     );
     return () => channels.forEach(ch => supabase.removeChannel(ch));
   }, [session]);
+
+  const fetchKnowledgeSearchMode = async () => {
+    const {data} = await supabase.from('settings').select('value').eq('key','knowledge_search_mode').single();
+    if(data) setKnowledgeSearchMode(JSON.parse(data.value));
+  };
+
+  const searchKnowledge = async (q) => {
+    setQuestionSearching(true);
+    const lower = q.toLowerCase();
+    const {data} = await supabase
+      .from('knowledge')
+      .select('*')
+      .eq('status','approved')
+      .order('priority',{ascending:false});
+    const results = (data||[]).filter(k=>
+      (k.question_text||'').toLowerCase().includes(lower)||
+      (k.answer_text||'').toLowerCase().includes(lower)
+    ).slice(0,3);
+    setQuestionSearchResults(results);
+    setQuestionSearchDone(true);
+    setQuestionSearching(false);
+  };
+
+  const submitQuestion = async () => {
+    if(!questionInput.trim()) return;
+    setQuestionSaving(true);
+    const row = {
+      question_text: questionInput.trim(),
+      answer_text: null,
+      status: 'pending',
+      priority: 5,
+      original_priority: 5,
+      related_product_ids: questionSelectedProducts.map(p=>String(p.id)),
+      scenario_tags: [],
+      source_type: 'manual',
+      created_by: (await supabase.auth.getUser()).data?.user?.email || '',
+    };
+    await supabase.from('knowledge').insert([row]);
+    setQuestionSaving(false);
+    setQuestionModalStep(0);
+    setQuestionInput('');
+    setQuestionSelectedProducts([]);
+    setQuestionSearchResults([]);
+    setQuestionSearchDone(false);
+    setKnowledgePendingList(prev=>[...prev,{...row,id:Date.now()}]);
+    showToast('質問を登録しました');
+  };
 
   const fetchPendingList = async () => {
     setPendingListLoading(true);
@@ -1057,7 +1114,7 @@ export default function App() {
     setKnowledgeList(data||[]);
   };
   React.useEffect(()=>{
-    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();fetchPendingList();}
+    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();fetchPendingList();fetchKnowledgeSearchMode();}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab]);
 
@@ -1489,6 +1546,20 @@ export default function App() {
             {/* 承認待ちリスト */}
             {knowledgeSubTab==='pending'&&session&&session.user.email==='y_inoue@olq.co.jp'&&(
               <div>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'10px 14px',background:'#f8fafc',borderRadius:8,border:'1px solid #e2e8f0'}}>
+                  <span style={{fontSize:13,color:'#64748b'}}>🔍 検索モード</span>
+                  <button onClick={async()=>{
+                    const next=knowledgeSearchMode==='text'?'ai':'text';
+                    await supabase.from('settings').update({value:JSON.stringify(next)}).eq('key','knowledge_search_mode');
+                    setKnowledgeSearchMode(next);
+                  }}
+                    style={{padding:'4px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',
+                      background:knowledgeSearchMode==='ai'?'#0f172a':'#e2e8f0',
+                      color:knowledgeSearchMode==='ai'?'#fff':'#64748b'}}>
+                    {knowledgeSearchMode==='ai'?'🤖 AI':'📝 テキスト'}
+                  </button>
+                  <span style={{fontSize:11,color:'#94a3b8'}}>{knowledgeSearchMode==='text'?'テキストマッチで検索中':'Haikuが意味で判断中'}</span>
+                </div>
                 {pendingListLoading&&<div style={{color:'#94a3b8',fontSize:13}}>読み込み中...</div>}
                 {!pendingListLoading&&knowledgePendingList.length===0&&(
                   <div style={{color:'#94a3b8',fontSize:13,textAlign:'center',padding:40}}>承認待ちはありません 🎉</div>
@@ -1611,7 +1682,7 @@ export default function App() {
       {session && (
         <>
           <button
-            onClick={()=>setShowKnowledgeModal(true)}
+            onClick={()=>setQuestionModalStep(1)}
             style={{
               position:"fixed",bottom:24,right:24,zIndex:9000,
               background:"#0f172a",color:"#fff",border:"none",
@@ -1621,8 +1692,128 @@ export default function App() {
               display:"flex",alignItems:"center",justifyContent:"center",
               fontWeight:700
             }}
-            title="ナレッジを追加"
-          >＋</button>
+            title="質問を登録"
+          >❓</button>
+
+          {questionModalStep>0&&(
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:9001,display:'flex',alignItems:'center',justifyContent:'center'}}
+              onClick={e=>{if(e.target===e.currentTarget){setQuestionModalStep(0);setQuestionInput('');setQuestionSelectedProducts([]);setQuestionSearchResults([]);setQuestionSearchDone(false);}}}>
+              <div style={{background:'#fff',borderRadius:12,padding:24,width:'90%',maxWidth:480,maxHeight:'80vh',overflowY:'auto'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                  <span style={{fontWeight:700,fontSize:16}}>❓ 質問を登録</span>
+                  <button onClick={()=>{setQuestionModalStep(0);setQuestionInput('');setQuestionSelectedProducts([]);setQuestionSearchResults([]);setQuestionSearchDone(false);}}
+                    style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#64748b'}}>×</button>
+                </div>
+
+                {/* ステップ1: 入り口選択 */}
+                {questionModalStep===1&&(
+                  <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                    <div style={{fontSize:13,color:'#64748b',marginBottom:4}}>どちらについての質問ですか？</div>
+                    <button onClick={()=>{setQuestionCategory('product');setQuestionModalStep(2);}}
+                      style={{padding:'14px 16px',borderRadius:8,border:'1px solid #e2e8f0',background:'#f8fafc',cursor:'pointer',textAlign:'left',fontSize:14,fontWeight:500,color:'#0f172a'}}>
+                      📷 機材について
+                    </button>
+                    <button onClick={()=>{setQuestionCategory('general');setQuestionModalStep(3);}}
+                      style={{padding:'14px 16px',borderRadius:8,border:'1px solid #e2e8f0',background:'#f8fafc',cursor:'pointer',textAlign:'left',fontSize:14,fontWeight:500,color:'#0f172a'}}>
+                      🏢 社内・その他について
+                    </button>
+                  </div>
+                )}
+
+                {/* ステップ2: 機材選択 */}
+                {questionModalStep===2&&(
+                  <div>
+                    <button onClick={()=>setQuestionModalStep(1)}
+                      style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:13,marginBottom:12,padding:0}}>← 戻る</button>
+                    <div style={{fontSize:13,color:'#64748b',marginBottom:8}}>機材を選択（任意）</div>
+                    {questionSelectedProducts.length>0&&(
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
+                        {questionSelectedProducts.map(p=>(
+                          <span key={p.id} style={{background:'#0f172a',color:'#fff',borderRadius:20,padding:'4px 10px',fontSize:12,display:'flex',alignItems:'center',gap:6}}>
+                            {(p&&p.name)||''}
+                            <button onClick={()=>setQuestionSelectedProducts(s=>s.filter(x=>x.id!==p.id))}
+                              style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',padding:0,fontSize:14,lineHeight:1}}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <input type="text" placeholder="機材名で検索..." value={questionProductSearch}
+                      onChange={e=>setQuestionProductSearch(e.target.value)}
+                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,marginBottom:6,boxSizing:'border-box'}}/>
+                    {questionProductSearch.trim()&&(
+                      <div style={{border:'1px solid #e2e8f0',borderRadius:6,maxHeight:160,overflowY:'auto',marginBottom:10}}>
+                        {products.filter(p=>{
+                          const n=((p&&p.name)||'').toLowerCase();
+                          const b=((p&&p.brand)||'').toLowerCase();
+                          const q=questionProductSearch.toLowerCase();
+                          return (n.includes(q)||b.includes(q))&&!questionSelectedProducts.some(s=>s.id===p.id);
+                        }).slice(0,8).map(p=>(
+                          <div key={p.id} onClick={()=>{setQuestionSelectedProducts(s=>[...s,p]);setQuestionProductSearch('');}}
+                            style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f1f5f9'}}
+                            onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
+                            onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                            <span style={{color:'#94a3b8',fontSize:11,marginRight:6}}>{(p&&p.brand)||''}</span>{(p&&p.name)||''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button onClick={()=>setQuestionModalStep(3)}
+                      style={{width:'100%',padding:'10px',borderRadius:8,border:'none',background:'#0f172a',color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:8}}>
+                      次へ →
+                    </button>
+                  </div>
+                )}
+
+                {/* ステップ3: 質問入力・検索 */}
+                {questionModalStep===3&&(
+                  <div>
+                    <button onClick={()=>setQuestionModalStep(questionCategory==='product'?2:1)}
+                      style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:13,marginBottom:12,padding:0}}>← 戻る</button>
+                    <div style={{fontSize:13,color:'#64748b',marginBottom:8}}>質問を入力してください</div>
+                    <textarea value={questionInput} onChange={e=>{setQuestionInput(e.target.value);setQuestionSearchDone(false);setQuestionSearchResults([]);}}
+                      placeholder="例：外気温が低い時のバッテリーはどうすれば..."
+                      rows={3}
+                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,resize:'vertical',boxSizing:'border-box',marginBottom:10}}/>
+                    {!questionSearchDone&&(
+                      <button onClick={()=>searchKnowledge(questionInput)} disabled={!questionInput.trim()||questionSearching}
+                        style={{width:'100%',padding:'10px',borderRadius:8,border:'none',
+                          background:questionInput.trim()&&!questionSearching?'#0f172a':'#e2e8f0',
+                          color:questionInput.trim()&&!questionSearching?'#fff':'#94a3b8',
+                          fontSize:14,fontWeight:600,cursor:'pointer',marginBottom:10}}>
+                        {questionSearching?'検索中...':'🔍 検索する'}
+                      </button>
+                    )}
+                    {questionSearchDone&&questionSearchResults.length>0&&(
+                      <div style={{marginBottom:12}}>
+                        <div style={{fontSize:12,color:'#0369a1',fontWeight:600,marginBottom:8}}>💡 似た質問が見つかりました</div>
+                        {questionSearchResults.map(k=>(
+                          <div key={k.id} style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:8,padding:12,marginBottom:8}}>
+                            <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>❓ {k.question_text}</div>
+                            <div style={{fontSize:12,color:'#334155',lineHeight:1.6}}>{k.answer_text}</div>
+                          </div>
+                        ))}
+                        <button onClick={()=>{setQuestionSearchDone(false);setQuestionSearchResults([]);}}
+                          style={{width:'100%',padding:'8px',borderRadius:8,border:'1px solid #e2e8f0',background:'#fff',fontSize:13,cursor:'pointer',color:'#475569',marginTop:4}}>
+                          違う・別の質問を登録する
+                        </button>
+                      </div>
+                    )}
+                    {questionSearchDone&&questionSearchResults.length===0&&(
+                      <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:12,marginBottom:12,fontSize:13,color:'#92400e'}}>
+                        似た質問は見つかりませんでした。登録しますか？
+                      </div>
+                    )}
+                    {questionSearchDone&&(
+                      <button onClick={submitQuestion} disabled={questionSaving}
+                        style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:'#0f172a',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>
+                        {questionSaving?'登録中...':'❓ 質問を登録する'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {showKnowledgeModal && (
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9001,display:"flex",alignItems:"center",justifyContent:"center"}}
