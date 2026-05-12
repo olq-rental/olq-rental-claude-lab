@@ -930,6 +930,10 @@ export default function App() {
   const [editKnowledgeIsInternal, setEditKnowledgeIsInternal] = useState(false);
   const [editKnowledgeSaving, setEditKnowledgeSaving] = useState(false);
   const [knowledgeDeleteConfirmId, setKnowledgeDeleteConfirmId] = useState(null);
+  const [knowledgeConcepts, setKnowledgeConcepts] = useState([]);
+  const [knowledgeConceptId, setKnowledgeConceptId] = useState('');
+  const [editKnowledgeConceptId, setEditKnowledgeConceptId] = useState('');
+  const [knowledgeCategoryFilter, setKnowledgeCategoryFilter] = useState('');
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -978,6 +982,15 @@ export default function App() {
     return () => channels.forEach(ch => supabase.removeChannel(ch));
   }, [session]);
 
+  const fetchKnowledgeConcepts = async () => {
+    const {data} = await supabase
+      .from('knowledge_concepts')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order');
+    setKnowledgeConcepts(data||[]);
+  };
+
   const fetchKnowledgeList = async () => {
     setKnowledgeListLoading(true);
     const {data,error} = await supabase
@@ -989,7 +1002,7 @@ export default function App() {
     setKnowledgeList(data||[]);
   };
   React.useEffect(()=>{
-    if(tab==='knowledge') fetchKnowledgeList();
+    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab]);
 
@@ -1163,12 +1176,14 @@ export default function App() {
       created_by: session?.user?.user_metadata?.name||session?.user?.email||"",
       source_type: 'manual',
       is_internal: knowledgeIsInternal,
+      concept_id: knowledgeConceptId || null,
     };
     const {error} = await supabase.from('knowledge').insert([row]);
     setKnowledgeSaving(false);
     if(error){ alert('保存に失敗しました: '+error.message); return; }
     showToast('ナレッジを保存しました');
     setShowKnowledgeModal(false);
+    setKnowledgeConceptId('');
     setKnowledgeStep(1);setKnowledgeIsInternal(false);
     setKnowledgeTemplate(null);
     setKnowledgeSelectedProducts([]);
@@ -1193,6 +1208,7 @@ export default function App() {
       question_text: editKnowledgeQuestion.trim(),
       answer_text: editKnowledgeAnswer.trim(),
       is_internal: editKnowledgeIsInternal,
+      concept_id: editKnowledgeConceptId || null,
       edited_by_human: true,
       edited_by: session?.user?.email||"",
       edited_at: now,
@@ -1203,6 +1219,7 @@ export default function App() {
     if(error){showToast('更新に失敗しました');return;}
     showToast('更新しました');
     setKnowledgeList(prev=>prev.map(k=>k.id===editingKnowledge.id?{...k,...updates}:k));
+    setEditKnowledgeConceptId('');
     setEditingKnowledge(null);
   };
 
@@ -1303,6 +1320,19 @@ export default function App() {
                   {f.label}
                 </button>
               ))}
+              <select
+                value={knowledgeCategoryFilter}
+                onChange={e=>setKnowledgeCategoryFilter(e.target.value)}
+                style={{padding:"5px 10px",borderRadius:20,fontSize:12,border:"1px solid #e2e8f0",color:"#475569",background:"#f8fafc",cursor:"pointer"}}>
+                <option value="">📂 カテゴリ: 全て</option>
+                {knowledgeConcepts.filter(c=>!(c.parent_id)).map(parent=>(
+                  <optgroup key={parent.id} label={parent.name}>
+                    {knowledgeConcepts.filter(c=>c.parent_id===parent.id).map(child=>(
+                      <option key={child.id} value={child.id}>{child.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
 
             {/* 検索 */}
@@ -1323,6 +1353,7 @@ export default function App() {
                     if(knowledgeFilter==="manual"&&k.source_type!=="manual") return false;
                     if(knowledgeFilter==="ec_auto"&&k.source_type!=="ec_auto") return false;
                     if(knowledgeFilter==="internal"&&!k.is_internal) return false;
+                    if(knowledgeCategoryFilter&&k.concept_id!==knowledgeCategoryFilter) return false;
                     const q=knowledgeListSearch.toLowerCase();
                     if(!q) return true;
                     return (k.question_text||"").toLowerCase().includes(q)||(k.answer_text||"").toLowerCase().includes(q);
@@ -1337,7 +1368,7 @@ export default function App() {
                           <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
                             {!isConfirmDelete&&(
                               <>
-                                <button onClick={()=>{setEditingKnowledge(k);setEditKnowledgeQuestion(k.question_text||"");setEditKnowledgeAnswer(k.answer_text||"");setEditKnowledgeIsInternal(k.is_internal||false);}}
+                                <button onClick={()=>{setEditingKnowledge(k);setEditKnowledgeQuestion(k.question_text||"");setEditKnowledgeAnswer(k.answer_text||"");setEditKnowledgeIsInternal(k.is_internal||false);setEditKnowledgeConceptId(k.concept_id||'');}}
                                   style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#64748b"}}>編集</button>
                                 <button onClick={()=>setKnowledgeDeleteConfirmId(k.id)}
                                   style={{background:"none",border:"1px solid #fecaca",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#ef4444"}}>削除</button>
@@ -1362,6 +1393,7 @@ export default function App() {
                           <span style={{background:k.source_type==="ec_auto"?"#f0fdf4":"#f8fafc",color:k.source_type==="ec_auto"?"#16a34a":"#64748b",borderRadius:4,padding:"2px 8px",fontSize:11}}>
                             {k.source_type==="ec_auto"?"🤖 自動EC":"✏️ 手動"}
                           </span>
+                          {k.concept_id&&(()=>{const c=knowledgeConcepts.find(x=>x.id===k.concept_id);return c?(<span style={{background:"#f0f9ff",color:"#0369a1",borderRadius:4,padding:"2px 8px",fontSize:11}}>📂 {c.name}</span>):null;})()}
                           <span style={{marginLeft:"auto",fontSize:11,color:"#94a3b8"}}>{k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}</span>
                         </div>
                       </div>
@@ -1371,6 +1403,7 @@ export default function App() {
                   if(knowledgeFilter==="manual"&&k.source_type!=="manual") return false;
                   if(knowledgeFilter==="ec_auto"&&k.source_type!=="ec_auto") return false;
                   if(knowledgeFilter==="internal"&&!k.is_internal) return false;
+                  if(knowledgeCategoryFilter&&k.concept_id!==knowledgeCategoryFilter) return false;
                   const q=knowledgeListSearch.toLowerCase();
                   if(!q) return true;
                   return (k.question_text||"").toLowerCase().includes(q)||(k.answer_text||"").toLowerCase().includes(q);
@@ -1398,6 +1431,22 @@ export default function App() {
                     <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>回答</div>
                     <textarea value={editKnowledgeAnswer} onChange={e=>setEditKnowledgeAnswer(e.target.value)}
                       style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,minHeight:100,resize:"vertical",boxSizing:"border-box"}}/>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>カテゴリ</div>
+                    <select
+                      value={editKnowledgeConceptId}
+                      onChange={e=>setEditKnowledgeConceptId(e.target.value)}
+                      style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,color:"#334155",background:"#fff"}}>
+                      <option value="">未分類</option>
+                      {knowledgeConcepts.filter(c=>!(c.parent_id)).map(parent=>(
+                        <optgroup key={parent.id} label={parent.name}>
+                          {knowledgeConcepts.filter(c=>c.parent_id===parent.id).map(child=>(
+                            <option key={child.id} value={child.id}>{child.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
                     <input type="checkbox" id="editIsInternal" checked={editKnowledgeIsInternal} onChange={e=>setEditKnowledgeIsInternal(e.target.checked)}/>
@@ -1613,6 +1662,22 @@ export default function App() {
                         </div>
                       </div>
 
+                      <div style={{marginBottom:12}}>
+                        <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>カテゴリ</div>
+                        <select
+                          value={knowledgeConceptId}
+                          onChange={e=>setKnowledgeConceptId(e.target.value)}
+                          style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,color:"#334155",background:"#fff"}}>
+                          <option value="">未分類</option>
+                          {knowledgeConcepts.filter(c=>!(c.parent_id)).map(parent=>(
+                            <optgroup key={parent.id} label={parent.name}>
+                              {knowledgeConcepts.filter(c=>c.parent_id===parent.id).map(child=>(
+                                <option key={child.id} value={child.id}>{child.name}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </div>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
                         <input type="checkbox" id="addIsInternal" checked={knowledgeIsInternal} onChange={e=>setKnowledgeIsInternal(e.target.checked)}/>
                         <label htmlFor="addIsInternal" style={{fontSize:13,color:"#475569",cursor:"pointer"}}>🔒 内部のみ（スタッフ限定・LINE Botに出さない）</label>
