@@ -6218,7 +6218,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
             </div>
             <div style={{gridColumn:"1/-1",borderTop:"1px solid #e2e8f0",marginTop:8,paddingTop:16}}>
   <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
-    {[{k:"knowledge",l:"📚 ナレッジ"},{k:"combo",l:"🔗 組み合わせ"},{k:"photos",l:"📷 写真"},{k:"basic",l:"基本情報"}].map(t=>(
+    {[{k:"knowledge",l:"📚 ナレッジ"},{k:"photos",l:"📷 写真"},{k:"basic",l:"基本情報"}].map(t=>(
       <button key={t.k} type="button" onClick={()=>setProfileTab(t.k)}
         style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:profileTab===t.k?700:400,background:profileTab===t.k?"#0f172a":"#f1f5f9",color:profileTab===t.k?"#fff":"#64748b"}}>
         {t.l}
@@ -6320,57 +6320,6 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
           </div>
         </div>
       )}
-    </div>
-  )}
-
-  {profileTab==="combo"&&(
-    <div>
-      <div style={{marginBottom:12}}>
-        <label style={S.lbl}>この機材との組み合わせを追加</label>
-        <input value={comboSearch} onChange={e=>setComboSearch(e.target.value)} placeholder="機材名で検索..." style={{...S.inp,marginBottom:6}}/>
-        {comboSearch.length>=1&&(
-          <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:160,overflowY:"auto",marginBottom:8}}>
-            {products.filter(p=>p.id!==editId&&p.fullName.toLowerCase().includes(comboSearch.toLowerCase())&&!(form.combinations||[]).some(c=>c.partnerId===p.id)).slice(0,10).map(p=>(
-              <div key={p.id} style={{padding:"7px 12px",cursor:"pointer",fontSize:12,borderBottom:"1px solid #f1f5f9"}}
-                onClick={()=>{setForm(f=>({...f,combinations:[...(f.combinations||[]),{id:uid(),partnerId:p.id,noteFromThis:""}]}));setComboSearch("");}}>
-                {p.fullName}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {(form.combinations||[]).length===0&&<div style={{fontSize:12,color:"#94a3b8",marginBottom:12}}>組み合わせ登録なし</div>}
-      {(form.combinations||[]).map((c,i)=>{
-        const partner=products.find(p=>p.id===c.partnerId);
-        return(
-          <div key={c.id} style={{background:"#f8fafc",borderRadius:8,padding:12,marginBottom:10,border:"1px solid #e2e8f0"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <span style={{fontWeight:700,fontSize:13,color:"#0f172a"}}>🔗 {partner?.fullName||c.partnerId}</span>
-              <button type="button" onClick={()=>setForm(f=>({...f,combinations:f.combinations.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
-            </div>
-            <label style={{...S.lbl,fontSize:11}}>この機材（{form.brand} {form.name}）の視点からのコツ・注意事項</label>
-            <textarea value={c.noteFromThis} onChange={e=>setForm(f=>({...f,combinations:f.combinations.map((x,j)=>j===i?{...x,noteFromThis:e.target.value}:x)}))} rows={3} style={{...S.inp,height:"auto",fontSize:12}} placeholder="接続順、音量設定、タイムコード同期のコツなど"/>
-          </div>
-        );
-      })}
-      {editId&&(()=>{
-        const reverseCombo=products.filter(p=>p.id!==editId&&(p.combinations||[]).some(c=>c.partnerId===editId));
-        if(!reverseCombo.length)return null;
-        return(
-          <div style={{marginTop:16,borderTop:"1px dashed #e2e8f0",paddingTop:12}}>
-            <div style={{fontSize:12,color:"#64748b",marginBottom:8}}>他の機材からの視点（読み取り専用）</div>
-            {reverseCombo.map(p=>{
-              const entry=(p.combinations||[]).find(c=>c.partnerId===editId);
-              return(
-                <div key={p.id} style={{background:"#fffbeb",borderRadius:8,padding:10,marginBottom:8,border:"1px solid #fde68a"}}>
-                  <div style={{fontWeight:700,fontSize:12,color:"#92400e",marginBottom:4}}>📌 {p.fullName} の視点から</div>
-                  <div style={{fontSize:12,color:"#374151",whiteSpace:"pre-wrap"}}>{entry?.noteFromThis||"（メモなし）"}</div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
     </div>
   )}
 
