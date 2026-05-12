@@ -6275,13 +6275,9 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
       {/* 投稿UI */}
       {knowledgeInputMode===null&&(
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setKnowledgeInputMode('qa')}
-            style={{flex:1,padding:"8px",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:12,cursor:"pointer",color:"#0f172a",fontWeight:600}}>
-            💬 質問と回答を書く
-          </button>
           <button onClick={()=>setKnowledgeInputMode('q_only')}
             style={{flex:1,padding:"8px",borderRadius:6,border:"1px solid #fde68a",background:"#fffbeb",fontSize:12,cursor:"pointer",color:"#d97706",fontWeight:600}}>
-            ❓ 質問だけ登録（ベテランに聞く）
+            ❓ 質問を登録
           </button>
         </div>
       )}
@@ -6289,7 +6285,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
       {knowledgeInputMode!==null&&(
         <div style={{border:"1px solid #e2e8f0",borderRadius:8,padding:12,background:"#fff"}}>
           <div style={{fontSize:12,color:"#64748b",marginBottom:8,fontWeight:600}}>
-            {knowledgeInputMode==='q_only'?"❓ ベテランに聞きたい質問":"💬 質問と回答"}
+            ❓ 質問を登録
           </div>
           <input
             type="text"
@@ -6298,15 +6294,6 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
             placeholder="質問を入力..."
             style={{width:"100%",padding:"7px 10px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,marginBottom:8,boxSizing:"border-box"}}
           />
-          {knowledgeInputMode==='qa'&&(
-            <textarea
-              value={inlineA}
-              onChange={e=>setInlineA(e.target.value)}
-              placeholder="回答を入力..."
-              rows={3}
-              style={{width:"100%",padding:"7px 10px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,marginBottom:8,resize:"vertical",boxSizing:"border-box"}}
-            />
-          )}
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>saveInlineKnowledge(editId, form.name)}
               disabled={!inlineQ.trim()||inlineSaving}
