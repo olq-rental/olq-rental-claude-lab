@@ -1050,6 +1050,7 @@ export default function App() {
     const {data,error} = await supabase
       .from('knowledge')
       .select('*')
+      .eq('status','approved')
       .order('created_at',{ascending:false});
     setKnowledgeListLoading(false);
     if(error){console.error('knowledge fetch error',error);return;}
