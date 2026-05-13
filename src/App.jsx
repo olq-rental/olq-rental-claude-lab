@@ -941,6 +941,10 @@ export default function App() {
   const [editPendingQuestion, setEditPendingQuestion] = useState('');
   const [editPendingAnswer, setEditPendingAnswer] = useState('');
   const [editPendingSaving, setEditPendingSaving] = useState(false);
+  const [editPendingPublicStatus, setEditPendingPublicStatus] = useState('internal_only');
+  const [editPendingRiskLevel, setEditPendingRiskLevel] = useState('low');
+  const [editPendingNeedsHumanCheck, setEditPendingNeedsHumanCheck] = useState(false);
+  const [editPendingCorrectionNote, setEditPendingCorrectionNote] = useState('');
   const [questionModalStep, setQuestionModalStep] = useState(0);
   const [questionCategory, setQuestionCategory] = useState('');
   const [questionInput, setQuestionInput] = useState('');
@@ -1060,7 +1064,10 @@ export default function App() {
   };
 
   const approveKnowledge = async (id) => {
-    const {error} = await supabase.from('knowledge').update({status:'approved'}).eq('id',id);
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
+    const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt}).eq('id',id);
     if(error){console.error(error);return;}
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
     showToast('承認しました');
@@ -1081,10 +1088,19 @@ export default function App() {
   const approveWithEdit = async () => {
     if(!editingPending) return;
     setEditPendingSaving(true);
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
     const {error} = await supabase.from('knowledge').update({
       question_text: editPendingQuestion.trim(),
       answer_text: editPendingAnswer.trim(),
       status: 'approved',
+      public_status: editPendingPublicStatus,
+      risk_level: editPendingRiskLevel,
+      needs_human_check: editPendingNeedsHumanCheck,
+      yuta_correction_note: editPendingCorrectionNote.trim()||null,
+      approved_by: 'y_inoue@olq.co.jp',
+      approved_at: approvedAt,
     }).eq('id',editingPending.id);
     setEditPendingSaving(false);
     if(error){console.error(error);return;}
@@ -1582,7 +1598,7 @@ export default function App() {
                           style={{padding:'3px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}}>
                           {[10,9,8,7,6,5,4,3,2,1].map(n=>(<option key={n} value={n}>{n}</option>))}
                         </select>
-                        <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');}}
+                        <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');}}
                           style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
                           ✏️ 訂正して承認
                         </button>
@@ -1666,6 +1682,41 @@ export default function App() {
                     <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>回答</div>
                     <textarea value={editPendingAnswer} onChange={e=>setEditPendingAnswer(e.target.value)}
                       style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:100,resize:'vertical',boxSizing:'border-box'}}/>
+                  </div>
+                  {editingPending&&editingPending.source_url&&(
+                    <div style={{marginBottom:12,padding:'8px 12px',background:'#f8fafc',borderRadius:6,border:'1px solid #e2e8f0'}}>
+                      <div style={{fontSize:11,color:'#94a3b8',marginBottom:4}}>📎 参照元URL（確認用）</div>
+                      <a href={editingPending.source_url} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'#2563eb',wordBreak:'break-all'}}>{editingPending.source_url}</a>
+                    </div>
+                  )}
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>公開ステータス</div>
+                    <select value={editPendingPublicStatus} onChange={e=>setEditPendingPublicStatus(e.target.value)}
+                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,color:'#334155',background:'#fff'}}>
+                      <option value="internal_only">🔒 社内限定</option>
+                      <option value="public_safe">✅ 顧客公開可</option>
+                      <option value="public_with_caution">⚠️ 注意書き付きで公開</option>
+                      <option value="do_not_answer">🚫 回答しない</option>
+                    </select>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>リスクレベル</div>
+                    <select value={editPendingRiskLevel} onChange={e=>setEditPendingRiskLevel(e.target.value)}
+                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,color:'#334155',background:'#fff'}}>
+                      <option value="low">🟢 low：仕様・スペック・一般情報</option>
+                      <option value="medium">🟡 medium：使いこなし・組み合わせ・注意事項</option>
+                      <option value="high">🔴 high：現場リスク直結・損害の可能性あり</option>
+                    </select>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                    <input type="checkbox" id="editNeedsHumanCheck" checked={editPendingNeedsHumanCheck} onChange={e=>setEditPendingNeedsHumanCheck(e.target.checked)}/>
+                    <label htmlFor="editNeedsHumanCheck" style={{fontSize:13,color:'#475569',cursor:'pointer'}}>👤 スタッフ確認が必要（LINE Botで自動回答しない）</label>
+                  </div>
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>訂正メモ（任意）</div>
+                    <textarea value={editPendingCorrectionNote} onChange={e=>setEditPendingCorrectionNote(e.target.value)}
+                      placeholder="AIの回答をどう訂正したか・なぜ変えたかを記録（学習データになります）"
+                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:60,resize:'vertical',boxSizing:'border-box'}}/>
                   </div>
                   <button onClick={approveWithEdit} disabled={editPendingSaving}
                     style={{width:'100%',padding:'10px',background:'#0f172a',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer'}}>
