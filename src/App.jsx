@@ -935,6 +935,8 @@ export default function App() {
   const [sourceKnowledgeMap, setSourceKnowledgeMap] = useState({});
   const [refineModeEnabled, setRefineModeEnabled] = useState(false);
   const [refineModeSaving, setRefineModeSaving] = useState(false);
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
   const [knowledgeConcepts, setKnowledgeConcepts] = useState([]);
   const [knowledgeConceptId, setKnowledgeConceptId] = useState('');
   const [editKnowledgeConceptId, setEditKnowledgeConceptId] = useState('');
@@ -1093,10 +1095,28 @@ export default function App() {
     showToast('承認しました');
   };
 
-  const rejectKnowledge = async (id) => {
-    const {error} = await supabase.from('knowledge').update({status:'rejected'}).eq('id',id);
+  const rejectKnowledge = async (id, reason='') => {
+    const target = knowledgePendingList.find(k=>k.id===id);
+    const {error} = await supabase.from('knowledge').update({
+      status:'rejected',
+      rejection_reason: reason.trim()||null,
+    }).eq('id',id);
     if(error){console.error(error);return;}
+    // refine系なら元Q&AのIDのlast_refined_atを更新
+    if(target){
+      const sourceIds=[];
+      if(target.refine_source_id) sourceIds.push(target.refine_source_id);
+      if(target.merge_source_ids&&target.merge_source_ids.length) target.merge_source_ids.forEach(id=>sourceIds.push(id));
+      if(sourceIds.length>0){
+        const now=new Date().toISOString();
+        for(const sid of sourceIds){
+          await supabase.from('knowledge').update({last_refined_at:now}).eq('id',sid);
+        }
+      }
+    }
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
+    setRejectModal(null);
+    setRejectReason('');
     showToast('却下しました');
   };
 
@@ -1166,6 +1186,15 @@ export default function App() {
     }).eq('id',editingPending.id);
     setEditPendingSaving(false);
     if(error){console.error(error);return;}
+    // refine系なら元Q&AをDELETE
+    if(editingPending.source_type==='refine_improve'&&editingPending.refine_source_id){
+      await supabase.from('knowledge').delete().eq('id',editingPending.refine_source_id);
+    }
+    if(editingPending.source_type==='refine_merge'&&(editingPending.merge_source_ids||[]).length>0){
+      for(const sid of editingPending.merge_source_ids){
+        await supabase.from('knowledge').delete().eq('id',sid);
+      }
+    }
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==editingPending.id));
     setEditingPending(null);
     showToast('訂正して承認しました');
@@ -1688,7 +1717,7 @@ export default function App() {
                             style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
                             ✏️ 訂正して承認
                           </button>
-                          <button onClick={()=>rejectKnowledge(k.id)}
+                          <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
                             style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
                             却下
                           </button>
@@ -1728,7 +1757,7 @@ export default function App() {
                             style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
                             ✏️ 訂正して承認
                           </button>
-                          <button onClick={()=>rejectKnowledge(k.id)}
+                          <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
                             style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
                             却下
                           </button>
@@ -1897,6 +1926,27 @@ export default function App() {
                     style={{width:'100%',padding:'10px',background:'#0f172a',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer'}}>
                     {editPendingSaving?'保存中...':'訂正して承認する'}
                   </button>
+                </div>
+              </div>
+            )}
+            {/* 却下理由モーダル */}
+            {rejectModal&&(
+              <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:9004,display:'flex',alignItems:'center',justifyContent:'center'}}
+                onClick={e=>{if(e.target===e.currentTarget){setRejectModal(null);setRejectReason('');}}}>
+                <div style={{background:'#fff',borderRadius:12,padding:24,width:'90%',maxWidth:400}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                    <span style={{fontWeight:700,fontSize:16}}>却下理由（任意）</span>
+                    <button onClick={()=>{setRejectModal(null);setRejectReason('');}} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#64748b'}}>×</button>
+                  </div>
+                  <textarea value={rejectReason} onChange={e=>setRejectReason(e.target.value)}
+                    placeholder="例：提案の方向性が違う / 既に承認済みと重複 / 情報が古い（任意）"
+                    style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:80,resize:'vertical',boxSizing:'border-box',marginBottom:16}}/>
+                  <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+                    <button onClick={()=>{setRejectModal(null);setRejectReason('');}}
+                      style={{padding:'8px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:13}}>キャンセル</button>
+                    <button onClick={()=>rejectKnowledge(rejectModal,rejectReason)}
+                      style={{padding:'8px 20px',borderRadius:6,border:'none',background:'#ef4444',color:'#fff',fontWeight:600,cursor:'pointer',fontSize:13}}>却下する</button>
+                  </div>
                 </div>
               </div>
             )}
