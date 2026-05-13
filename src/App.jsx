@@ -932,6 +932,9 @@ export default function App() {
   const [editKnowledgeIsInternal, setEditKnowledgeIsInternal] = useState(false);
   const [editKnowledgeSaving, setEditKnowledgeSaving] = useState(false);
   const [knowledgeDeleteConfirmId, setKnowledgeDeleteConfirmId] = useState(null);
+  const [sourceKnowledgeMap, setSourceKnowledgeMap] = useState({});
+  const [refineModeEnabled, setRefineModeEnabled] = useState(false);
+  const [refineModeSaving, setRefineModeSaving] = useState(false);
   const [knowledgeConcepts, setKnowledgeConcepts] = useState([]);
   const [knowledgeConceptId, setKnowledgeConceptId] = useState('');
   const [editKnowledgeConceptId, setEditKnowledgeConceptId] = useState('');
@@ -1063,7 +1066,21 @@ export default function App() {
       .order('created_at',{ascending:true});
     setPendingListLoading(false);
     if(error){console.error('fetchPendingList error',error);return;}
-    setKnowledgePendingList(data||[]);
+    const list = data||[];
+    setKnowledgePendingList(list);
+    // refine系の元Q&AのIDを収集して一括取得
+    const sourceIds = [];
+    for(const k of list){
+      if(k.refine_source_id) sourceIds.push(k.refine_source_id);
+      if(k.merge_source_ids&&k.merge_source_ids.length) k.merge_source_ids.forEach(id=>sourceIds.push(id));
+    }
+    if(sourceIds.length>0){
+      const unique=[...new Set(sourceIds)];
+      const {data:srcData}=await supabase.from('knowledge').select('id,question_text,answer_text,yuta_correction_note').in('id',unique);
+      const map={};
+      (srcData||[]).forEach(q=>{map[q.id]=q;});
+      setSourceKnowledgeMap(map);
+    }
   };
 
   const approveKnowledge = async (id) => {
@@ -1081,6 +1098,46 @@ export default function App() {
     if(error){console.error(error);return;}
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
     showToast('却下しました');
+  };
+
+  const approveWithReplace = async (pending) => {
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
+    const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt,edited_by_human:true}).eq('id',pending.id);
+    if(error){console.error(error);return;}
+    if(pending.refine_source_id){
+      await supabase.from('knowledge').delete().eq('id',pending.refine_source_id);
+    }
+    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==pending.id));
+    showToast('承認して差し替えました');
+  };
+
+  const approveMerge = async (pending) => {
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
+    const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt,edited_by_human:true}).eq('id',pending.id);
+    if(error){console.error(error);return;}
+    for(const sourceId of (pending.merge_source_ids||[])){
+      await supabase.from('knowledge').delete().eq('id',sourceId);
+    }
+    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==pending.id));
+    showToast('統合して承認しました（元の'+((pending.merge_source_ids||[]).length)+'件を削除）');
+  };
+
+  const fetchRefineModeEnabled = async () => {
+    const {data}=await supabase.from('settings').select('value').eq('key','refine_mode_enabled').single();
+    if(data){try{setRefineModeEnabled(JSON.parse(data.value));}catch{}}
+  };
+
+  const toggleRefineMode = async () => {
+    setRefineModeSaving(true);
+    const next=!refineModeEnabled;
+    await supabase.from('settings').update({value:JSON.stringify(next)}).eq('key','refine_mode_enabled');
+    setRefineModeEnabled(next);
+    setRefineModeSaving(false);
+    showToast(next?'ブラッシュアップモードをONにしました':'ブラッシュアップモードをOFFにしました');
   };
 
   const updateKnowledgePriority = async (id, priority) => {
@@ -1135,7 +1192,7 @@ export default function App() {
     setKnowledgeList(data||[]);
   };
   React.useEffect(()=>{
-    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();fetchPendingList();fetchKnowledgeSearchMode();}
+    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();fetchPendingList();fetchKnowledgeSearchMode();fetchRefineModeEnabled();}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab]);
 
@@ -1585,14 +1642,108 @@ export default function App() {
                 {!pendingListLoading&&knowledgePendingList.length===0&&(
                   <div style={{color:'#94a3b8',fontSize:13,textAlign:'center',padding:40}}>承認待ちはありません 🎉</div>
                 )}
+                {/* ブラッシュアップモードスイッチ */}
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'10px 14px',background:'#fafafa',borderRadius:8,border:'1px solid #e2e8f0'}}>
+                  <span style={{fontSize:13,color:'#64748b'}}>🔧 ブラッシュアップモード</span>
+                  <button onClick={toggleRefineMode} disabled={refineModeSaving}
+                    style={{padding:'4px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',
+                      background:refineModeEnabled?'#0f172a':'#e2e8f0',
+                      color:refineModeEnabled?'#fff':'#64748b'}}>
+                    {refineModeSaving?'...':(refineModeEnabled?'ON':'OFF')}
+                  </button>
+                  <span style={{fontSize:11,color:'#94a3b8'}}>{refineModeEnabled?'毎朝8時に改善・統合提案を自動生成中':'Phase 2移行後にONにする'}</span>
+                </div>
+
                 {!pendingListLoading&&knowledgePendingList.map(k=>{
                   const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
+
+                  // 🔧 改善提案カード
+                  if(k.source_type==='refine_improve'){
+                    const sourceQA=sourceKnowledgeMap[k.refine_source_id];
+                    return(
+                      <div key={k.id} style={{background:'#fff',border:'2px solid #f59e0b',borderRadius:10,padding:16,marginBottom:12}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                          <span style={{background:'#fef3c7',color:'#d97706',borderRadius:6,padding:'2px 10px',fontSize:11,fontWeight:700}}>🔧 改善提案</span>
+                          {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
+                        </div>
+                        {sourceQA&&(
+                          <div style={{background:'#f8fafc',borderRadius:6,padding:10,marginBottom:8,border:'1px solid #e2e8f0'}}>
+                            <div style={{fontSize:11,color:'#94a3b8',marginBottom:4}}>元のQ&A</div>
+                            <div style={{fontWeight:600,fontSize:13,color:'#64748b',marginBottom:4}}>Q: {sourceQA.question_text}</div>
+                            <div style={{fontSize:12,color:'#94a3b8',lineHeight:1.5,whiteSpace:'pre-wrap'}}>A: {sourceQA.answer_text}</div>
+                            {sourceQA.yuta_correction_note&&<div style={{fontSize:11,color:'#f59e0b',marginTop:4}}>訂正メモ: {sourceQA.yuta_correction_note}</div>}
+                          </div>
+                        )}
+                        <div style={{background:'#fffbeb',borderRadius:6,padding:10,marginBottom:10,border:'1px solid #fde68a'}}>
+                          <div style={{fontSize:11,color:'#d97706',marginBottom:4}}>改善版</div>
+                          <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:6}}>Q: {k.question_text}</div>
+                          <div style={{fontSize:13,color:'#334155',lineHeight:1.6,whiteSpace:'pre-wrap'}}>A: {k.answer_text}</div>
+                        </div>
+                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                          <button onClick={()=>approveWithReplace(k)}
+                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#d97706',color:'#fff',fontWeight:600,cursor:'pointer'}}>
+                            ✅ 承認して差し替え
+                          </button>
+                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);}}
+                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
+                            ✏️ 訂正して承認
+                          </button>
+                          <button onClick={()=>rejectKnowledge(k.id)}
+                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
+                            却下
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // 🔗 統合提案カード
+                  if(k.source_type==='refine_merge'){
+                    const sourceQAs=(k.merge_source_ids||[]).map(id=>sourceKnowledgeMap[id]).filter(Boolean);
+                    return(
+                      <div key={k.id} style={{background:'#fff',border:'2px solid #8b5cf6',borderRadius:10,padding:16,marginBottom:12}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                          <span style={{background:'#ede9fe',color:'#7c3aed',borderRadius:6,padding:'2px 10px',fontSize:11,fontWeight:700}}>🔗 統合提案（元{(k.merge_source_ids||[]).length}件を削除）</span>
+                          {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
+                        </div>
+                        {sourceQAs.map((sq,i)=>(
+                          <div key={sq.id} style={{background:'#f8fafc',borderRadius:6,padding:10,marginBottom:6,border:'1px solid #e2e8f0'}}>
+                            <div style={{fontSize:11,color:'#94a3b8',marginBottom:4}}>元のQ&A {i+1}</div>
+                            <div style={{fontWeight:600,fontSize:13,color:'#64748b',marginBottom:4}}>Q: {sq.question_text}</div>
+                            <div style={{fontSize:12,color:'#94a3b8',lineHeight:1.5,whiteSpace:'pre-wrap'}}>A: {sq.answer_text}</div>
+                            {sq.yuta_correction_note&&<div style={{fontSize:11,color:'#f59e0b',marginTop:4}}>訂正メモ: {sq.yuta_correction_note}</div>}
+                          </div>
+                        ))}
+                        <div style={{background:'#f5f3ff',borderRadius:6,padding:10,marginBottom:10,border:'1px solid #ddd6fe'}}>
+                          <div style={{fontSize:11,color:'#7c3aed',marginBottom:4}}>統合版</div>
+                          <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:6}}>Q: {k.question_text}</div>
+                          <div style={{fontSize:13,color:'#334155',lineHeight:1.6,whiteSpace:'pre-wrap'}}>A: {k.answer_text}</div>
+                        </div>
+                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                          <button onClick={()=>approveMerge(k)}
+                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#7c3aed',color:'#fff',fontWeight:600,cursor:'pointer'}}>
+                            ✅ 承認して統合・元{(k.merge_source_ids||[]).length}件削除
+                          </button>
+                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);}}
+                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
+                            ✏️ 訂正して承認
+                          </button>
+                          <button onClick={()=>rejectKnowledge(k.id)}
+                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
+                            却下
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // 通常カード（ec_auto / manual）
                   return(
                     <div key={k.id} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16,marginBottom:12}}>
                       <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:6}}>❓ {k.question_text||'（質問なし）'}</div>
                       <div style={{fontSize:13,color:'#334155',marginBottom:10,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{k.answer_text}</div>
                       <div style={{display:'flex',flexWrap:'wrap',gap:6,alignItems:'center',marginBottom:10}}>
-                        {relatedProds.map(p=>(<span key={p.id} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
+                        {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
                         <span style={{background:k.source_type==='ec_auto'?'#f0fdf4':'#f8fafc',color:k.source_type==='ec_auto'?'#16a34a':'#64748b',borderRadius:4,padding:'2px 8px',fontSize:11}}>
                           {k.source_type==='ec_auto'?'🤖 自動EC':'✏️ 手動'}
                         </span>
