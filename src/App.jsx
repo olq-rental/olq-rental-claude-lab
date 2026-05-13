@@ -6111,7 +6111,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
 }
 
 function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts}){
-  const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false,usageMemo:"",cautions:"",combinations:[],faqs:[],photos:[],batteryLife:""};
+  const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false,usageMemo:"",cautions:"",combinations:[],faqs:[],photos:[],batteryLife:"",ec_url:""};
   const [form,setForm]=useState(E);
   const [profileTab,setProfileTab]=useState("basic");
   const [comboSearch,setComboSearch]=useState("");
@@ -6180,7 +6180,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     const priceIn=Number(form.priceIn);
     const priceEx=taxEx(priceIn);
     const pid=editId||uid();
-    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount,usageMemo:form.usageMemo||"",cautions:form.cautions||"",combinations:form.combinations||[],faqs:form.faqs||[],photos:form.photos||[],batteryLife:form.batteryLife||""};
+    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount,usageMemo:form.usageMemo||"",cautions:form.cautions||"",combinations:form.combinations||[],faqs:form.faqs||[],photos:form.photos||[],batteryLife:form.batteryLife||"",ec_url:form.ec_url||""};
     p.fullName=`${p.brand} ${p.name}`;
     try {
       await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
@@ -6419,6 +6419,10 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
         );
       })()}
       <div>
+        <label style={S.lbl}>ECサイトURL</label>
+        <input value={form.ec_url||""} onChange={e=>setForm(f=>({...f,ec_url:e.target.value}))} placeholder="例: https://rental.olq.co.jp/products/xxx" style={S.inp}/>
+      </div>
+      <div>
         <label style={S.lbl}>バッテリー持続時間（手動入力）</label>
         <input value={form.batteryLife||""} onChange={e=>setForm(f=>({...f,batteryLife:e.target.value}))} placeholder="例: 約90分（4K記録時）" style={S.inp}/>
       </div>
@@ -6531,7 +6535,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                         }
                       </td>
                       <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false,usageMemo:p.usageMemo||"",cautions:p.cautions||"",combinations:p.combinations||[],faqs:p.faqs||[],photos:p.photos||[],batteryLife:p.batteryLife||""});setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setSpList(customers.flatMap(c=>(c.specialPrices||[]).filter(s=>s.productId===p.id).map(s=>({cid:c.id,cname:c.name,price:s.price}))));setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);fetchProdKnowledge(p.id);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
+                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false,usageMemo:p.usageMemo||"",cautions:p.cautions||"",combinations:p.combinations||[],faqs:p.faqs||[],photos:p.photos||[],batteryLife:p.batteryLife||"",ec_url:p.ec_url||""});setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setSpList(customers.flatMap(c=>(c.specialPrices||[]).filter(s=>s.productId===p.id).map(s=>({cid:c.id,cname:c.name,price:s.price}))));setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);fetchProdKnowledge(p.id);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
                         <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(products.filter(x=>x.id!==p.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                       </td>
                     </tr>
