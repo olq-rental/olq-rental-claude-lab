@@ -953,6 +953,9 @@ export default function App() {
   const [editPendingNeedsHumanCheck, setEditPendingNeedsHumanCheck] = useState(false);
   const [editPendingCorrectionNote, setEditPendingCorrectionNote] = useState('');
   const [editPendingReferenceUrls, setEditPendingReferenceUrls] = useState([]);
+  const [editPendingImageFiles, setEditPendingImageFiles] = useState([]);
+  const [editPendingImageUrls, setEditPendingImageUrls] = useState([]);
+  const [editPendingImageUploading, setEditPendingImageUploading] = useState(false);
   const [questionModalStep, setQuestionModalStep] = useState(0);
   const [questionCategory, setQuestionCategory] = useState('');
   const [questionInput, setQuestionInput] = useState('');
@@ -1168,6 +1171,23 @@ export default function App() {
   const approveWithEdit = async () => {
     if(!editingPending) return;
     setEditPendingSaving(true);
+    // 新規画像をSupabase Storageにアップロード
+    let uploadedUrls = [...editPendingImageUrls];
+    if(editPendingImageFiles.length>0){
+      setEditPendingImageUploading(true);
+      for(const file of editPendingImageFiles){
+        try{
+          const ext=file.name.split('.').pop();
+          const path=`knowledge/${editingPending.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const {error:upErr}=await supabase.storage.from('knowledge-images').upload(path,file,{upsert:false});
+          if(!upErr){
+            const {data:urlData}=supabase.storage.from('knowledge-images').getPublicUrl(path);
+            if(urlData&&urlData.publicUrl) uploadedUrls.push(urlData.publicUrl);
+          }
+        }catch(e){console.error('image upload error',e);}
+      }
+      setEditPendingImageUploading(false);
+    }
     const now = new Date();
     const pad = n => String(n).padStart(2,'0');
     const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
@@ -1180,13 +1200,13 @@ export default function App() {
       needs_human_check: editPendingNeedsHumanCheck,
       yuta_correction_note: editPendingCorrectionNote.trim()||null,
       reference_urls: editPendingReferenceUrls,
+      image_urls: uploadedUrls,
       edited_by_human: true,
       approved_by: 'y_inoue@olq.co.jp',
       approved_at: approvedAt,
     }).eq('id',editingPending.id);
     setEditPendingSaving(false);
     if(error){console.error(error);return;}
-    // refine系なら元Q&AをDELETE
     if(editingPending.source_type==='refine_improve'&&editingPending.refine_source_id){
       await supabase.from('knowledge').delete().eq('id',editingPending.refine_source_id);
     }
@@ -1197,6 +1217,8 @@ export default function App() {
     }
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==editingPending.id));
     setEditingPending(null);
+    setEditPendingImageFiles([]);
+    setEditPendingImageUrls([]);
     showToast('訂正して承認しました');
   };
 
@@ -1622,6 +1644,15 @@ export default function App() {
                         </div>
                         {isConfirmDelete&&<div style={{fontSize:12,color:"#ef4444",marginBottom:8}}>このエントリを削除しますか？</div>}
                         <div style={{fontSize:13,color:"#334155",marginBottom:10,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{k.answer_text}</div>
+                        {(k.image_urls||[]).length>0&&(
+                          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
+                            {(k.image_urls||[]).map((url,i)=>(
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                <img src={url} alt="" style={{width:72,height:56,objectFit:'cover',borderRadius:4,border:'1px solid #e2e8f0'}}/>
+                              </a>
+                            ))}
+                          </div>
+                        )}
                         <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
                           {relatedProds.map(p=>(<span key={p.id} style={{background:"#f1f5f9",color:"#475569",borderRadius:4,padding:"2px 8px",fontSize:11}}>📷 {(p&&p.name)||""}</span>))}
                           {(k.scenario_tags||[]).map(tag=>(<span key={tag} style={{background:"#eff6ff",color:"#3b82f6",borderRadius:4,padding:"2px 8px",fontSize:11}}>{tag}</span>))}
@@ -1713,7 +1744,7 @@ export default function App() {
                             style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#d97706',color:'#fff',fontWeight:600,cursor:'pointer'}}>
                             ✅ 承認して差し替え
                           </button>
-                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);}}
+                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
                             style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
                             ✏️ 訂正して承認
                           </button>
@@ -1753,7 +1784,7 @@ export default function App() {
                             style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#7c3aed',color:'#fff',fontWeight:600,cursor:'pointer'}}>
                             ✅ 承認して統合・元{(k.merge_source_ids||[]).length}件削除
                           </button>
-                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);}}
+                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
                             style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
                             ✏️ 訂正して承認
                           </button>
@@ -1783,7 +1814,7 @@ export default function App() {
                           style={{padding:'3px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}}>
                           {[10,9,8,7,6,5,4,3,2,1].map(n=>(<option key={n} value={n}>{n}</option>))}
                         </select>
-                        <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);}}
+                        <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
                           style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
                           ✏️ 訂正して承認
                         </button>
@@ -1921,6 +1952,40 @@ export default function App() {
                     <textarea value={editPendingCorrectionNote} onChange={e=>setEditPendingCorrectionNote(e.target.value)}
                       placeholder="AIの回答をどう訂正したか・なぜ変えたかを記録（学習データになります）"
                       style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:60,resize:'vertical',boxSizing:'border-box'}}/>
+                  </div>
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:12,color:'#64748b',marginBottom:6}}>画像（任意・複数可）</div>
+                    {editPendingImageUrls.length>0&&(
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
+                        {editPendingImageUrls.map((url,i)=>(
+                          <div key={i} style={{position:'relative'}}>
+                            <img src={url} alt="" style={{width:72,height:56,objectFit:'cover',borderRadius:4,border:'1px solid #e2e8f0'}}/>
+                            <button type="button" onClick={()=>setEditPendingImageUrls(prev=>prev.filter((_,j)=>j!==i))}
+                              style={{position:'absolute',top:-4,right:-4,width:16,height:16,borderRadius:'50%',background:'#ef4444',border:'none',color:'#fff',fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {editPendingImageFiles.length>0&&(
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
+                        {editPendingImageFiles.map((f,i)=>(
+                          <div key={i} style={{position:'relative'}}>
+                            <img src={URL.createObjectURL(f)} alt="" style={{width:72,height:56,objectFit:'cover',borderRadius:4,border:'1px solid #fbbf24'}}/>
+                            <button type="button" onClick={()=>setEditPendingImageFiles(prev=>prev.filter((_,j)=>j!==i))}
+                              style={{position:'absolute',top:-4,right:-4,width:16,height:16,borderRadius:'50%',background:'#ef4444',border:'none',color:'#fff',fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <label style={{display:'inline-block',padding:'5px 12px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8fafc',fontSize:12,cursor:'pointer',color:'#475569'}}>
+                      📷 画像を追加
+                      <input type="file" accept="image/*" multiple style={{display:'none'}} onChange={e=>{
+                        const files=Array.from(e.target.files||[]);
+                        setEditPendingImageFiles(prev=>[...prev,...files]);
+                        e.target.value='';
+                      }}/>
+                    </label>
+                    {editPendingImageUploading&&<span style={{fontSize:12,color:'#94a3b8',marginLeft:8}}>アップロード中...</span>}
                   </div>
                   <button onClick={approveWithEdit} disabled={editPendingSaving}
                     style={{width:'100%',padding:'10px',background:'#0f172a',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer'}}>
