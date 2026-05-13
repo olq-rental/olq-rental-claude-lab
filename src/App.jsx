@@ -947,6 +947,7 @@ export default function App() {
   const [editPendingRiskLevel, setEditPendingRiskLevel] = useState('low');
   const [editPendingNeedsHumanCheck, setEditPendingNeedsHumanCheck] = useState(false);
   const [editPendingCorrectionNote, setEditPendingCorrectionNote] = useState('');
+  const [editPendingReferenceUrls, setEditPendingReferenceUrls] = useState([]);
   const [questionModalStep, setQuestionModalStep] = useState(0);
   const [questionCategory, setQuestionCategory] = useState('');
   const [questionInput, setQuestionInput] = useState('');
@@ -1101,6 +1102,7 @@ export default function App() {
       risk_level: editPendingRiskLevel,
       needs_human_check: editPendingNeedsHumanCheck,
       yuta_correction_note: editPendingCorrectionNote.trim()||null,
+      reference_urls: editPendingReferenceUrls,
       approved_by: 'y_inoue@olq.co.jp',
       approved_at: approvedAt,
     }).eq('id',editingPending.id);
@@ -1600,7 +1602,7 @@ export default function App() {
                           style={{padding:'3px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}}>
                           {[10,9,8,7,6,5,4,3,2,1].map(n=>(<option key={n} value={n}>{n}</option>))}
                         </select>
-                        <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');}}
+                        <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);}}
                           style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
                           ✏️ 訂正して承認
                         </button>
@@ -1713,6 +1715,25 @@ export default function App() {
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
                     <input type="checkbox" id="editNeedsHumanCheck" checked={editPendingNeedsHumanCheck} onChange={e=>setEditPendingNeedsHumanCheck(e.target.checked)}/>
                     <label htmlFor="editNeedsHumanCheck" style={{fontSize:13,color:'#475569',cursor:'pointer'}}>👤 スタッフ確認が必要（LINE Botで自動回答しない）</label>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:12,color:'#64748b',marginBottom:6}}>参考URL（任意・複数追加可）</div>
+                    {editPendingReferenceUrls.map((ref,i)=>(
+                      <div key={i} style={{display:'flex',gap:6,marginBottom:6,alignItems:'center'}}>
+                        <input value={ref.label||''} onChange={e=>setEditPendingReferenceUrls(prev=>prev.map((r,j)=>j===i?{...r,label:e.target.value}:r))}
+                          placeholder="ラベル（例：メーカー公式）"
+                          style={{flex:'0 0 130px',padding:'6px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12}}/>
+                        <input value={ref.url||''} onChange={e=>setEditPendingReferenceUrls(prev=>prev.map((r,j)=>j===i?{...r,url:e.target.value}:r))}
+                          placeholder="https://..."
+                          style={{flex:1,padding:'6px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12}}/>
+                        <button type="button" onClick={()=>setEditPendingReferenceUrls(prev=>prev.filter((_,j)=>j!==i))}
+                          style={{padding:'4px 8px',borderRadius:6,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',fontSize:12,cursor:'pointer',flexShrink:0}}>×</button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={()=>setEditPendingReferenceUrls(prev=>[...prev,{label:'',url:''}])}
+                      style={{padding:'5px 12px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8fafc',fontSize:12,cursor:'pointer',color:'#475569'}}>
+                      ＋ URLを追加
+                    </button>
                   </div>
                   <div style={{marginBottom:16}}>
                     <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>訂正メモ（任意）</div>
