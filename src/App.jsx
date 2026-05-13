@@ -1103,6 +1103,7 @@ export default function App() {
       needs_human_check: editPendingNeedsHumanCheck,
       yuta_correction_note: editPendingCorrectionNote.trim()||null,
       reference_urls: editPendingReferenceUrls,
+      edited_by_human: true,
       approved_by: 'y_inoue@olq.co.jp',
       approved_at: approvedAt,
     }).eq('id',editingPending.id);
