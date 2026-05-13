@@ -686,10 +686,10 @@ const _TABLE = { [K.p]:'products', [K.c]:'customers', [K.r]:'cases' };
 async function sGet(k) {
   try {
     if (_TABLE[k]) {
-      const { data, error } = await supabase.from(_TABLE[k]).select('id, data, ec_url');
+      const { data, error } = await supabase.from(_TABLE[k]).select('id, data');
       if (error) { console.error('sGet error', k, error); return null; }
       if (!data?.length) return null;
-      return data.map(row => ({ ...row.data, ec_url: row.ec_url || '' }));
+      return data.map(row => row.data);
     }
     if (k === K.inv) {
       const { data, error } = await supabase.from('invoices').select('id, data, is_locked');
