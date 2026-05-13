@@ -1656,7 +1656,13 @@ export default function App() {
                         <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
                           {relatedProds.map(p=>(<span key={p.id} style={{background:"#f1f5f9",color:"#475569",borderRadius:4,padding:"2px 8px",fontSize:11}}>📷 {(p&&p.name)||""}</span>))}
                           {(k.scenario_tags||[]).map(tag=>(<span key={tag} style={{background:"#eff6ff",color:"#3b82f6",borderRadius:4,padding:"2px 8px",fontSize:11}}>{tag}</span>))}
-                          {k.is_internal&&(<span style={{background:"#fef3c7",color:"#d97706",borderRadius:4,padding:"2px 8px",fontSize:11}}>🔒 内部のみ</span>)}
+                          {(()=>{
+                            const ps=k.public_status;
+                            if(ps==='public_safe') return <span style={{background:"#f0fdf4",color:"#16a34a",borderRadius:4,padding:"2px 8px",fontSize:11}}>✅ 顧客公開可</span>;
+                            if(ps==='public_with_caution') return <span style={{background:"#fffbeb",color:"#d97706",borderRadius:4,padding:"2px 8px",fontSize:11}}>⚠️ 注意書き付き</span>;
+                            if(ps==='do_not_answer') return <span style={{background:"#fff1f2",color:"#e11d48",borderRadius:4,padding:"2px 8px",fontSize:11}}>🚫 回答しない</span>;
+                            return <span style={{background:"#fef3c7",color:"#d97706",borderRadius:4,padding:"2px 8px",fontSize:11}}>🔒 社内限定</span>;
+                          })()}
                           <span style={{background:k.source_type==="ec_auto"?"#f0fdf4":"#f8fafc",color:k.source_type==="ec_auto"?"#16a34a":"#64748b",borderRadius:4,padding:"2px 8px",fontSize:11}}>
                             {k.source_type==="ec_auto"?"🤖 自動EC":"✏️ 手動"}
                           </span>
