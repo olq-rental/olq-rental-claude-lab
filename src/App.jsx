@@ -1791,7 +1791,7 @@ export default function App() {
                           style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#0f172a',color:'#fff',fontWeight:600,cursor:'pointer'}}>
                           ✅ 承認
                         </button>
-                        <button onClick={()=>rejectKnowledge(k.id)}
+                        <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
                           style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
                           却下
                         </button>
