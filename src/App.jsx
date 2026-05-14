@@ -1697,7 +1697,15 @@ export default function App() {
                           </div>
                         )}
                         <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
-                          {relatedProds.map(p=>(<span key={p.id} style={{background:"#f1f5f9",color:"#475569",borderRadius:4,padding:"2px 8px",fontSize:11}}>📷 {(p&&p.name)||""}</span>))}
+                          {relatedProds.map(p=>(
+                            <span key={(p&&p.id)||""} style={{display:'inline-flex',alignItems:'center',gap:4,background:"#f1f5f9",color:"#475569",borderRadius:4,padding:"2px 8px",fontSize:11}}>
+                              📷 {(p&&p.name)||""}
+                              {(p&&p.ec_url)&&(
+                                <a href={p.ec_url} target="_blank" rel="noopener noreferrer"
+                                  style={{color:'#2563eb',fontSize:10,textDecoration:'none'}} title="ECサイトで見る">🛒</a>
+                              )}
+                            </span>
+                          ))}
                           {(k.scenario_tags||[]).map(tag=>(<span key={tag} style={{background:"#eff6ff",color:"#3b82f6",borderRadius:4,padding:"2px 8px",fontSize:11}}>{tag}</span>))}
                           {(()=>{
                             const ps=k.public_status;
