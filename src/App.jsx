@@ -1616,7 +1616,15 @@ export default function App() {
                     if(knowledgeCategoryFilter&&k.concept_id!==knowledgeCategoryFilter) return false;
                     const q=knowledgeListSearch.toLowerCase();
                     if(!q) return true;
-                    return (k.question_text||"").toLowerCase().includes(q)||(k.answer_text||"").toLowerCase().includes(q);
+                    const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
+                    const prodNames=relatedProds.map(p=>(p&&p.name)||'').join(' ').toLowerCase();
+                    const tags=(k.scenario_tags||[]).join(' ').toLowerCase();
+                    const conceptName=(()=>{const c=knowledgeConcepts.find(x=>x.id===k.concept_id);return c?(c.name||''):'';})().toLowerCase();
+                    return (k.question_text||'').toLowerCase().includes(q)
+                      ||(k.answer_text||'').toLowerCase().includes(q)
+                      ||prodNames.includes(q)
+                      ||tags.includes(q)
+                      ||conceptName.includes(q);
                   })
                   .map(k=>{
                     const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
@@ -1681,7 +1689,15 @@ export default function App() {
                   if(knowledgeCategoryFilter&&k.concept_id!==knowledgeCategoryFilter) return false;
                   const q=knowledgeListSearch.toLowerCase();
                   if(!q) return true;
-                  return (k.question_text||"").toLowerCase().includes(q)||(k.answer_text||"").toLowerCase().includes(q);
+                  const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
+                  const prodNames=relatedProds.map(p=>(p&&p.name)||'').join(' ').toLowerCase();
+                  const tags=(k.scenario_tags||[]).join(' ').toLowerCase();
+                  const conceptName=(()=>{const c=knowledgeConcepts.find(x=>x.id===k.concept_id);return c?(c.name||''):'';})().toLowerCase();
+                  return (k.question_text||'').toLowerCase().includes(q)
+                    ||(k.answer_text||'').toLowerCase().includes(q)
+                    ||prodNames.includes(q)
+                    ||tags.includes(q)
+                    ||conceptName.includes(q);
                 }).length===0&&(
                   <div style={{color:"#94a3b8",fontSize:13,textAlign:"center",padding:40}}>まだエントリがありません。「＋」ボタンから追加してください。</div>
                 )}
