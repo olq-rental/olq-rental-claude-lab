@@ -930,6 +930,7 @@ export default function App() {
   const [editKnowledgeQuestion, setEditKnowledgeQuestion] = useState("");
   const [editKnowledgeAnswer, setEditKnowledgeAnswer] = useState("");
   const [editKnowledgeIsInternal, setEditKnowledgeIsInternal] = useState(false);
+  const [editKnowledgePublicStatus, setEditKnowledgePublicStatus] = useState('internal_only');
   const [editKnowledgeSaving, setEditKnowledgeSaving] = useState(false);
   const [knowledgeDeleteConfirmId, setKnowledgeDeleteConfirmId] = useState(null);
   const [sourceKnowledgeMap, setSourceKnowledgeMap] = useState({});
@@ -1449,6 +1450,7 @@ export default function App() {
       question_text: editKnowledgeQuestion.trim(),
       answer_text: editKnowledgeAnswer.trim(),
       is_internal: editKnowledgeIsInternal,
+      public_status: editKnowledgePublicStatus,
       concept_id: editKnowledgeConceptId || null,
       edited_by_human: true,
       edited_by: session?.user?.email||"",
@@ -1626,7 +1628,7 @@ export default function App() {
                           <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
                             {!isConfirmDelete&&(
                               <>
-                                <button onClick={()=>{setEditingKnowledge(k);setEditKnowledgeQuestion(k.question_text||"");setEditKnowledgeAnswer(k.answer_text||"");setEditKnowledgeIsInternal(k.is_internal||false);setEditKnowledgeConceptId(k.concept_id||'');}}
+                                <button onClick={()=>{setEditingKnowledge(k);setEditKnowledgeQuestion(k.question_text||"");setEditKnowledgeAnswer(k.answer_text||"");setEditKnowledgeIsInternal(k.is_internal||false);setEditKnowledgeConceptId(k.concept_id||'');setEditKnowledgePublicStatus(k.public_status||'internal_only');}}
                                   style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#64748b"}}>編集</button>
                                 <button onClick={()=>setKnowledgeDeleteConfirmId(k.id)}
                                   style={{background:"none",border:"1px solid #fecaca",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#ef4444"}}>削除</button>
@@ -1874,9 +1876,15 @@ export default function App() {
                       ))}
                     </select>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-                    <input type="checkbox" id="editIsInternal" checked={editKnowledgeIsInternal} onChange={e=>setEditKnowledgeIsInternal(e.target.checked)}/>
-                    <label htmlFor="editIsInternal" style={{fontSize:13,color:"#475569",cursor:"pointer"}}>🔒 内部のみ（スタッフ限定・LINE Botに出さない）</label>
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>公開ステータス</div>
+                    <select value={editKnowledgePublicStatus} onChange={e=>setEditKnowledgePublicStatus(e.target.value)}
+                      style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,color:"#334155",background:"#fff"}}>
+                      <option value="internal_only">🔒 社内限定</option>
+                      <option value="public_safe">✅ 顧客公開可</option>
+                      <option value="public_with_caution">⚠️ 注意書き付きで公開</option>
+                      <option value="do_not_answer">🚫 回答しない</option>
+                    </select>
                   </div>
                   <button onClick={updateKnowledge} disabled={editKnowledgeSaving}
                     style={{width:"100%",padding:"10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer"}}>
