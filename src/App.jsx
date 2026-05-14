@@ -1591,7 +1591,7 @@ export default function App() {
                   style={{padding:'5px 14px',borderRadius:6,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
                     background:knowledgeSubTab==='list'?'#0f172a':'#f1f5f9',
                     color:knowledgeSubTab==='list'?'#fff':'#64748b'}}>
-                  📚 辞典一覧
+                  📚 辞典一覧 {knowledgeList.length>0&&`(${knowledgeList.length})`}
                 </button>
                 <button onClick={()=>setKnowledgeSubTab('pending')}
                   style={{padding:'5px 14px',borderRadius:6,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
