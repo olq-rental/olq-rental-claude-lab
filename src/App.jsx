@@ -941,6 +941,7 @@ export default function App() {
   const [staffList, setStaffList] = useState([]);
   const [assignModal, setAssignModal] = useState(null);
   const [assignTarget, setAssignTarget] = useState('');
+  const [pendingSearch, setPendingSearch] = useState('');
   const [knowledgeConcepts, setKnowledgeConcepts] = useState([]);
   const [knowledgeConceptId, setKnowledgeConceptId] = useState('');
   const [editKnowledgeConceptId, setEditKnowledgeConceptId] = useState('');
@@ -1769,8 +1770,27 @@ export default function App() {
                   </button>
                   <span style={{fontSize:11,color:'#94a3b8'}}>{refineModeEnabled?'毎朝8時に改善・統合提案を自動生成中':'Phase 2移行後にONにする'}</span>
                 </div>
+                {/* 承認待ち検索 */}
+                <div style={{marginBottom:12}}>
+                  <input
+                    value={pendingSearch}
+                    onChange={e=>setPendingSearch(e.target.value)}
+                    placeholder="質問・回答・製品名・タグで検索..."
+                    style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:13,color:'#334155',boxSizing:'border-box'}}
+                  />
+                </div>
 
-                {!pendingListLoading&&knowledgePendingList.map(k=>{
+                {!pendingListLoading&&knowledgePendingList.filter(k=>{
+                  if(!pendingSearch.trim()) return true;
+                  const q=pendingSearch.toLowerCase();
+                  const relProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
+                  const prodNames=relProds.map(p=>(p&&p.name)||'').join(' ').toLowerCase();
+                  const tags=(k.scenario_tags||[]).join(' ').toLowerCase();
+                  return (k.question_text||'').toLowerCase().includes(q)
+                    ||(k.answer_text||'').toLowerCase().includes(q)
+                    ||prodNames.includes(q)
+                    ||tags.includes(q);
+                }).map(k=>{
                   const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
 
                   // 🔧 改善提案カード
