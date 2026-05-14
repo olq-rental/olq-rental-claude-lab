@@ -938,6 +938,9 @@ export default function App() {
   const [refineModeSaving, setRefineModeSaving] = useState(false);
   const [rejectModal, setRejectModal] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [staffList, setStaffList] = useState([]);
+  const [assignModal, setAssignModal] = useState(null);
+  const [assignTarget, setAssignTarget] = useState('');
   const [knowledgeConcepts, setKnowledgeConcepts] = useState([]);
   const [knowledgeConceptId, setKnowledgeConceptId] = useState('');
   const [editKnowledgeConceptId, setEditKnowledgeConceptId] = useState('');
@@ -1064,17 +1067,19 @@ export default function App() {
 
   const fetchPendingList = async () => {
     setPendingListLoading(true);
-    const {data,error} = await supabase
-      .from('knowledge')
-      .select('*')
-      .eq('status','pending')
-      .order('priority',{ascending:false})
-      .order('created_at',{ascending:true});
+    const isYuta = session&&session.user.email==='y_inoue@olq.co.jp';
+    let query = supabase.from('knowledge').select('*').eq('status','pending');
+    if(isYuta){
+      query = query.not('review_status','eq','assigned');
+    } else {
+      query = query.eq('assigned_to', session?session.user.email:'');
+    }
+    query = query.order('priority',{ascending:false}).order('created_at',{ascending:true});
+    const {data,error} = await query;
     setPendingListLoading(false);
     if(error){console.error('fetchPendingList error',error);return;}
     const list = data||[];
     setKnowledgePendingList(list);
-    // refine系の元Q&AのIDを収集して一括取得
     const sourceIds = [];
     for(const k of list){
       if(k.refine_source_id) sourceIds.push(k.refine_source_id);
@@ -1153,6 +1158,33 @@ export default function App() {
   const fetchRefineModeEnabled = async () => {
     const {data}=await supabase.from('settings').select('value').eq('key','refine_mode_enabled').single();
     if(data){try{setRefineModeEnabled(JSON.parse(data.value));}catch{}}
+  };
+
+  const fetchStaffList = async () => {
+    const {data} = await supabase.rpc('get_staff_list');
+    setStaffList((data||[]).filter(u=>u.email!=='y_inoue@olq.co.jp'));
+  };
+
+  const assignToStaff = async (id, email) => {
+    const {error} = await supabase.from('knowledge').update({
+      assigned_to: email,
+      review_status: 'assigned',
+    }).eq('id', id);
+    if(error){console.error(error);return;}
+    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
+    setAssignModal(null);
+    setAssignTarget('');
+    showToast('スタッフに送りました');
+  };
+
+  const reviewComplete = async (id) => {
+    const {error} = await supabase.from('knowledge').update({
+      review_status: 'reviewed',
+      assigned_to: null,
+    }).eq('id', id);
+    if(error){console.error(error);return;}
+    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
+    showToast('レビューを完了しました。雄太さんの確認待ちに戻します。');
   };
 
   const toggleRefineMode = async () => {
@@ -1244,7 +1276,7 @@ export default function App() {
     setKnowledgeList(data||[]);
   };
   React.useEffect(()=>{
-    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();fetchPendingList();fetchKnowledgeSearchMode();fetchRefineModeEnabled();}
+    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();fetchPendingList();fetchKnowledgeSearchMode();fetchRefineModeEnabled();fetchStaffList();}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab]);
 
@@ -1552,7 +1584,7 @@ export default function App() {
                 🔄 更新
               </button>
             </div>
-            {session&&session.user.email==='y_inoue@olq.co.jp'&&(
+            {session&&(
               <div style={{display:'flex',gap:6,marginBottom:12}}>
                 <button onClick={()=>setKnowledgeSubTab('list')}
                   style={{padding:'5px 14px',borderRadius:6,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
@@ -1706,7 +1738,7 @@ export default function App() {
             </>)}
 
             {/* 承認待ちリスト */}
-            {knowledgeSubTab==='pending'&&session&&session.user.email==='y_inoue@olq.co.jp'&&(
+            {knowledgeSubTab==='pending'&&session&&(
               <div>
                 <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'10px 14px',background:'#f8fafc',borderRadius:8,border:'1px solid #e2e8f0'}}>
                   <span style={{fontSize:13,color:'#64748b'}}>🔍 検索モード</span>
@@ -1822,8 +1854,15 @@ export default function App() {
                   }
 
                   // 通常カード（ec_auto / manual）
+                  const isYuta = session&&session.user.email==='y_inoue@olq.co.jp';
                   return(
-                    <div key={k.id} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16,marginBottom:12}}>
+                    <div key={k.id} style={{background:'#fff',border:k.review_status==='reviewed'?'2px solid #22c55e':'1px solid #e2e8f0',borderRadius:10,padding:16,marginBottom:12}}>
+                      {k.review_status==='reviewed'&&(
+                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8,padding:'4px 10px',background:'#f0fdf4',borderRadius:6,border:'1px solid #bbf7d0',width:'fit-content'}}>
+                          <span style={{fontSize:12,color:'#16a34a',fontWeight:600}}>✔ スタッフ確認済み</span>
+                          {k.assigned_to&&<span style={{fontSize:11,color:'#86efac'}}>{k.assigned_to}</span>}
+                        </div>
+                      )}
                       <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:6}}>❓ {k.question_text||'（質問なし）'}</div>
                       <div style={{fontSize:13,color:'#334155',marginBottom:10,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{k.answer_text}</div>
                       <div style={{display:'flex',flexWrap:'wrap',gap:6,alignItems:'center',marginBottom:10}}>
@@ -1833,19 +1872,33 @@ export default function App() {
                         </span>
                       </div>
                       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                        <label style={{fontSize:12,color:'#64748b'}}>優先度</label>
-                        <select value={k.priority||5} onChange={e=>updateKnowledgePriority(k.id,e.target.value)}
-                          style={{padding:'3px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}}>
-                          {[10,9,8,7,6,5,4,3,2,1].map(n=>(<option key={n} value={n}>{n}</option>))}
-                        </select>
+                        {isYuta&&(<>
+                          <label style={{fontSize:12,color:'#64748b'}}>優先度</label>
+                          <select value={k.priority||5} onChange={e=>updateKnowledgePriority(k.id,e.target.value)}
+                            style={{padding:'3px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}}>
+                            {[10,9,8,7,6,5,4,3,2,1].map(n=>(<option key={n} value={n}>{n}</option>))}
+                          </select>
+                        </>)}
                         <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
                           style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
-                          ✏️ 訂正して承認
+                          ✏️ 訂正する
                         </button>
-                        <button onClick={()=>approveKnowledge(k.id)}
-                          style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#0f172a',color:'#fff',fontWeight:600,cursor:'pointer'}}>
-                          ✅ 承認
-                        </button>
+                        {isYuta&&(<>
+                          <button onClick={()=>approveKnowledge(k.id)}
+                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#0f172a',color:'#fff',fontWeight:600,cursor:'pointer'}}>
+                            ✅ 承認
+                          </button>
+                          <button onClick={()=>{setAssignModal(k.id);setAssignTarget('');}}
+                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #bfdbfe',background:'#fff',color:'#2563eb',cursor:'pointer'}}>
+                            👤 スタッフに送る
+                          </button>
+                        </>)}
+                        {!isYuta&&(
+                          <button onClick={()=>reviewComplete(k.id)}
+                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#16a34a',color:'#fff',fontWeight:600,cursor:'pointer'}}>
+                            ✅ レビュー完了
+                          </button>
+                        )}
                         <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
                           style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
                           却下
@@ -2041,6 +2094,33 @@ export default function App() {
                       style={{padding:'8px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:13}}>キャンセル</button>
                     <button onClick={()=>rejectKnowledge(rejectModal,rejectReason)}
                       style={{padding:'8px 20px',borderRadius:6,border:'none',background:'#ef4444',color:'#fff',fontWeight:600,cursor:'pointer',fontSize:13}}>却下する</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* スタッフ送信モーダル */}
+            {assignModal&&(
+              <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:9005,display:'flex',alignItems:'center',justifyContent:'center'}}
+                onClick={e=>{if(e.target===e.currentTarget){setAssignModal(null);setAssignTarget('');}}}>
+                <div style={{background:'#fff',borderRadius:12,padding:24,width:'90%',maxWidth:400}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                    <span style={{fontWeight:700,fontSize:16}}>👤 スタッフに送る</span>
+                    <button onClick={()=>{setAssignModal(null);setAssignTarget('');}} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#64748b'}}>×</button>
+                  </div>
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:12,color:'#64748b',marginBottom:6}}>担当スタッフを選択</div>
+                    <select value={assignTarget} onChange={e=>setAssignTarget(e.target.value)}
+                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,color:'#334155',background:'#fff'}}>
+                      <option value="">選択してください</option>
+                      {staffList.map(s=>(<option key={s.id} value={s.email}>{s.email}</option>))}
+                    </select>
+                  </div>
+                  <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+                    <button onClick={()=>{setAssignModal(null);setAssignTarget('');}}
+                      style={{padding:'8px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:13}}>キャンセル</button>
+                    <button onClick={()=>{if(assignTarget)assignToStaff(assignModal,assignTarget);}}
+                      disabled={!assignTarget}
+                      style={{padding:'8px 20px',borderRadius:6,border:'none',background:assignTarget?'#2563eb':'#e2e8f0',color:assignTarget?'#fff':'#94a3b8',fontWeight:600,cursor:assignTarget?'pointer':'default',fontSize:13}}>送る</button>
                   </div>
                 </div>
               </div>
