@@ -7069,8 +7069,8 @@ function SnapshotScreen({onDone, showToast, setCustomers, setRecords, setInvoice
 
   useEffect(()=>{
     (async()=>{
-      const {data} = await supabase.from('settings').select('value').eq('key','olq_snapshots').maybeSingle();
-      if(data?.value){ try{ setSnapshots(JSON.parse(data.value)); }catch{} }
+      const {data} = await supabase.from('snapshots').select('id,at,data,created_at').order('created_at',{ascending:false}).limit(30);
+      if(data) setSnapshots(data.map(row => ({ ...row.data, _id: row.id, _created_at: row.created_at })));
       setLoading(false);
     })();
   },[]);
