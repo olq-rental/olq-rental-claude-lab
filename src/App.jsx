@@ -961,6 +961,7 @@ export default function App() {
   const [editPendingImageFiles, setEditPendingImageFiles] = useState([]);
   const [editPendingImageUrls, setEditPendingImageUrls] = useState([]);
   const [editPendingImageUploading, setEditPendingImageUploading] = useState(false);
+  const [haikuAnswers, setHaikuAnswers] = useState({});
   const [questionModalStep, setQuestionModalStep] = useState(0);
   const [questionCategory, setQuestionCategory] = useState('');
   const [questionInput, setQuestionInput] = useState('');
@@ -1141,6 +1142,24 @@ export default function App() {
     }
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==pending.id));
     showToast('承認して差し替えました');
+  };
+
+  const approveHaikuQuestion = async (id, answerText) => {
+    if(!answerText.trim()){showToast('回答を入力してください');return;}
+    const now=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    const approvedAt=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
+    const {error}=await supabase.from('knowledge').update({
+      status:'approved',
+      answer_text:answerText.trim(),
+      approved_by:'y_inoue@olq.co.jp',
+      approved_at:approvedAt,
+      edited_by_human:true,
+    }).eq('id',id);
+    if(error){console.error(error);return;}
+    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
+    setHaikuAnswers(prev=>{const n={...prev};delete n[id];return n;});
+    showToast('回答して承認しました');
   };
 
   const approveMerge = async (pending) => {
@@ -1871,6 +1890,37 @@ export default function App() {
                           <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
                             style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
                             ✏️ 訂正して承認
+                          </button>
+                          <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
+                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
+                            却下
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // ❓ Haikuからの質問カード
+                  if(k.source_type==='haiku_question'){
+                    return(
+                      <div key={k.id} style={{background:'#fff',border:'2px solid #f97316',borderRadius:10,padding:16,marginBottom:12}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                          <span style={{background:'#fff7ed',color:'#ea580c',borderRadius:6,padding:'2px 10px',fontSize:11,fontWeight:700}}>❓ Haikuからの質問</span>
+                          {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
+                        </div>
+                        <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:4}}>Q: {k.question_text}</div>
+                        <div style={{fontSize:12,color:'#94a3b8',marginBottom:10}}>※ Haikuが製品情報から回答できなかった質問です。雄太さんが直接回答してください。</div>
+                        <textarea
+                          value={haikuAnswers[k.id]||''}
+                          onChange={e=>setHaikuAnswers(prev=>({...prev,[k.id]:e.target.value}))}
+                          placeholder="回答を入力..."
+                          rows={4}
+                          style={{width:'100%',padding:'8px 10px',border:'1px solid #fed7aa',borderRadius:6,fontSize:13,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',marginBottom:8}}
+                        />
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <button onClick={()=>approveHaikuQuestion(k.id,haikuAnswers[k.id]||'')}
+                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#ea580c',color:'#fff',fontWeight:600,cursor:'pointer'}}>
+                            ✅ 回答して承認
                           </button>
                           <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
                             style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
