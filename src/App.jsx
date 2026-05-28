@@ -4886,11 +4886,13 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             return injectAutoAdj({...g,items:g.items.map(item=>item.id===r.id?splitItem:item)});
           });
         } else {
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===(r.projectName||"")&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
+          const custSplit=c?.splitInvoice!==false;
+          const synthProjName=custSplit?(r.projectName||""):"";
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
           if(existingSame){
             result=result.map(g=>g!==existingSame?g:injectAutoAdj({...g,items:[...g.items,splitItem]}));
           } else {
-            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:selMonth,items:[splitItem],split:true,consolidate:false,_synthetic:true,_isReceiptGroup:recIsReceipt}));
+            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:synthProjName,month:selMonth,items:[splitItem],split:custSplit,consolidate:false,_synthetic:true,_isReceiptGroup:recIsReceipt}));
           }
         }
       }
