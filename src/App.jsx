@@ -650,6 +650,23 @@ function calcBillingDays(actualDays) {
   const remainder = actualDays % 31;
   return cycles * 15 + applyBillingTable(remainder);
 }
+function chainBillingDays(record, allRecords, segEnd) {
+  const segStart = record.startDate;
+  if (!segStart || !segEnd) return 0;
+  const baseNo = no => (no || "").replace(/E\d+$/, "");
+  const key = baseNo(record.deliveryNo);
+  let rootStart = segStart;
+  if (key) {
+    allRecords.forEach(x => {
+      if (baseNo(x.deliveryNo) === key && x.startDate && x.startDate < rootStart) {
+        rootStart = x.startDate;
+      }
+    });
+  }
+  const cumThrough = calcDays(rootStart, segEnd);
+  const cumBefore = Math.max(0, calcDays(rootStart, segStart) - 1);
+  return Math.max(0, calcBillingDays(cumThrough) - calcBillingDays(cumBefore));
+}
 const taxIn  = n => Math.round((n||0)*1.1);
 const taxEx  = n => Math.round((n||0)/1.1);
 const fmt    = n => `¥${Number(n||0).toLocaleString()}`;
@@ -1538,7 +1555,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.43</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.44</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -3269,7 +3286,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                 const shouldSplit=continuingLines.length>0&&!!targetRec.isExtension;
                 if(shouldSplit){
                   const origDays=calcDays(targetRec.startDate,returnModal.billingEndDate);
-                  const origBillingDays=calcBillingDays(origDays);
+                  const origBillingDays=chainBillingDays(targetRec, records, returnModal.billingEndDate);
                   const origAmount=returnedLines.reduce((s,ln)=>{
                     const noDisc=ln.noBillingDiscount;
                     const qty=noDisc?origDays:origBillingDays;
@@ -3328,7 +3345,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                     if(!ln.returnDate) return s;
                     const d=calcDays(targetRec.startDate,ln.returnDate);
                     const noDisc=ln.noBillingDiscount;
-                    const qty=noDisc?d:calcBillingDays(d);
+                    const qty=noDisc?d:chainBillingDays(targetRec, records, ln.returnDate);
                     return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
                   },0);
                   const newInsurance=targetRec.includeInsurance?Math.round(newAmount*0.1):0;
@@ -5014,7 +5031,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                   const newRecords = [];
                   pendingProvisional.forEach(r => {
                     const newDays = calcDays(r.startDate, prevMonthEndStr);
-                    const newBillingDays = calcBillingDays(newDays);
+                    const newBillingDays = chainBillingDays(r, allRecords, prevMonthEndStr);
                     const rLines = getLines(r);
                     const newAmount = rLines.reduce((s, ln) => {
                       const noDisc = ln.noBillingDiscount;
