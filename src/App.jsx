@@ -653,7 +653,7 @@ function calcBillingDays(actualDays) {
 function chainBillingDays(record, allRecords, segEnd) {
   const segStart = record.startDate;
   if (!segStart || !segEnd) return 0;
-  const baseNo = no => (no || "").replace(/E\d+$/, "");
+  const baseNo = no => (no || "").replace(/E\d+.*$/, "");
   const key = baseNo(record.deliveryNo);
   let rootStart = segStart;
   if (key) {
