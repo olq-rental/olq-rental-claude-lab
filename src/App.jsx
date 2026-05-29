@@ -2644,7 +2644,10 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
 
   const cust = customers.find(c=>c.id===form.customerId);
   const days        = calcDays(form.startDate,form.endDate); // 実日数
-  const billingDays = calcBillingDays(days);                  // 請求日数
+  const editingRecord = editId ? records.find(r=>r.id===editId) : null;
+  const billingDays = (form.billingType==="daily" && editingRecord && editingRecord.isExtension && !form.endDateOpen && form.endDate)
+    ? chainBillingDays(editingRecord, records, form.endDate)
+    : calcBillingDays(days);                  // 請求日数
   const adjustedBillingDays = (form.billingType==="daily" && form.adjustDays && Number(form.adjustDays)>0) ? Number(form.adjustDays) : billingDays;
   const billingQty  = form.billingType==="monthly" ? (Number(form.months)||1) : adjustedBillingDays;
   // noDisc集計
