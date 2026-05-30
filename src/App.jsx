@@ -1592,7 +1592,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.46</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.47</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -4173,46 +4173,29 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
   if (block.type === "chain") {
     const { header: h, segments } = block;
     const chainOrdener = segments[0].ordererName ? segments[0].ordererName+"　様" : "";
+    const _chainRspan = segments.length + 1;
+    const _chainFirstSeg = segments[0];
+    const _chainFirstLine = (_chainFirstSeg.lines&&_chainFirstSeg.lines.length)?_chainFirstSeg.lines[0]:{unitPrice:_chainFirstSeg.unitPrice,quantity:_chainFirstSeg.quantity};
+    const _chainEquipName = h.equipNames.join("、");
+    const _chainQty = _chainFirstLine.quantity || _chainFirstSeg.quantity || 1;
+    const _chainDispPrice = fn(_chainFirstLine.unitPrice || _chainFirstSeg.unitPrice || 0);
+    const _segRows = segments.map(r => {
+      const _segEnd = r.returnDate || r.endDate;
+      const _segLabel = r.isExtension ? "ご延長" : "ご注文";
+      return `<tr><td style="border:1px solid #aaa;border-top:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_segLabel}　${fd(r.startDate)}〜${fd(_segEnd)}（${r.days||0}日間）</td></tr>`;
+    }).join("");
+    const _insRows = segments.filter(r=>(r.insuranceAmount||0)>0).map(r=>`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`).join("");
+    const _insCount = segments.filter(r=>(r.insuranceAmount||0)>0).length;
+    const _chainWeight = segments.length + (strWidth(_chainEquipName) > 50 ? 2 : 1) + _insCount;
     allInvRows.push({html:`<tr>
-      <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(h.chainStart)}〜${fd(h.chainEnd)}</td>
-      <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle;font-size:9px">暦${h.chainCalDays}日<br>→請求${h.chainBillDays}日</td>
-      <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
-      <td style="border:1px solid #aaa;padding:2px 5px;font-weight:bold">${h.equipNames.join("、")}</td>
-      <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">―</td>
-      <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">―</td>
-      <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;font-weight:bold">${fn(h.chainAmount)}</td>
-    </tr>`, weight: 2});
-    segments.forEach(r => {
-      const orderer = r.ordererName ? r.ordererName+"　様" : "";
-      const segLabel = r.isExtension ? "延長分" : "初回分";
-      const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
-      const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
-      rLines.forEach((ln,li)=>{
-        const lineEndDate=ln.returnDate||r.endDate;
-        const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
-        const listPrice = prod ? prod.priceEx : (ln.unitPrice||0);
-        const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:r.billingType==="monthly"?Math.round((ln.amount||0)/(ln.quantity||1)):(ln.unitPrice||r.unitPrice);
-        const useDaysForLinePdf=ln.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
-        const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLinePdf):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLinePdf);
-        const equipName = ln.equipmentName||r.equipmentName||"";
-        const isSplit = g.split !== false;
-        const projInfo = !isSplit && r.projectName ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "") : (r.projectDetail || "");
-        const nameExtra = projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
-        const segDayStr = ln.isFee ? "手数料及び販売" : (hasPerLineDate ? calcDays(r.startDate,lineEndDate)+"日" : (r.days||0)+"日");
-        allInvRows.push({html:`<tr style="background:#f8fbff">
-          ${ln.isFee
-            ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
-            : `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${segLabel} ${fd(r.startDate)}〜${fd(lineEndDate)}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle;color:#555">${segDayStr}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`}
-          <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
-          <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
-          <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
-          <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
-        </tr>`, weight: r.billingType==="monthly"?2:r.ecOrderNo?2:strWidth(equipName+(projInfo?`　[${projInfo}]`:""))>50?2:1});
-      });
-      if((r.insuranceAmount||0)>0){
-        allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
-      }
-    });
+      <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(h.chainStart)}〜${fd(h.chainEnd)}<div style="font-size:8px;color:#555;margin-top:1px">合計${h.chainCalDays}日間 → 日数値引</div></td>
+      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle;font-weight:bold">${h.chainBillDays}</td>
+      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
+      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;font-weight:bold;vertical-align:middle">${_chainEquipName}</td>
+      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainQty}</td>
+      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${_chainDispPrice}</td>
+      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;font-weight:bold;vertical-align:middle">${fn(h.chainAmount)}</td>
+    </tr>${_segRows}${_insRows}`, weight: _chainWeight});
   } else {
     const r = block.record;
     const _ri = _sorted.indexOf(r);
