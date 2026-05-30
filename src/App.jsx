@@ -667,6 +667,16 @@ function chainBillingDays(record, allRecords, segEnd) {
   const cumBefore = Math.max(0, calcDays(rootStart, segStart) - 1);
   return Math.max(0, calcBillingDays(cumThrough) - calcBillingDays(cumBefore));
 }
+function calcExpectedAmount(r) {
+  const lines = r.lines || [];
+  if (!lines.length) return null;
+  return lines.reduce((s, ln) => {
+    if (ln.isFee) return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1);
+    if (r.billingType === "monthly") return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * (Number(r.months)||1);
+    const qty = ln.noBillingDiscount ? (Number(r.days)||0) : (Number(r.billingDays)||0);
+    return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * qty;
+  }, 0);
+}
 const taxIn  = n => Math.round((n||0)*1.1);
 const taxEx  = n => Math.round((n||0)/1.1);
 const fmt    = n => `¥${Number(n||0).toLocaleString()}`;
@@ -1555,7 +1565,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.44</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.45</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -5410,6 +5420,12 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           const grandTot=baseTot+autoAdjTot+adjSum;
                           const tax=Math.round(grandTot*0.1);
                           const isOpen=!!expanded[key];
+                          const checkIssues = g.items.filter(r => {
+                            if (!r.lines || !r.lines.length) return false;
+                            const expected = calcExpectedAmount(r);
+                            if (expected === null) return false;
+                            return Math.abs(expected - (r.amount||0)) > 10;
+                          });
                           return(
                             <React.Fragment key={key}>
                               <tr onClick={()=>toggleExpand(key)} style={{
@@ -5427,6 +5443,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     :<span style={{color:"#cbd5e1"}}>案件名なし</span>
                                   }
                                   {d.adjustments.length>0&&<span style={{marginLeft:6,fontSize:10,color:"#92400e"}}>調整あり</span>}
+                                  {checkIssues.length > 0 && (
+                                    <span style={{marginLeft:6,fontSize:10,background:"#fef2f2",color:"#dc2626",border:"1px solid #fca5a5",borderRadius:3,padding:"1px 5px",fontWeight:700}}>⚠️ {checkIssues.length}件要確認</span>
+                                  )}
                                 </td>
                                 <td></td>
                                 <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{g.items.length}</td>
