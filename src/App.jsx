@@ -1592,7 +1592,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.50</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.51</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -4202,8 +4202,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
       }).join("");
       const _cweight=segments.length+(strWidth(_ceqName)>50?2:1);
-      const _chainBillDisp = _hasNoDisc ? h.chainCalDays : h.chainBillDays;
-      const _chainDateSub = _hasNoDisc ? `` : `<div style="font-size:8px;color:#555;margin-top:1px">合計${h.chainCalDays}日間 → 日数値引</div>`;
+      const _noValueDisc = _hasNoDisc || h.chainBillDays >= h.chainCalDays;
+      const _chainBillDisp = _noValueDisc ? h.chainCalDays : h.chainBillDays;
+      const _chainDateSub = _noValueDisc ? `` : `<div style="font-size:8px;color:#555;margin-top:1px">合計${h.chainCalDays}日間 → 日数値引</div>`;
       allInvRows.push({html:`<tr>
         <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(h.chainStart)}〜${fd(h.chainEnd)}${_chainDateSub}</td>
         <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
