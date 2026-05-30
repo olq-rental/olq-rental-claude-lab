@@ -2662,6 +2662,24 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
   const billingDays = (form.billingType==="daily" && editingRecord && editingRecord.isExtension && !form.endDateOpen && form.endDate)
     ? chainBillingDays(editingRecord, records, form.endDate)
     : calcBillingDays(days);                  // 請求日数
+  const chainContext = (() => {
+    if (!editingRecord || !editingRecord.isExtension) return null;
+    if (form.billingType !== "daily" || form.endDateOpen || !form.startDate || !form.endDate) return null;
+    const baseNo = (editingRecord.deliveryNo || "").replace(/E\d+.*$/, "");
+    if (!baseNo) return null;
+    let rootStart = form.startDate;
+    (records || []).forEach(x => {
+      if ((x.deliveryNo || "").replace(/E\d+.*$/, "") === baseNo && x.startDate && x.startDate < rootStart) {
+        rootStart = x.startDate;
+      }
+    });
+    const cumBefore = Math.max(0, calcDays(rootStart, form.startDate) - 1);
+    const cumThrough = calcDays(rootStart, form.endDate);
+    const totalBillingDays = calcBillingDays(cumThrough);
+    const prevBillingDays = calcBillingDays(cumBefore);
+    const thisBillingDays = Math.max(0, totalBillingDays - prevBillingDays);
+    return { cumThrough, totalBillingDays, prevBillingDays, thisBillingDays };
+  })();
   const adjustedBillingDays = (form.billingType==="daily" && form.adjustDays && Number(form.adjustDays)>0) ? Number(form.adjustDays) : billingDays;
   const billingQty  = form.billingType==="monthly" ? (Number(form.months)||1) : adjustedBillingDays;
   // noDisc集計
@@ -3047,6 +3065,11 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:form.adjustDays!==""&&form.adjustDays!==undefined?10:0}}>
                 <span style={{fontSize:12,fontWeight:700,color:"#0369a1"}}>📅 日数調整</span>
                 <span style={{fontSize:11,color:"#64748b"}}>自動計算：{billingDays}日</span>
+                {chainContext && (
+                  <div style={{marginTop:4,fontSize:11,color:"#0369a1",background:"#e0f2fe",borderRadius:4,padding:"4px 8px",lineHeight:1.6}}>
+                    🔗 元案件含む累計 <strong>{chainContext.cumThrough}</strong>日 → 合計 <strong>{chainContext.totalBillingDays}</strong>日請求（元案件 {chainContext.prevBillingDays}日請求済 → 今回 <strong>{chainContext.thisBillingDays}</strong>日）
+                  </div>
+                )}
                 {(form.adjustDays===""||form.adjustDays===undefined)&&(
                   <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:String(billingDays),adjustReason:""}))}
                     style={{...S.btn("#0369a1",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>日数を調整する</button>
