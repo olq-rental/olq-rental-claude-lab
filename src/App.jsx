@@ -2801,6 +2801,13 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
         rec.deliveryNo = base + 'R' + n;
       }
     }
+    const origForExt = records.find(r=>r.id===editId);
+    if(origForExt){
+      if(origForExt.isExtension) rec.isExtension = true;
+      if(origForExt.extendedFrom) rec.extendedFrom = origForExt.extendedFrom;
+      if(origForExt.extendedFromNo) rec.extendedFromNo = origForExt.extendedFromNo;
+      if(origForExt.isProvisionalClose) rec.isProvisionalClose = true;
+    }
     const custName=customers.find(x=>x.id===form.customerId)?.name||"";
     try {
       await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName},[rec]);
