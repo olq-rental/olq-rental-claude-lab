@@ -1592,7 +1592,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.47</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.48</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -4174,28 +4174,43 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     const { header: h, segments } = block;
     const chainOrdener = segments[0].ordererName ? segments[0].ordererName+"　様" : "";
     const _chainRspan = segments.length + 1;
-    const _chainFirstSeg = segments[0];
-    const _chainFirstLine = (_chainFirstSeg.lines&&_chainFirstSeg.lines.length)?_chainFirstSeg.lines[0]:{unitPrice:_chainFirstSeg.unitPrice,quantity:_chainFirstSeg.quantity};
-    const _chainEquipName = h.equipNames.join("、");
-    const _chainQty = _chainFirstLine.quantity || _chainFirstSeg.quantity || 1;
-    const _chainDispPrice = fn(_chainFirstLine.unitPrice || _chainFirstSeg.unitPrice || 0);
-    const _segRows = segments.map(r => {
-      const _segEnd = r.returnDate || r.endDate;
-      const _segLabel = r.isExtension ? "ご延長" : "ご注文";
-      return `<tr><td style="border:1px solid #aaa;border-top:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_segLabel}　${fd(r.startDate)}〜${fd(_segEnd)}（${r.days||0}日間）</td></tr>`;
-    }).join("");
-    const _insRows = segments.filter(r=>(r.insuranceAmount||0)>0).map(r=>`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`).join("");
-    const _insCount = segments.filter(r=>(r.insuranceAmount||0)>0).length;
-    const _chainWeight = segments.length + (strWidth(_chainEquipName) > 50 ? 2 : 1) + _insCount;
-    allInvRows.push({html:`<tr>
-      <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(h.chainStart)}〜${fd(h.chainEnd)}<div style="font-size:8px;color:#555;margin-top:1px">合計${h.chainCalDays}日間 → 日数値引</div></td>
-      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle;font-weight:bold">${h.chainBillDays}</td>
-      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
-      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;font-weight:bold;vertical-align:middle">${_chainEquipName}</td>
-      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainQty}</td>
-      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${_chainDispPrice}</td>
-      <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;font-weight:bold;vertical-align:middle">${fn(h.chainAmount)}</td>
-    </tr>${_segRows}${_insRows}`, weight: _chainWeight});
+    const _chainBaseLns = (segments[0].lines&&segments[0].lines.length)?segments[0].lines:[{equipmentName:segments[0].equipmentName,unitPrice:segments[0].unitPrice,quantity:segments[0].quantity,productId:segments[0].productId,noBillingDiscount:segments[0].noBillingDiscount}];
+    _chainBaseLns.forEach((baseLn, lIdx) => {
+      const _ceqName = baseLn.equipmentName || segments[0].equipmentName || "";
+      const _cqty = baseLn.quantity || 1;
+      const _cprice = fn(baseLn.unitPrice || segments[0].unitPrice || 0);
+      let _clineTotal = 0;
+      segments.forEach(r => {
+        const rLns=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,unitPrice:r.unitPrice,quantity:r.quantity,productId:r.productId,noBillingDiscount:r.noBillingDiscount}];
+        const rLn=rLns[lIdx]||rLns[rLns.length-1];
+        const hasPerLineDate=rLns.some(l=>l.returnDate&&l.returnDate!==r.endDate);
+        const lineEndDate=rLn.returnDate||r.endDate;
+        const prod=showDiscountLine?(products||[]).find(p=>p.id===rLn.productId):null;
+        const listPrice=prod?prod.priceEx:(rLn.unitPrice||0);
+        const useDays=rLn.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=rLn.noBillingDiscount||(products||[]).find(p=>p.id===rLn.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((rLn.noBillingDiscount||(products||[]).find(p=>p.id===rLn.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
+        const lineAmt=r.billingType==="monthly"?(rLn.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(rLn.quantity||1)*useDays):Math.round((rLn.unitPrice||0)*(rLn.quantity||1)*useDays);
+        _clineTotal+=lineAmt;
+      });
+      const _csegRows=segments.map((r,si)=>{
+        const _se=r.returnDate||r.endDate;
+        const _sl=r.isExtension?"ご延長":"ご注文";
+        const _isLast=si===segments.length-1;
+        return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
+      }).join("");
+      const _cweight=segments.length+(strWidth(_ceqName)>50?2:1);
+      allInvRows.push({html:`<tr>
+        <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(h.chainStart)}〜${fd(h.chainEnd)}<div style="font-size:8px;color:#555;margin-top:1px">合計${h.chainCalDays}日間 → 日数値引</div></td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${h.chainBillDays}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;vertical-align:middle">${_ceqName}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_cqty}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${_cprice}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(_clineTotal)}</td>
+      </tr>${_csegRows}`, weight: _cweight});
+    });
+    segments.filter(r=>(r.insuranceAmount||0)>0).forEach(r=>{
+      allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
+    });
   } else {
     const r = block.record;
     const _ri = _sorted.indexOf(r);
