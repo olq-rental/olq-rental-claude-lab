@@ -667,13 +667,17 @@ function chainBillingDays(record, allRecords, segEnd) {
   const cumBefore = Math.max(0, calcDays(rootStart, segStart) - 1);
   return Math.max(0, calcBillingDays(cumThrough) - calcBillingDays(cumBefore));
 }
-function calcExpectedAmount(r) {
+function calcExpectedAmount(r, allRecords) {
   const lines = r.lines || [];
   if (!lines.length) return null;
+  const segEnd = r.returnDate || r.endDate;
+  const correctBillingDays = (r.isExtension && segEnd && allRecords && allRecords.length)
+    ? chainBillingDays(r, allRecords, segEnd)
+    : calcBillingDays(Number(r.days)||0);
   return lines.reduce((s, ln) => {
     if (ln.isFee) return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1);
     if (r.billingType === "monthly") return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * (Number(r.months)||1);
-    const qty = ln.noBillingDiscount ? (Number(r.days)||0) : (Number(r.billingDays)||0);
+    const qty = ln.noBillingDiscount ? (Number(r.days)||0) : correctBillingDays;
     return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * qty;
   }, 0);
 }
@@ -5422,7 +5426,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           const isOpen=!!expanded[key];
                           const checkIssues = g.items.filter(r => {
                             if (!r.lines || !r.lines.length) return false;
-                            const expected = calcExpectedAmount(r);
+                            const expected = calcExpectedAmount(r, records);
                             if (expected === null) return false;
                             return Math.abs(expected - (r.amount||0)) > 10;
                           });
