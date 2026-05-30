@@ -1592,7 +1592,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.54</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.55</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -4175,33 +4175,22 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     const chainOrdener = segments[0].ordererName ? segments[0].ordererName+"　様" : "";
     const _chainRspan = segments.length + 1;
     const _chainBaseLns = (segments[0].lines&&segments[0].lines.length)?segments[0].lines:[{equipmentName:segments[0].equipmentName,unitPrice:segments[0].unitPrice,quantity:segments[0].quantity,productId:segments[0].productId,noBillingDiscount:segments[0].noBillingDiscount}];
-    _chainBaseLns.forEach((baseLn, lIdx) => {
+    if (_chainBaseLns.length === 1) {
+      const baseLn = _chainBaseLns[0];
       const _ceqName = baseLn.equipmentName || segments[0].equipmentName || "";
       const _cqty = baseLn.quantity || 1;
       const _cprod2 = showDiscountLine ? (products||[]).find(p=>p.id===baseLn.productId) : null;
       const _clistPrice2 = _cprod2 ? _cprod2.priceEx : (baseLn.unitPrice||0);
       const _cprice = fn(showDiscountLine ? _clistPrice2 : (baseLn.unitPrice || segments[0].unitPrice || 0));
       const _hasNoDisc = !!(baseLn.noBillingDiscount || (products||[]).find(p=>p.id===baseLn.productId)?.noBillingDiscount);
-      let _clineTotal = 0;
-      segments.forEach(r => {
-        const rLns=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,unitPrice:r.unitPrice,quantity:r.quantity,productId:r.productId,noBillingDiscount:r.noBillingDiscount}];
-        if (_chainBaseLns.length <= 1) {
-          _clineTotal += (r.amount||0);
-        } else {
-          const rLn=rLns[lIdx]||rLns[rLns.length-1];
-          const totalPriceVol=rLns.reduce((s,l)=>s+(l.unitPrice||0)*(l.quantity||1),0);
-          const thisPriceVol=(rLn.unitPrice||0)*(rLn.quantity||1);
-          const ratio=totalPriceVol>0?thisPriceVol/totalPriceVol:1/rLns.length;
-          _clineTotal+=Math.round((r.amount||0)*ratio);
-        }
-      });
-      const _csegRows=segments.map((r,si)=>{
+      const _clineTotal = segments.reduce((s,r) => s + (r.amount||0), 0);
+      const _csegRows = segments.map((r,si) => {
         const _se=r.returnDate||r.endDate;
         const _sl=r.isExtension?"ご延長":"ご注文";
         const _isLast=si===segments.length-1;
         return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
       }).join("");
-      const _cweight=segments.length+(strWidth(_ceqName)>50?2:1);
+      const _cweight = segments.length+(strWidth(_ceqName)>50?2:1);
       const _noValueDisc = _hasNoDisc || h.chainBillDays >= h.chainCalDays;
       const _chainBillDisp = _noValueDisc ? h.chainCalDays : h.chainBillDays;
       const _chainDateSub = _noValueDisc ? `` : `<div style="font-size:8px;color:#555;margin-top:1px">合計${h.chainCalDays}日間 → 日数値引</div>`;
@@ -4214,7 +4203,29 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${_cprice}</td>
         <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(_clineTotal)}</td>
       </tr>${_csegRows}`, weight: _cweight});
-    });
+    } else {
+      const _chainEquipName = h.equipNames.join("、");
+      const _clineTotal2 = segments.reduce((s,r) => s + (r.amount||0), 0);
+      const _csegRows2 = segments.map((r,si) => {
+        const _se=r.returnDate||r.endDate;
+        const _sl=r.isExtension?"ご延長":"ご注文";
+        const _isLast=si===segments.length-1;
+        return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
+      }).join("");
+      const _cweight2 = segments.length+(strWidth(_chainEquipName)>50?2:1);
+      const _noValueDisc2 = h.chainBillDays >= h.chainCalDays;
+      const _chainBillDisp2 = _noValueDisc2 ? h.chainCalDays : h.chainBillDays;
+      const _chainDateSub2 = _noValueDisc2 ? `` : `<div style="font-size:8px;color:#555;margin-top:1px">合計${h.chainCalDays}日間 → 日数値引</div>`;
+      allInvRows.push({html:`<tr>
+        <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(h.chainStart)}〜${fd(h.chainEnd)}${_chainDateSub2}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp2}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;vertical-align:middle">${_chainEquipName}</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">―</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">―</td>
+        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(_clineTotal2)}</td>
+      </tr>${_csegRows2}`, weight: _cweight2});
+    }
     segments.filter(r=>(r.insuranceAmount||0)>0).forEach(r=>{
       allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
     });
