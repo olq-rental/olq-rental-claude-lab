@@ -667,6 +667,29 @@ function chainBillingDays(record, allRecords, segEnd) {
   const cumBefore = Math.max(0, calcDays(rootStart, segStart) - 1);
   return Math.max(0, calcBillingDays(cumThrough) - calcBillingDays(cumBefore));
 }
+function buildChainBlocks(sortedItems) {
+  const baseNo = dn => (dn || "").replace(/E\d+.*$/, "");
+  const chainMap = {};
+  const order = [];
+  sortedItems.forEach(r => {
+    const key = baseNo(r.deliveryNo) || r.id;
+    if (!chainMap[key]) { chainMap[key] = []; order.push(key); }
+    chainMap[key].push(r);
+  });
+  return order.map(key => {
+    const segs = chainMap[key];
+    if (segs.length === 1) return { type: "single", record: segs[0] };
+    const allDates = segs.flatMap(r => [r.startDate, r.returnDate || r.endDate]).filter(Boolean);
+    const chainStart = allDates.reduce((a,b) => a < b ? a : b);
+    const chainEnd   = allDates.reduce((a,b) => a > b ? a : b);
+    const chainCalDays  = segs.reduce((s,r) => s + (r.days||0), 0);
+    const chainBillDays = segs.reduce((s,r) => s + (r.billingDays||0), 0);
+    const chainAmount   = segs.reduce((s,r) => s + (r.amount||0) + (r.insuranceAmount||0), 0);
+    const equipNames = [...new Set(segs.flatMap(r => (r.lines||[]).map(ln => ln.equipmentName).filter(Boolean)))];
+    if (!equipNames.length) equipNames.push(segs[0].equipmentName || "");
+    return { type: "chain", header: { equipNames, chainStart, chainEnd, chainCalDays, chainBillDays, chainAmount }, segments: segs };
+  });
+}
 function calcExpectedAmount(r, allRecords) {
   const lines = r.lines || [];
   if (!lines.length) return null;
@@ -1569,7 +1592,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.45</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.46</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -4146,33 +4169,40 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </div>
       </div>`;
     const invTableHeadHtml = `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0"><thead><tr style="background:#f0f0f0"><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;white-space:nowrap">ご利用日</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:40px">日数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:70px">ご発注者</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">製品名</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:36px">台数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:72px">単価</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:80px">金額</th></tr></thead>`;
-    (()=>{const pMap={};g.items.forEach(r=>{if(!r.isExtension&&r.deliveryNo)pMap[r.deliveryNo]=r.endDate||"";});const gKey=r=>r.isExtension?(pMap[r.extendedFromNo||""]||r.endDate||""):(r.endDate||"");const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");_sorted.forEach((r,_ri) => {
+    (()=>{const pMap={};g.items.forEach(r=>{if(!r.isExtension&&r.deliveryNo)pMap[r.deliveryNo]=r.endDate||"";});const gKey=r=>r.isExtension?(pMap[r.extendedFromNo||""]||r.endDate||""):(r.endDate||"");const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");buildChainBlocks(_sorted).forEach((block, _bi) => {
+  if (block.type === "chain") {
+    const { header: h, segments } = block;
+    const chainOrdener = segments[0].ordererName ? segments[0].ordererName+"　様" : "";
+    allInvRows.push({html:`<tr>
+      <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(h.chainStart)}〜${fd(h.chainEnd)}</td>
+      <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle;font-size:9px">暦${h.chainCalDays}日<br>→請求${h.chainBillDays}日</td>
+      <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
+      <td style="border:1px solid #aaa;padding:2px 5px;font-weight:bold">${h.equipNames.join("、")}</td>
+      <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">―</td>
+      <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">―</td>
+      <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;font-weight:bold">${fn(h.chainAmount)}</td>
+    </tr>`, weight: 2});
+    segments.forEach(r => {
       const orderer = r.ordererName ? r.ordererName+"　様" : "";
+      const segLabel = r.isExtension ? "延長分" : "初回分";
       const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
       const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
-      const hasNoBilling=rLines.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);
-      const days = r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasNoBilling?(r.days||0):(r.billingDays||r.days||0));
-      const lineCount = rLines.length;
       rLines.forEach((ln,li)=>{
         const lineEndDate=ln.returnDate||r.endDate;
         const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
         const listPrice = prod ? prod.priceEx : (ln.unitPrice||0);
         const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:r.billingType==="monthly"?Math.round((ln.amount||0)/(ln.quantity||1)):(ln.unitPrice||r.unitPrice);
         const useDaysForLinePdf=ln.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
-        const lineDaysPdf=ln.isFee?"手数料及び販売":r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.billingDays||r.days||0));
         const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLinePdf):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLinePdf);
         const equipName = ln.equipmentName||r.equipmentName||"";
         const isSplit = g.split !== false;
-        const projInfo = !isSplit && r.projectName
-          ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
-          : (r.projectDetail || "");
+        const projInfo = !isSplit && r.projectName ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "") : (r.projectDetail || "");
         const nameExtra = projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
-        allInvRows.push({html:`<tr>
+        const segDayStr = ln.isFee ? "手数料及び販売" : (hasPerLineDate ? calcDays(r.startDate,lineEndDate)+"日" : (r.days||0)+"日");
+        allInvRows.push({html:`<tr style="background:#f8fbff">
           ${ln.isFee
             ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
-            : hasPerLineDate
-              ? `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${lineDaysPdf}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
-              : `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${days}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`}
+            : `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${segLabel} ${fd(r.startDate)}〜${fd(lineEndDate)}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle;color:#555">${segDayStr}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`}
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
           <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
@@ -4182,7 +4212,48 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if((r.insuranceAmount||0)>0){
         allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
       }
-      if(_hasBoth&&_ri===_lastMIdx){allInvRows.push({html:`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`, weight:1});}});})();
+    });
+  } else {
+    const r = block.record;
+    const _ri = _sorted.indexOf(r);
+    const orderer = r.ordererName ? r.ordererName+"　様" : "";
+    const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
+    const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
+    const hasNoBilling=rLines.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);
+    const days = r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.days||0);
+    const lineCount = rLines.length;
+    rLines.forEach((ln,li)=>{
+      const lineEndDate=ln.returnDate||r.endDate;
+      const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
+      const listPrice = prod ? prod.priceEx : (ln.unitPrice||0);
+      const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:r.billingType==="monthly"?Math.round((ln.amount||0)/(ln.quantity||1)):(ln.unitPrice||r.unitPrice);
+      const useDaysForLinePdf=ln.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
+      const lineDaysPdf=ln.isFee?"手数料及び販売":r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.days||0));
+      const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLinePdf):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLinePdf);
+      const equipName = ln.equipmentName||r.equipmentName||"";
+      const isSplit = g.split !== false;
+      const projInfo = !isSplit && r.projectName
+        ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
+        : (r.projectDetail || "");
+      const nameExtra = projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
+      allInvRows.push({html:`<tr>
+        ${ln.isFee
+          ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
+          : hasPerLineDate
+            ? `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${lineDaysPdf}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
+            : `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${days}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`}
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
+      </tr>`, weight: r.billingType==="monthly"?2:r.ecOrderNo?2:strWidth(equipName+(projInfo?`　[${projInfo}]`:""))>50?2:1});
+    });
+    if((r.insuranceAmount||0)>0){
+      allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
+    }
+    if(_hasBoth&&_ri===_lastMIdx){allInvRows.push({html:`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`, weight:1});}
+  }
+});})();
     gIncidentsPdf.forEach(inc=>{
       allInvRows.push({html:`<tr>
         <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理/破損"}</td>
@@ -5553,27 +5624,66 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           </tr>
                                         </thead>
                                         <tbody>
-                                          {(()=>{const pMap={};g.items.forEach(r=>{if(!r.isExtension&&r.deliveryNo)pMap[r.deliveryNo]=r.endDate||"";});const gKey=r=>r.isExtension?(pMap[r.extendedFromNo||""]||r.endDate||""):(r.endDate||"");const sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const lastMIdx=sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const hasBoth=lastMIdx>=0&&sorted.some(r=>r.billingType!=="monthly");return sorted.map((r,i)=>(<React.Fragment key={r.id}><tr style={{borderBottom:"1px solid #f1f5f9"}}>
-                                              <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
-                                              <td style={{padding:"4px 8px",color:"#475569"}}>
-                                                {r.isExtension
-                                                  ?<span style={{color:"#2563eb"}}>
-                                                      {r.equipmentName||(r.lines||[]).map(l=>l.equipmentName).filter(Boolean).join("、")||""}
-                                                      {<span style={{fontSize:10,marginLeft:2}}>（延長分）</span>}
-                                                      {r.extendedFromNo&&<span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>（元No.{r.extendedFromNo}）</span>}
-                                                    </span>
-                                                  :r.equipmentName}
-                                                {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
-                                                {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
-                                              </td>
-                                              <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
-                                              <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
-                                                {r.billingType==="monthly"?(r.months||1)+"ヶ月":((()=>{const rLns=r.lines&&r.lines.length?r.lines:[{productId:r.productId,noBillingDiscount:r.noBillingDiscount}];const hasND=rLns.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);return hasND?(r.days||0):(r.billingDays||r.days||0);})())}
-                                              </td>
-                                              <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt((r.amount||0)+(r.insuranceAmount||0))}</td>
-                                            </tr>
-                                            {hasBoth&&i===lastMIdx&&<tr key="spacer"><td colSpan={5} style={{padding:"6px 0",borderBottom:"2px solid #e2e8f0",background:"#f8fafc"}}></td></tr>}
-                                          </React.Fragment>));})()}
+                                          {(()=>{const pMap={};g.items.forEach(r=>{if(!r.isExtension&&r.deliveryNo)pMap[r.deliveryNo]=r.endDate||"";});const gKey=r=>r.isExtension?(pMap[r.extendedFromNo||""]||r.endDate||""):(r.endDate||"");const sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const lastMIdx=sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const hasBoth=lastMIdx>=0&&sorted.some(r=>r.billingType!=="monthly");return buildChainBlocks(sorted).map((block, bi) => {
+                                            if (block.type === "chain") {
+                                              const { header: h, segments } = block;
+                                              return (
+                                                <React.Fragment key={"chain-"+bi}>
+                                                  <tr style={{borderBottom:"1px solid #e2e8f0",background:"#f0f7ff"}}>
+                                                    <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{(segments[0].deliveryNo||"").replace(/E\d+.*$/,"")}</td>
+                                                    <td style={{padding:"4px 8px",color:"#1e40af",fontWeight:600}}>{h.equipNames.join("、")}</td>
+                                                    <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>
+                                                      {fmtD(h.chainStart)}〜{fmtD(h.chainEnd)}<span style={{color:"#94a3b8",fontSize:10,marginLeft:4}}>（暦{h.chainCalDays}日 → 請求{h.chainBillDays}日）</span>
+                                                    </td>
+                                                    <td style={{padding:"4px 8px",textAlign:"center",color:"#94a3b8",fontSize:10}}>―</td>
+                                                    <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(h.chainAmount)}</td>
+                                                  </tr>
+                                                  {segments.map(r => (
+                                                    <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
+                                                      <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
+                                                      <td style={{padding:"2px 8px 2px 20px",color:"#475569"}}>
+                                                        <span style={{color:"#94a3b8",marginRight:4,fontSize:10}}>└</span>
+                                                        <span style={{color:r.isExtension?"#2563eb":"#475569"}}>{r.isExtension?"延長分":"初回分"}</span>
+                                                        {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
+                                                        {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
+                                                      </td>
+                                                      <td style={{padding:"2px 8px 2px 16px",color:"#64748b",whiteSpace:"nowrap"}}>
+                                                        {fmtD(r.startDate)}〜{fmtD(r.endDate)}<span style={{color:"#94a3b8",fontSize:10,marginLeft:4}}>（{r.days||0}日）</span>
+                                                      </td>
+                                                      <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b",fontSize:10}}>{r.days||0}</td>
+                                                      <td style={{padding:"4px 8px",textAlign:"right",color:"#64748b"}}>{fmt((r.amount||0)+(r.insuranceAmount||0))}</td>
+                                                    </tr>
+                                                  ))}
+                                                </React.Fragment>
+                                              );
+                                            }
+                                            const r = block.record;
+                                            const idx = sorted.indexOf(r);
+                                            return (
+                                              <React.Fragment key={r.id}>
+                                                <tr style={{borderBottom:"1px solid #f1f5f9"}}>
+                                                  <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
+                                                  <td style={{padding:"4px 8px",color:"#475569"}}>
+                                                    {r.isExtension
+                                                      ?<span style={{color:"#2563eb"}}>
+                                                          {r.equipmentName||(r.lines||[]).map(l=>l.equipmentName).filter(Boolean).join("、")||""}
+                                                          {<span style={{fontSize:10,marginLeft:2}}>（延長分）</span>}
+                                                          {r.extendedFromNo&&<span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>（元No.{r.extendedFromNo}）</span>}
+                                                        </span>
+                                                      :r.equipmentName}
+                                                    {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
+                                                    {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
+                                                  </td>
+                                                  <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
+                                                  <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
+                                                    {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.days||0)}
+                                                  </td>
+                                                  <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt((r.amount||0)+(r.insuranceAmount||0))}</td>
+                                                </tr>
+                                                {hasBoth&&idx===lastMIdx&&<tr key="spacer"><td colSpan={5} style={{padding:"6px 0",borderBottom:"2px solid #e2e8f0",background:"#f8fafc"}}></td></tr>}
+                                              </React.Fragment>
+                                            );
+                                          });})()}
                                         </tbody>
                                       </table>
                                       {/* 修理/紛失行 */}
