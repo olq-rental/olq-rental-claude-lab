@@ -1592,7 +1592,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.49</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.50</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -4178,7 +4178,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     _chainBaseLns.forEach((baseLn, lIdx) => {
       const _ceqName = baseLn.equipmentName || segments[0].equipmentName || "";
       const _cqty = baseLn.quantity || 1;
-      const _cprice = fn(baseLn.unitPrice || segments[0].unitPrice || 0);
+      const _cprod2 = showDiscountLine ? (products||[]).find(p=>p.id===baseLn.productId) : null;
+      const _clistPrice2 = _cprod2 ? _cprod2.priceEx : (baseLn.unitPrice||0);
+      const _cprice = fn(showDiscountLine ? _clistPrice2 : (baseLn.unitPrice || segments[0].unitPrice || 0));
       const _hasNoDisc = !!(baseLn.noBillingDiscount || (products||[]).find(p=>p.id===baseLn.productId)?.noBillingDiscount);
       let _clineTotal = 0;
       segments.forEach(r => {
