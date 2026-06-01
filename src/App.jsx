@@ -4232,10 +4232,10 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const useDays=noDisc?(r.days||1):(r.billingDays||r.days||1);
           _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*useDays):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDays);
           _legCalDays+=(r.days||0);
-          _legBillDays+=noDisc?(r.days||0):(r.billingDays||r.days||0);
+          _legBillDays+=noDisc?(r.days||0):(r.billingDays||calcBillingDays(r.days||0));
         });
-        const _legStart=legs.map(({record:r})=>r.startDate).filter(Boolean).reduce((a,b)=>a<b?a:b,"");
-        const _legEnd=legs.map(({record:r})=>r.returnDate||r.endDate).filter(Boolean).reduce((a,b)=>a>b?a:b,"");
+        const _legStart=legs[0].record.startDate||"";
+        const _legEnd=legs[legs.length-1].record.returnDate||legs[legs.length-1].record.endDate||"";
         const _noValueDisc=_hasNoDisc||_legBillDays>=_legCalDays;
         const _chainBillDisp=_noValueDisc?_legCalDays:_legBillDays;
         const _chainDateSub=_noValueDisc?``:`<div style="font-size:8px;color:#555;margin-top:1px">合計${_legCalDays}日間 → 日数値引</div>`;
