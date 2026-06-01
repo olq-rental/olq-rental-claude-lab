@@ -4173,45 +4173,89 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
   if (block.type === "chain") {
     const { header: h, segments } = block;
     const chainOrdener = segments[0].ordererName ? segments[0].ordererName+"　様" : "";
-    const _chainRspan = segments.length + 1;
-    const _chainBaseLns = (segments[0].lines&&segments[0].lines.length)?segments[0].lines:[{equipmentName:segments[0].equipmentName,unitPrice:segments[0].unitPrice,quantity:segments[0].quantity,productId:segments[0].productId,noBillingDiscount:segments[0].noBillingDiscount}];
-    _chainBaseLns.forEach((baseLn, lIdx) => {
-      const _ceqName = baseLn.equipmentName || segments[0].equipmentName || "";
+    // 製品（productId）ごとのlegマップを構築
+    const legMap = {};
+    const legOrder = [];
+    segments.forEach(r => {
+      const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,equipmentName:r.equipmentName,unitPrice:r.unitPrice,quantity:r.quantity,noBillingDiscount:r.noBillingDiscount}];
+      rLns.forEach(ln => {
+        const pid = ln.productId || ln.equipmentName || "";
+        if (!legMap[pid]) { legMap[pid]=[]; legOrder.push(pid); }
+        legMap[pid].push({record:r, line:ln});
+      });
+    });
+    legOrder.forEach(pid => {
+      const legs = legMap[pid];
+      const firstLeg = legs[0];
+      const baseLn = firstLeg.line;
+      const _ceqName = baseLn.equipmentName || firstLeg.record.equipmentName || "";
       const _cqty = baseLn.quantity || 1;
       const _cprod2 = showDiscountLine ? (products||[]).find(p=>p.id===baseLn.productId) : null;
       const _clistPrice2 = _cprod2 ? _cprod2.priceEx : (baseLn.unitPrice||0);
-      const _cprice = fn(showDiscountLine ? _clistPrice2 : (baseLn.unitPrice || segments[0].unitPrice || 0));
+      const _cprice = fn(showDiscountLine ? _clistPrice2 : (baseLn.unitPrice||0));
       const _hasNoDisc = !!(baseLn.noBillingDiscount || (products||[]).find(p=>p.id===baseLn.productId)?.noBillingDiscount);
-      let _clineTotal = 0;
-      segments.forEach(r => {
-        const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,unitPrice:r.unitPrice,quantity:r.quantity,noBillingDiscount:r.noBillingDiscount}];
-        const rLn=rLns[lIdx]||rLns[rLns.length-1];
-        const prod=showDiscountLine?(products||[]).find(p=>p.id===rLn.productId):null;
-        const lp=prod?prod.priceEx:(rLn.unitPrice||0);
-        const noDisc=rLn.noBillingDiscount||(products||[]).find(p=>p.id===rLn.productId)?.noBillingDiscount;
-        const lineEnd=rLn.returnDate||r.endDate;
-        const days=noDisc?(r.days||1):(chainBillingDays(r,g.items,lineEnd)||r.billingDays||r.days||1);
-        _clineTotal+=showDiscountLine?Math.round(lp*(rLn.quantity||1)*days):Math.round((rLn.unitPrice||0)*(rLn.quantity||1)*days);
-      });
-      const _csegRows=segments.map((r,si)=>{
-        const _se=r.returnDate||r.endDate;
-        const _sl=r.isExtension?"ご延長":"ご注文";
-        const _isLast=si===segments.length-1;
-        return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
-      }).join("");
-      const _cweight=segments.length+(strWidth(_ceqName)>50?2:1);
-      const _noValueDisc = _hasNoDisc || h.chainBillDays >= h.chainCalDays;
-      const _chainBillDisp = _noValueDisc ? h.chainCalDays : h.chainBillDays;
-      const _chainDateSub = _noValueDisc ? `` : `<div style="font-size:8px;color:#555;margin-top:1px">合計${h.chainCalDays}日間 → 日数値引</div>`;
-      allInvRows.push({html:`<tr>
-        <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(h.chainStart)}〜${fd(h.chainEnd)}${_chainDateSub}</td>
-        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
-        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
-        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;vertical-align:middle">${_ceqName}</td>
-        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_cqty}</td>
-        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${_cprice}</td>
-        <td rowspan="${_chainRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(_clineTotal)}</td>
-      </tr>${_csegRows}`, weight: _cweight});
+      // ガード(b): 台数・単価がlegで異なる場合はsingle扱い
+      const allSame = legs.every(leg=>(leg.line.quantity||1)===_cqty&&(leg.line.unitPrice||0)===(baseLn.unitPrice||0));
+      if (legs.length===1 || !allSame) {
+        // single扱い
+        legs.forEach(({record:r, line:ln}) => {
+          const lineEndDate=ln.returnDate||r.endDate;
+          const prod=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
+          const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
+          const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:(ln.unitPrice||0);
+          const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
+          const useDaysSgl=r.billingType==="monthly"?(r.months||1):(noDisc?(r.days||1):(r.billingDays||r.days||1));
+          const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysSgl):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysSgl);
+          const equipName=ln.equipmentName||r.equipmentName||"";
+          const _dd=!noDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);
+          const _ddDays=_dd?r.billingDays:(r.days||0);
+          const _ddSub=_dd?`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`:"";
+          allInvRows.push({html:`<tr>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${_ddSub}</td>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
+            <td style="border:1px solid #aaa;padding:2px 5px;vertical-align:middle">${equipName}</td>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${ln.quantity||1}</td>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(dispPrice)}</td>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(lineAmt)}</td>
+          </tr>`, weight:strWidth(equipName)>50?2:1});
+        });
+      } else {
+        // chainブロック（leg>=2かつ台数・単価一致）
+        const _legRspan = legs.length + 1;
+        // ガード(a): 金額・日数はlegの保存値を合算（calcBillingDaysで再計算しない）
+        let _clineTotal=0, _legCalDays=0, _legBillDays=0;
+        legs.forEach(({record:r, line:ln}) => {
+          const prod3=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
+          const lp=prod3?prod3.priceEx:(ln.unitPrice||0);
+          const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
+          const useDays=noDisc?(r.days||1):(r.billingDays||r.days||1);
+          _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*useDays):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDays);
+          _legCalDays+=(r.days||0);
+          _legBillDays+=noDisc?(r.days||0):(r.billingDays||r.days||0);
+        });
+        const _legStart=legs.map(({record:r})=>r.startDate).filter(Boolean).reduce((a,b)=>a<b?a:b,"");
+        const _legEnd=legs.map(({record:r})=>r.returnDate||r.endDate).filter(Boolean).reduce((a,b)=>a>b?a:b,"");
+        const _noValueDisc=_hasNoDisc||_legBillDays>=_legCalDays;
+        const _chainBillDisp=_noValueDisc?_legCalDays:_legBillDays;
+        const _chainDateSub=_noValueDisc?``:`<div style="font-size:8px;color:#555;margin-top:1px">合計${_legCalDays}日間 → 日数値引</div>`;
+        const _csegRows=legs.map(({record:r},si)=>{
+          const _se=r.returnDate||r.endDate;
+          const _sl=r.isExtension?"ご延長":"ご注文";
+          const _isLast=si===legs.length-1;
+          return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
+        }).join("");
+        const _cweight=legs.length+(strWidth(_ceqName)>50?2:1);
+        allInvRows.push({html:`<tr>
+          <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${_chainDateSub}</td>
+          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
+          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
+          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;vertical-align:middle">${_ceqName}</td>
+          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_cqty}</td>
+          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${_cprice}</td>
+          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(_clineTotal)}</td>
+        </tr>${_csegRows}`, weight:_cweight});
+      }
     });
     segments.filter(r=>(r.insuranceAmount||0)>0).forEach(r=>{
       allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
