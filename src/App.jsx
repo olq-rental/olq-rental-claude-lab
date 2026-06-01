@@ -4230,10 +4230,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const lp=prod3?prod3.priceEx:(ln.unitPrice||0);
           const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
           const lineEnd=ln.returnDate||r.endDate;
-          const useDays=noDisc?(r.days||1):(r.billingDays||chainBillingDays(r,g.items,lineEnd)||r.days||1);
+          const cbd=noDisc?0:(chainBillingDays(r,g.items,lineEnd)||calcBillingDays(r.days||0));
+          const useDays=noDisc?(r.days||1):(cbd||r.days||1);
           _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*useDays):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDays);
           _legCalDays+=(r.days||0);
-          _legBillDays+=noDisc?(r.days||0):(r.billingDays||chainBillingDays(r,g.items,lineEnd)||calcBillingDays(r.days||0));
+          _legBillDays+=noDisc?(r.days||0):cbd;
         });
         const _legStart=legs[0].record.startDate||"";
         const _legEnd=legs[legs.length-1].record.returnDate||legs[legs.length-1].record.endDate||"";
