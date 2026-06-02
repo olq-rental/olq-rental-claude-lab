@@ -4378,8 +4378,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if(pages.length===0)pages.push([]);
       return pages;
     };
-    let invPages=buildInvPages(41,PAGE_WEIGHT_REST);
-    if(invPages.length===1)invPages=buildInvPages(39,PAGE_WEIGHT_REST);
+    let invPages=buildInvPages(40,PAGE_WEIGHT_REST);
+    if(invPages.length===1)invPages=buildInvPages(40,PAGE_WEIGHT_REST);
     const totalInvPages=invPages.length;
     invPages.forEach((pageRows,pageIdx)=>{
       const isFirstPage=pageIdx===0;
