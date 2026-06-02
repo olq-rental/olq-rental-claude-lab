@@ -4124,7 +4124,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
 
     const invCustomerName = g.customer?.invoiceName || g.customerName || "";
-    const PAGE_WEIGHT_REST = 53;
+    const PAGE_WEIGHT_REST = 57;
     const allInvRows = [];
     const strWidth = str => [...(str||"")].reduce((w,c) => w+(c.match(/[^\x01-\x7E]/)?2:1),0);
     const invHeaderHtml = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
