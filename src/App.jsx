@@ -4213,7 +4213,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const _ddDays=_dd?r.billingDays:(r.days||0);
           const _ddSub=_dd?`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`:"";
           allInvRows.push({html:`<tr>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${_ddSub}</td>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}<div style="font-size:9px;color:#555">${r.isExtension?"└延長分":"└初回分"}</div></td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${equipName}${_csNameExtra}</td>
