@@ -4188,7 +4188,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const legs = legMap[pid];
       const firstLeg = legs[0];
       const baseLn = firstLeg.line;
-      const _ceqName = baseLn.equipmentName || firstLeg.record.equipmentName || "";
+      const _ceqName = baseLn.equipmentName || firstLeg.record.equipmentName || "";const _cIsSplit=g.split!==false;const _cProjInfo=!_cIsSplit&&firstLeg.record.projectName?firstLeg.record.projectName+(firstLeg.record.projectDetail?`　${firstLeg.record.projectDetail}`:""):(firstLeg.record.projectDetail||"");const _ceqNameDisp=_ceqName+(_cProjInfo?`<span style="color:#555;font-size:10px">　[${_cProjInfo}]</span>`:"");
       const _cqty = baseLn.quantity || 1;
       const _cprod2 = showDiscountLine ? (products||[]).find(p=>p.id===baseLn.productId) : null;
       const _clistPrice2 = _cprod2 ? _cprod2.priceEx : (baseLn.unitPrice||0);
@@ -4252,7 +4252,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${firstLeg.record.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${firstLeg.record.ecOrderNo}</div>`:""}${_chainDateSub}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
-          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ceqName}</td>
+          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ceqNameDisp}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_cqty}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${_cprice}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(_clineTotal)}</td>
