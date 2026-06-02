@@ -4245,7 +4245,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const _se=r.returnDate||r.endDate;
           const _sl=r.isExtension?"ご延長":"ご注文";
           const _isLast=si===legs.length-1;
-          return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
+          return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:7px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
         }).join("");
         const _csw=strWidth(_ceqName);const _cweight=legs.length+(_csw>=150?4:_csw>=100?3:_csw>=50?2:1)+(_noValueDisc?0:1);
         allInvRows.push({html:`<tr>
