@@ -4247,7 +4247,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const _isLast=si===legs.length-1;
           return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:9px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
         }).join("");
-        const _cweight=legs.length+(strWidth(_ceqName)>50?2:1);
+        const _cweight=legs.length+(strWidth(_ceqName)>50?2:1)+(_noValueDisc?0:1);
         allInvRows.push({html:`<tr>
           <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${_chainDateSub}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
