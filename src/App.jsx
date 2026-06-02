@@ -4124,7 +4124,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
 
     const invCustomerName = g.customer?.invoiceName || g.customerName || "";
-    const PAGE_WEIGHT_REST = 51;
+    const PAGE_WEIGHT_REST = 53;
     const allInvRows = [];
     const strWidth = str => [...(str||"")].reduce((w,c) => w+(c.match(/[^\x01-\x7E]/)?2:1),0);
     const invHeaderHtml = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
@@ -4378,8 +4378,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if(pages.length===0)pages.push([]);
       return pages;
     };
-    let invPages=buildInvPages(39,PAGE_WEIGHT_REST);
-    if(invPages.length===1)invPages=buildInvPages(37,PAGE_WEIGHT_REST);
+    let invPages=buildInvPages(41,PAGE_WEIGHT_REST);
+    if(invPages.length===1)invPages=buildInvPages(39,PAGE_WEIGHT_REST);
     const totalInvPages=invPages.length;
     invPages.forEach((pageRows,pageIdx)=>{
       const isFirstPage=pageIdx===0;
