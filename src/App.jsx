@@ -4061,7 +4061,7 @@ function AdjAmountInput({value,onChange,disabled,style}){
 }
 
 // 印刷用HTML生成 & ダウンロード
-function downloadPrintHTML(type, g, products, extraDiscount, incidents, allRecords) {
+function downloadPrintHTML(type, g, products, extraDiscount, incidents, allRecords, _returnBodyOnly) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
   const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tr{page-break-inside:avoid}
@@ -4643,6 +4643,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       }
     });
   }
+
+  if (_returnBodyOnly) return {body: body, css: css};
 
   const fullHTML = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${title}</title><style>
 ${css}
@@ -5553,7 +5555,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{cust.groups.length}</td>
                           <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(custTotEx)}</td>
                           <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(custTotInc)}</td>
-                          <td colSpan={2} style={{padding:"8px 12px",textAlign:"center"}}>
+                          <td colSpan={2} style={{padding:"8px 8px",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
                             {(()=>{
                               const total=cust.groups.length;
                               const issued=cust.groups.filter(g=>{const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);return (d.printCount||0)>0||g.items.some(r=>r.issueReceipt);}).length;
@@ -5561,6 +5563,54 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                               if(issued===total) return <span style={{fontSize:10,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>✅ 全件発行済</span>;
                               return <span style={{fontSize:10,color:"#0369a1",fontWeight:700,whiteSpace:"nowrap"}}>{total}件中{issued}件発行済 残{total-issued}件</span>;
                             })()}
+                            {cust.groups.length>1&&(
+                              <div style={{display:"flex",gap:4,justifyContent:"center",marginTop:4}}>
+                                <button onClick={async()=>{
+                                  let allBody="";let lastCss="";
+                                  for(let gi=0;gi<cust.groups.length;gi++){
+                                    const grp=cust.groups[gi];
+                                    const gkey=grp.customerId+"||"+grp.projectName+"||"+grp.month;
+                                    const cur=getInvData(gkey);
+                                    const invNo=cur.invNo||(grp.month?(grp.month+"-???"):"");
+                                    const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
+                                    if(r&&r.body){allBody+=r.body;lastCss=r.css;}
+                                  }
+                                  if(!allBody) return;
+                                  const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
+                                  const nt=window.open("","_blank");
+                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+lastCss+"\n@media print{.no-print{display:none!important}body{margin:0}}</style></head><body>");
+                                  nt.document.write("<div class='no-print' style='position:fixed;top:0;left:0;right:0;background:#1e293b;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:9999;font-family:sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)'><span style='font-weight:700;flex:1'>"+mtitle+"</span><button onclick='window.print()' style='background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px 20px;font-size:14px;font-weight:700;cursor:pointer'>🖨 印刷 / PDF保存</button><button onclick='window.close()' style='background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer'>✕ 閉じる</button></div>");
+                                  nt.document.write("<div style='margin-top:52px'>"+allBody+"</div></body></html>");
+                                  nt.document.close();
+                                }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px"}}>
+                                  <Ico d={I.print} size={10}/>一括確認
+                                </button>
+                                <button onClick={async()=>{
+                                  let allBody="";let lastCss="";
+                                  for(let gi=0;gi<cust.groups.length;gi++){
+                                    const grp=cust.groups[gi];
+                                    const gkey=grp.customerId+"||"+grp.projectName+"||"+grp.month;
+                                    const cur=getInvData(gkey);
+                                    let baseNo=cur.invNo;let count;
+                                    if(!baseNo){baseNo=await nextInvoiceNo(grp.month);count=1;}
+                                    else{count=(cur.printCount||1)+1;}
+                                    await updateInvData(gkey,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
+                                    const invNo=count<=1?baseNo:(baseNo+"-"+count);
+                                    const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
+                                    if(r&&r.body){allBody+=r.body;lastCss=r.css;}
+                                  }
+                                  if(!allBody) return;
+                                  const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
+                                  const nt=window.open("","_blank");
+                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+lastCss+"\n@media print{.no-print{display:none!important}body{margin:0}}</style></head><body>");
+                                  nt.document.write("<div class='no-print' style='position:fixed;top:0;left:0;right:0;background:#1e293b;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:9999;font-family:sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)'><span style='font-weight:700;flex:1'>"+mtitle+"</span><button onclick='window.print()' style='background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px 20px;font-size:14px;font-weight:700;cursor:pointer'>🖨 印刷 / PDF保存</button><button onclick='window.close()' style='background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer'>✕ 閉じる</button></div>");
+                                  nt.document.write("<div style='margin-top:52px'>"+allBody+"</div></body></html>");
+                                  nt.document.close();
+                                }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
+                                  🖨一括印刷
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                         {/* 層2: 案件行 */}
