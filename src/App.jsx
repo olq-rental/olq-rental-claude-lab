@@ -5034,7 +5034,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
         const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1,productId:r.productId||"",equipmentName:r.equipmentName||"",lineNote:r.lineNote||"",noBillingDiscount:!!r.noBillingDiscount}];
         const rebuiltLines=rLines.map(ln=>{
           const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
-          const lineBD=noDisc?splitDays:calcBillingDays(splitDays);
+          const lineBD=noDisc?splitDays:(chainBillingDays({...r,startDate:spItem.startDate},records,spItem.endDate)||calcBillingDays(splitDays));
           const lineAmt=Math.round((ln.unitPrice||0)*(ln.quantity||1)*lineBD);
           let clampedReturnDate=ln.returnDate;
           if(clampedReturnDate&&(clampedReturnDate<spItem.startDate||clampedReturnDate>spItem.endDate)){
@@ -5044,7 +5044,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
         });
         const firstLn=rLines[0]||{};
         const firstNoDisc=firstLn.noBillingDiscount||(products||[]).find(p=>p.id===firstLn.productId)?.noBillingDiscount;
-        const splitBillingDays=firstNoDisc?splitDays:calcBillingDays(splitDays);
+        const splitBillingDays=firstNoDisc?splitDays:(chainBillingDays({...r,startDate:spItem.startDate},records,spItem.endDate)||calcBillingDays(splitDays));
         const monthAmt=rebuiltLines.reduce((s,ln)=>s+(ln.amount||0),0);
         if(monthAmt<=0) return;
         let autoAdj=null;
@@ -5055,7 +5055,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             const d2=calcDays(sp2.startDate,sp2.endDate);
             return s+rLines.reduce((s2,ln)=>{
               const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
-              const bd=noDisc?d2:calcBillingDays(d2);
+              const bd=noDisc?d2:(chainBillingDays({...r,startDate:sp2.startDate},records,sp2.endDate)||calcBillingDays(d2));
               return s2+Math.round((ln.unitPrice||0)*(ln.quantity||1)*bd);
             },0);
           },0);
