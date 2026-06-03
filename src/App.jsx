@@ -5573,7 +5573,10 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     const cur=getInvData(gkey);
                                     const invNo=cur.invNo||(grp.month?(grp.month+"-???"):"");
                                     const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
-                                    if(r&&r.body){allBody+=r.body;lastCss=r.css;}
+                                    if(r&&r.body){
+                                      const b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      allBody+=b;lastCss=r.css;
+                                    }
                                   }
                                   if(!allBody) return;
                                   const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
@@ -5597,7 +5600,10 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     await updateInvData(gkey,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
                                     const invNo=count<=1?baseNo:(baseNo+"-"+count);
                                     const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
-                                    if(r&&r.body){allBody+=r.body;lastCss=r.css;}
+                                    if(r&&r.body){
+                                      const b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      allBody+=b;lastCss=r.css;
+                                    }
                                   }
                                   if(!allBody) return;
                                   const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
