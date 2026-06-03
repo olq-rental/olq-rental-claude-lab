@@ -4061,7 +4061,7 @@ function AdjAmountInput({value,onChange,disabled,style}){
 }
 
 // 印刷用HTML生成 & ダウンロード
-function downloadPrintHTML(type, g, products, extraDiscount, incidents) {
+function downloadPrintHTML(type, g, products, extraDiscount, incidents, allRecords) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
   const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tr{page-break-inside:avoid}
@@ -4232,7 +4232,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const lp=prod3?prod3.priceEx:(ln.unitPrice||0);
           const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
           const lineEnd=ln.returnDate||r.endDate;
-          const cbd=noDisc?0:(chainBillingDays(r,g.items,lineEnd)||calcBillingDays(r.days||0));
+          const cbd=noDisc?0:(chainBillingDays(r,allRecords||g.items,lineEnd)||calcBillingDays(r.days||0));
           const useDays=noDisc?(r.days||1):(cbd||r.days||1);
           _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*useDays):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDays);
           _legCalDays+=(r.days||0);
@@ -5628,7 +5628,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                   <button onClick={async()=>{
                                     const cur=getInvData(key);
                                     const invNo=cur.invNo||(g.month?`${g.month}-???`:"");
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents);
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
                                   }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
                                     <Ico d={I.print} size={10}/>確認
                                   </button>
@@ -5644,7 +5644,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     }
                                     await updateInvData(key,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
                                     const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents);
+                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
                                   }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
                                     🖨
                                   </button>
