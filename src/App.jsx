@@ -4196,7 +4196,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const _hasNoDisc = !!(baseLn.noBillingDiscount || (products||[]).find(p=>p.id===baseLn.productId)?.noBillingDiscount);
       // ガード(b): 台数・単価がlegで異なる場合はsingle扱い
       const allSame = legs.every(leg=>(leg.line.quantity||1)===_cqty&&(leg.line.unitPrice||0)===(baseLn.unitPrice||0));
-      if (legs.length===1 || !allSame) {
+      const hasMainRecord=legs.some(({record:r})=>!r.isExtension);
+      if (legs.length===1 || !allSame || !hasMainRecord) {
         // single扱い
         legs.forEach(({record:r, line:ln}) => {
           const lineEndDate=ln.returnDate||r.endDate;
