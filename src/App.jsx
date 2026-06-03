@@ -4188,7 +4188,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const legs = legMap[pid];
       const firstLeg = legs[0];
       const baseLn = firstLeg.line;
-      const _ceqName = baseLn.equipmentName || firstLeg.record.equipmentName || "";const _cProjInfo=firstLeg.record.projectName?firstLeg.record.projectName+(firstLeg.record.projectDetail?`　${firstLeg.record.projectDetail}`:""):(firstLeg.record.projectDetail||"");const _ceqNameDisp=_ceqName+(_cProjInfo?`<span style="color:#555;font-size:10px">　[${_cProjInfo}]</span>`:"");
+      const _ceqName = baseLn.equipmentName || firstLeg.record.equipmentName || "";const _cProjInfo=g.projectName?"":firstLeg.record.projectName?firstLeg.record.projectName+(firstLeg.record.projectDetail?`　${firstLeg.record.projectDetail}`:""):(firstLeg.record.projectDetail||"");const _ceqNameDisp=_ceqName+(_cProjInfo?`<span style="color:#555;font-size:10px">　[${_cProjInfo}]</span>`:"");
       const _cqty = baseLn.quantity || 1;
       const _cprod2 = showDiscountLine ? (products||[]).find(p=>p.id===baseLn.productId) : null;
       const _clistPrice2 = _cprod2 ? _cprod2.priceEx : (baseLn.unitPrice||0);
@@ -4207,7 +4207,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const useDaysSgl=r.billingType==="monthly"?(r.months||1):(noDisc?(r.days||1):(r.billingDays||r.days||1));
           const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysSgl):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysSgl);
           const equipName=ln.equipmentName||r.equipmentName||"";
-          const _csProjInfo=r.projectName?r.projectName+(r.projectDetail?`　${r.projectDetail}`:""):(r.projectDetail||"");
+          const _csProjInfo=g.projectName?"":r.projectName?r.projectName+(r.projectDetail?`　${r.projectDetail}`:""):(r.projectDetail||"");
           const _csNameExtra=_csProjInfo?`<span style="color:#555;font-size:10px">　[${_csProjInfo}]</span>`:"";
           const _dd=!noDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);
           const _ddDays=_dd?r.billingDays:(r.days||0);
@@ -4282,7 +4282,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const lineDaysPdf=ln.isFee?"手数料及び販売":r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.days||0));
       const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLinePdf):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLinePdf);
       const equipName = ln.equipmentName||r.equipmentName||"";
-      const projInfo = r.projectName
+      const projInfo = g.projectName ? "" : r.projectName
         ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
         : (r.projectDetail || "");
       const nameExtra = projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
