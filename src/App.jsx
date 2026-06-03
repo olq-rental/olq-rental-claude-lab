@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from './supabaseClient';
 
 const ALL_PRODUCTS = [
@@ -519,21 +519,6 @@ const PRESET_CUSTOMERS = [
 const K = { p:"olqP7", c:"olqC7", r:"olqR7", sync:"olqSync7", inv:"olqInv7", pw:"olqPw7", dno:"olqDNo7", ino:"olqINo7" };
 const calcDays = (s,e) => (!s||!e) ? 0 : Math.max(0, Math.floor((new Date(e)-new Date(s))/86400000)+1);
 
-const KNOWLEDGE_TEMPLATES = [
-  {id:"time",    icon:"⏱", label:"何時間使えますか？",    multiProduct:false},
-  {id:"combo",   icon:"🔗", label:"組み合わせは？",        multiProduct:true},
-  {id:"caution", icon:"⚠️", label:"注意点は？",            multiProduct:false},
-  {id:"tips",    icon:"💡", label:"使いこなしのコツ",      multiProduct:false},
-  {id:"flow",    icon:"🏢", label:"レンタルフローについて",multiProduct:false},
-  {id:"free",    icon:"✏️", label:"自由入力",              multiProduct:false},
-];
-
-const SCENARIO_TAGS = [
-  "インタビュー","ライブ配信","ドキュメンタリー","イベント収録",
-  "屋外撮影","暗所撮影","長時間収録","雨天対応","主観視点の撮影",
-  "車載撮影","水中撮影","レンタルフロー",
-];
-
 // シンプルなパスワード入力コンポーネント
 function PwInput({onOk, onCancel}) {
   const [v, setV] = React.useState("");
@@ -567,13 +552,11 @@ function expandMonthlyOpenRecord(r, calcBillingDaysFn, todayFn) {
         quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],
         equipmentName:r.equipmentName||""}];
 
-  const limitMonth = limitD.getFullYear() * 12 + limitD.getMonth();
   let n = 0;
   while (n <= 120) {
     const pStart = new Date(startD);
     pStart.setMonth(pStart.getMonth() + n);
-    const pStartMonth = pStart.getFullYear() * 12 + pStart.getMonth();
-    if (pStartMonth > limitMonth) break;
+    if (pStart > limitD) break;
 
     const pEnd = new Date(pStart);
     pEnd.setMonth(pEnd.getMonth() + 1);
@@ -650,60 +633,6 @@ function calcBillingDays(actualDays) {
   const remainder = actualDays % 31;
   return cycles * 15 + applyBillingTable(remainder);
 }
-function chainBillingDays(record, allRecords, segEnd) {
-  const segStart = record.startDate;
-  if (!segStart || !segEnd) return 0;
-  const baseNo = no => (no || "").replace(/E\d+.*$/, "");
-  const key = baseNo(record.deliveryNo);
-  let rootStart = segStart;
-  if (key) {
-    allRecords.forEach(x => {
-      if (baseNo(x.deliveryNo) === key && x.startDate && x.startDate < rootStart) {
-        rootStart = x.startDate;
-      }
-    });
-  }
-  const cumThrough = calcDays(rootStart, segEnd);
-  const cumBefore = Math.max(0, calcDays(rootStart, segStart) - 1);
-  return Math.max(0, calcBillingDays(cumThrough) - calcBillingDays(cumBefore));
-}
-function buildChainBlocks(sortedItems) {
-  const baseNo = dn => (dn || "").replace(/E\d+.*$/, "");
-  const chainMap = {};
-  const order = [];
-  sortedItems.forEach(r => {
-    const key = baseNo(r.deliveryNo) || r.id;
-    if (!chainMap[key]) { chainMap[key] = []; order.push(key); }
-    chainMap[key].push(r);
-  });
-  return order.map(key => {
-    const segs = chainMap[key];
-    if (segs.length === 1) return { type: "single", record: segs[0] };
-    const allDates = segs.flatMap(r => [r.startDate, r.returnDate || r.endDate]).filter(Boolean);
-    const chainStart = allDates.reduce((a,b) => a < b ? a : b);
-    const chainEnd   = allDates.reduce((a,b) => a > b ? a : b);
-    const chainCalDays  = segs.reduce((s,r) => s + (r.days||0), 0);
-    const chainBillDays = calcBillingDays(chainCalDays);
-    const chainAmount   = segs.reduce((s,r) => s + (r.amount||0) + (r.insuranceAmount||0), 0);
-    const equipNames = [...new Set(segs.flatMap(r => (r.lines||[]).map(ln => ln.equipmentName).filter(Boolean)))];
-    if (!equipNames.length) equipNames.push(segs[0].equipmentName || "");
-    return { type: "chain", header: { equipNames, chainStart, chainEnd, chainCalDays, chainBillDays, chainAmount }, segments: segs };
-  });
-}
-function calcExpectedAmount(r, allRecords) {
-  const lines = r.lines || [];
-  if (!lines.length) return null;
-  const segEnd = r.returnDate || r.endDate;
-  const correctBillingDays = (r.isExtension && segEnd && allRecords && allRecords.length)
-    ? chainBillingDays(r, allRecords, segEnd)
-    : calcBillingDays(Number(r.days)||0);
-  return lines.reduce((s, ln) => {
-    if (ln.isFee) return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1);
-    if (r.billingType === "monthly") return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * (Number(r.months)||1);
-    const qty = ln.noBillingDiscount ? (Number(r.days)||0) : correctBillingDays;
-    return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * qty;
-  }, 0);
-}
 const taxIn  = n => Math.round((n||0)*1.1);
 const taxEx  = n => Math.round((n||0)/1.1);
 const fmt    = n => `¥${Number(n||0).toLocaleString()}`;
@@ -726,12 +655,14 @@ function spName(sp, products) {
   const p = products.find(x => x.id === sp.productId);
   return p ? p.fullName : (sp.productName || `[削除済:${sp.productId}]`);
 }
-// 特別価格リストのproductNameを最新に同期（削除済み製品は除去せず保持）
+// 特別価格リストから削除済み製品を除去し、productNameを最新に同期
 function syncSPs(specialPrices, products) {
-  return (specialPrices||[]).map(sp => {
-    const p = products.find(x => x.id === sp.productId);
-    return p ? { ...sp, productName: p.fullName } : sp;
-  });
+  return (specialPrices||[])
+    .filter(sp => products.some(p => p.id === sp.productId))
+    .map(sp => {
+      const p = products.find(x => x.id === sp.productId);
+      return { ...sp, productName: p ? p.fullName : sp.productName };
+    });
 }
 
 // ---- データストア（Supabase版）----
@@ -740,12 +671,10 @@ const _TABLE = { [K.p]:'products', [K.c]:'customers', [K.r]:'cases' };
 async function sGet(k) {
   try {
     if (_TABLE[k]) {
-      const isProducts = _TABLE[k] === 'products';
-      const selectCols = isProducts ? 'id, data, ec_url' : 'id, data';
-      const { data, error } = await supabase.from(_TABLE[k]).select(selectCols);
+      const { data, error } = await supabase.from(_TABLE[k]).select('id, data');
       if (error) { console.error('sGet error', k, error); return null; }
       if (!data?.length) return null;
-      return data.map(row => isProducts ? { ...row.data, ec_url: row.ec_url || '' } : row.data);
+      return data.map(row => row.data);
     }
     if (k === K.inv) {
       const { data, error } = await supabase.from('invoices').select('id, data, is_locked');
@@ -755,12 +684,11 @@ async function sGet(k) {
       data.forEach(row => { result[row.id] = { ...row.data, is_locked: row.is_locked }; });
       return result;
     }
+    // settings: pw, dno, ino, sync
     const { data } = await supabase.from('settings').select('value').eq('key', k).maybeSingle();
     return data?.value ?? null;
   } catch(e) { console.error('sGet exception', k, e); return null; }
 }
-
-const getLines = r => (r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
 
 async function sSet(k, val) {
   try {
@@ -768,12 +696,12 @@ async function sSet(k, val) {
       if (!Array.isArray(val)) return;
       const rows = val.map(item => ({ id: String(item.id), data: item, updated_at: new Date().toISOString() }));
       if (rows.length > 0) {
-        const { error } = await supabase.from(_TABLE[k]).upsert(rows, { onConflict: 'id' });
-        if (error) {
-          console.error('sSet upsert error', k, error);
-          alert('保存に失敗しました: ' + error.message);
-          return;
-        }
+        await supabase.from(_TABLE[k]).upsert(rows, { onConflict: 'id' });
+        // 削除された行を除去
+        const { data: existing } = await supabase.from(_TABLE[k]).select('id');
+        const newIds = rows.map(r => r.id);
+        const toDelete = (existing||[]).map(r=>r.id).filter(id => !newIds.includes(id));
+        if (toDelete.length > 0) await supabase.from(_TABLE[k]).delete().in('id', toDelete);
       }
       return;
     }
@@ -785,21 +713,22 @@ async function sSet(k, val) {
       if (rows.length > 0) await supabase.from('invoices').upsert(rows, { onConflict: 'id' });
       return;
     }
-    if (k === K.pw) return;
+    if (k === K.pw) return; // PW更新はupdateLockPw()経由
     await supabase.from('settings').upsert({ key: k, value: String(val) }, { onConflict: 'key' });
   } catch(e) { console.error('sSet exception', k, e); }
 }
 
+// PW照合（DB関数経由・bcrypt）
 async function verifyPw(inputPw) {
   const { data, error } = await supabase.rpc('verify_lock_password', { input_pw: inputPw });
   if (error) { console.error('verifyPw error', error); return false; }
   return !!data;
 }
 
+// PW更新（DB関数経由・bcryptハッシュ化）
 async function updateLockPw(newPw) {
   await supabase.rpc('update_lock_password', { new_pw: newPw });
 }
-
 
 // 検索絞り込み付きセレクト
 const _INP={width:"100%",padding:"8px 11px",border:"1.5px solid #e2e8f0",borderRadius:7,fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"inherit",background:"#fff"};
@@ -894,14 +823,127 @@ function Toast({t}) {
 }
 
 
+// CORSプロキシ経由でOLQサイトHTMLを直接取得 → 正規表現でパース（AI不要）
+async function fetchAllProducts(onMsg) {
+  const results = [];
+  const seenIds = new Set();
+  let page = 1;
+  let emptyCount = 0;
+
+  while (emptyCount < 2) {
+    onMsg && onMsg(`${page}ページ目取得中... (${results.length}件)`);
+
+    const siteUrl = page === 1
+      ? 'https://rental.olq.co.jp/?actmode=ItemList'
+      : `https://rental.olq.co.jp/?pageno=${page}&actmode=ItemList`;
+
+    // CORSプロキシ経由でHTMLを直接取得
+    const proxies = [
+      `https://corsproxy.io/?url=${encodeURIComponent(siteUrl)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(siteUrl)}`,
+      `https://corsproxy.io/?${encodeURIComponent(siteUrl)}`,
+    ];
+
+    let pageProds = [];
+    let html = "";
+    for (const proxyUrl of proxies) {
+      try {
+        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
+        if (res.ok) { html = await res.text(); if (html.length > 1000) break; }
+      } catch {}
+    }
+    try {
+      if (!html || html.length < 1000) throw new Error("全プロキシ失敗");
+
+      onMsg && onMsg(`${page}ページ目 HTML ${html.length}bytes パース中...`);
+
+      // 各製品リンクブロックで分割（<a href="...actmode=ItemDetail...">）
+      const parts = html.split(/(?=<a\s[^>]*actmode=ItemDetail)/i);
+      for (const part of parts) {
+        const iidM = part.match(/iid=(\d+)/);
+        if (!iidM) continue;
+        const priceM = part.match(/¥([\d,]+)\/日/);
+        if (!priceM) continue;
+
+        const iid = iidM[1];
+        const priceIn = parseInt(priceM[1].replace(/,/g, ''), 10);
+
+        // HTMLタグを除去してテキスト行に分解
+        const text = part
+          .replace(/<script[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[\s\S]*?<\/style>/gi, '')
+          .replace(/<img[^>]*>/gi, '')
+          .replace(/<[^>]+>/g, '\n')
+          .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '')
+          .replace(/\n{2,}/g, '\n').trim();
+
+        // 価格より前の行からブランド・製品名を取得
+        const priceIdx = text.indexOf('¥');
+        const lines = text.slice(0, priceIdx)
+          .split('\n')
+          .map(l => l.trim())
+          .filter(l => l && !l.includes('item_image') && !l.includes('.jpg') && !l.startsWith('http'));
+
+        if (lines.length < 2) continue;
+        const name  = lines[lines.length - 1];
+        const brand = lines[lines.length - 2];
+
+        pageProds.push({ id: iid, brand, name, priceIn });
+      }
+
+      onMsg && onMsg(`${page}ページ目: ${pageProds.length}件取得`);
+    } catch(e) {
+      onMsg && onMsg(`[ERROR p${page}] ${e.message || String(e)}`);
+    } // end try
+
+    if (!pageProds.length) {
+      emptyCount++;
+      page++;
+      continue;
+    }
+    emptyCount = 0;
+    for (const p of pageProds) {
+      if (!p.id || seenIds.has(p.id)) continue;
+      seenIds.add(p.id);
+      results.push({
+        id:       p.id,
+        brand:    p.brand,
+        name:     p.name,
+        priceIn:  p.priceIn,
+        priceEx:  Math.round(p.priceIn / 1.1),
+        fullName: `${p.brand} ${p.name}`.trim()
+      });
+    }
+    page++;
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  if (results.length < 10) throw new Error(`取得件数が少なすぎます (${results.length}件)`);
+  return results;
+}
+
+// サイトデータと既存製品マスタをマージ
+// - 新製品(idなし) → 先頭に追加
+// - 既存製品(id一致) → brand/name/priceIn/priceEx をサイト側で上書き
+// - サイトにない製品 → 削除せず残す（手動追加製品を保護）
+function mergeProducts(siteProds, currentProds) {
+  const siteMap = new Map(siteProds.map(p => [p.id, p]));
+  const updated = currentProds.map(p => {
+    const s = siteMap.get(p.id);
+    if (!s) return p;
+    return { ...p, brand: s.brand, name: s.name, priceIn: s.priceIn, priceEx: s.priceEx, fullName: s.fullName };
+  });
+  const existIds = new Set(currentProds.map(p => p.id));
+  const added = siteProds.filter(p => !existIds.has(p.id));
+  return [...added, ...updated];
+}
 
 
 export default function App() {
   // ---- Auth ----
   const [session,     setSession]     = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [showImport,    setShowImport]    = useState(false);
-  const [showSnapshot,  setShowSnapshot]  = useState(false);
+  const [showImport,  setShowImport]  = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -913,119 +955,20 @@ export default function App() {
   }, []);
 
   const isAdmin = session?.user?.user_metadata?.role === 'admin';
-  const isOwner = session?.user?.email === 'y_inoue@olq.co.jp';
-
-  // ---- 自動バックアップ（1日1回）----
-  useEffect(() => {
-    if (!session) return;
-    if (session.user.email !== 'y_inoue@olq.co.jp') return;
-    const today = new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem('olqLastBackup') === today) return;
-    (async () => {
-      try {
-        const [pRes, cRes, rRes, invRes, dnoRes, inoRes] = await Promise.all([
-          supabase.from('products').select('data'),
-          supabase.from('customers').select('data'),
-          supabase.from('cases').select('data'),
-          supabase.from('invoices').select('id,data'),
-          supabase.from('settings').select('value').eq('key','olqDNo7').maybeSingle(),
-          supabase.from('settings').select('value').eq('key','olqINo7').maybeSingle(),
-        ]);
-        const invMap = {};
-        (invRes.data||[]).forEach(row => { invMap[row.id] = row.data; });
-        const payload = {
-          backupDate: today,
-          olqP7: (pRes.data||[]).map(r=>r.data),
-          olqC7: (cRes.data||[]).map(r=>r.data),
-          olqR7: (rRes.data||[]).map(r=>r.data),
-          olqInv7: invMap,
-          olqDNo7: dnoRes.data?.value ?? "",
-          olqINo7: inoRes.data?.value ?? "",
-        };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `olq-backup-${today}.json`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        localStorage.setItem('olqLastBackup', today);
-      } catch(e) { console.warn('自動バックアップ失敗:', e); }
-    })();
-  }, [session]);
 
   // ---- App state ----
-  const [products,  setProducts]  = useState([]);
+  const [products,  setProducts]  = useState(ALL_PRODUCTS);
   const [customers, setCustomers] = useState([]);
   const [records,   setRecords]   = useState([]);
-  const [invoiceData, setInvoiceData] = useState({});
+  const [invoiceData, setInvoiceData] = useState({}); // {groupKey:{status,adjustments}}
   const [tab,       setTab]       = useState("records");
-  const [incidents, setIncidents] = useState([]);
-  const [newsFeed, setNewsFeed] = React.useState([]);
-  React.useEffect(()=>{ supabase.from('settings').select('value').eq('key','news_feed').maybeSingle().then(({data})=>{ if(data?.value){try{setNewsFeed(JSON.parse(data.value));}catch{}} }); }, []);
   const [openCustomerId, setOpenCustomerId] = useState(null);
-  const [autoOpenDelivery, setAutoOpenDelivery] = useState(null);
   const [toast,     setToast]     = useState(null);
+  const [syncStatus, setSyncStatus] = useState("idle");
+  const [syncMsg,    setSyncMsg]    = useState("");
+  const [syncLog,    setSyncLog]    = useState([]);
+  const [showLog,    setShowLog]    = useState(false);
   const [globalQ,    setGlobalQ]    = useState("");
-  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
-  const [knowledgeStep, setKnowledgeStep] = useState(1);
-  const [knowledgeTemplate, setKnowledgeTemplate] = useState(null);
-  const [knowledgeSelectedProducts, setKnowledgeSelectedProducts] = useState([]);
-  const [knowledgeProductSearch, setKnowledgeProductSearch] = useState("");
-  const [knowledgeQuestion, setKnowledgeQuestion] = useState("");
-  const [knowledgeAnswer, setKnowledgeAnswer] = useState("");
-  const [knowledgeSelectedTags, setKnowledgeSelectedTags] = useState([]);
-  const [knowledgeSaving, setKnowledgeSaving] = useState(false);
-  const [knowledgeList, setKnowledgeList] = useState([]);
-  const [knowledgeListLoading, setKnowledgeListLoading] = useState(false);
-  const [knowledgeListSearch, setKnowledgeListSearch] = useState("");
-  const [knowledgeFilter, setKnowledgeFilter] = useState("all");
-  const [knowledgeIsInternal, setKnowledgeIsInternal] = useState(false);
-  const [editingKnowledge, setEditingKnowledge] = useState(null);
-  const [editKnowledgeQuestion, setEditKnowledgeQuestion] = useState("");
-  const [editKnowledgeAnswer, setEditKnowledgeAnswer] = useState("");
-  const [editKnowledgeIsInternal, setEditKnowledgeIsInternal] = useState(false);
-  const [editKnowledgePublicStatus, setEditKnowledgePublicStatus] = useState('internal_only');
-  const [editKnowledgeSaving, setEditKnowledgeSaving] = useState(false);
-  const [knowledgeDeleteConfirmId, setKnowledgeDeleteConfirmId] = useState(null);
-  const [sourceKnowledgeMap, setSourceKnowledgeMap] = useState({});
-  const [refineModeEnabled, setRefineModeEnabled] = useState(false);
-  const [refineModeSaving, setRefineModeSaving] = useState(false);
-  const [rejectModal, setRejectModal] = useState(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [staffList, setStaffList] = useState([]);
-  const [assignModal, setAssignModal] = useState(null);
-  const [assignTarget, setAssignTarget] = useState('');
-  const [pendingSearch, setPendingSearch] = useState('');
-  const [knowledgeConcepts, setKnowledgeConcepts] = useState([]);
-  const [knowledgeConceptId, setKnowledgeConceptId] = useState('');
-  const [editKnowledgeConceptId, setEditKnowledgeConceptId] = useState('');
-  const [knowledgeCategoryFilter, setKnowledgeCategoryFilter] = useState('');
-  const [knowledgePendingList, setKnowledgePendingList] = useState([]);
-  const [pendingListLoading, setPendingListLoading] = useState(false);
-  const [knowledgeSubTab, setKnowledgeSubTab] = useState('list');
-  const [editingPending, setEditingPending] = useState(null);
-  const [editPendingQuestion, setEditPendingQuestion] = useState('');
-  const [editPendingAnswer, setEditPendingAnswer] = useState('');
-  const [editPendingSaving, setEditPendingSaving] = useState(false);
-  const [editPendingPublicStatus, setEditPendingPublicStatus] = useState('internal_only');
-  const [editPendingRiskLevel, setEditPendingRiskLevel] = useState('low');
-  const [editPendingNeedsHumanCheck, setEditPendingNeedsHumanCheck] = useState(false);
-  const [editPendingCorrectionNote, setEditPendingCorrectionNote] = useState('');
-  const [editPendingReferenceUrls, setEditPendingReferenceUrls] = useState([]);
-  const [editPendingImageFiles, setEditPendingImageFiles] = useState([]);
-  const [editPendingImageUrls, setEditPendingImageUrls] = useState([]);
-  const [editPendingImageUploading, setEditPendingImageUploading] = useState(false);
-  const [haikuAnswers, setHaikuAnswers] = useState({});
-  const [questionModalStep, setQuestionModalStep] = useState(0);
-  const [questionCategory, setQuestionCategory] = useState('');
-  const [questionInput, setQuestionInput] = useState('');
-  const [questionSearchResults, setQuestionSearchResults] = useState([]);
-  const [questionSearchDone, setQuestionSearchDone] = useState(false);
-  const [questionSearching, setQuestionSearching] = useState(false);
-  const [questionSaving, setQuestionSaving] = useState(false);
-  const [questionSelectedProducts, setQuestionSelectedProducts] = useState([]);
-  const [questionProductSearch, setQuestionProductSearch] = useState('');
-  const [knowledgeSearchMode, setKnowledgeSearchMode] = useState('text');
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -1033,40 +976,31 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     (async () => {
-      const [p, c, r, inv] = await Promise.all([
-        sGet(K.p), sGet(K.c), sGet(K.r), sGet(K.inv)
+      const [p, c, r, inv, lastSync] = await Promise.all([
+        sGet(K.p), sGet(K.c), sGet(K.r), sGet(K.inv), sGet(K.sync)
       ]);
       if (p?.length) setProducts(p);
-      if (c === null) {
-        console.error('顧客データ読み込みエラー');
-        alert('顧客データの読み込みに失敗しました。ページを再読み込みしてください。');
-      } else if (c.length > 0) {
-        setCustomers(c);
-      } else {
-        const ok = window.confirm('顧客データが空です。プリセット38社を投入しますか？\n※通常はキャンセルしてください。');
-        if (ok) { setCustomers(PRESET_CUSTOMERS); await sSet(K.c, PRESET_CUSTOMERS); }
-      }
+      if (c?.length) { setCustomers(c); }
+      else { setCustomers(PRESET_CUSTOMERS); await sSet(K.c, PRESET_CUSTOMERS); }
       if (r?.length) setRecords(r);
       if (inv) setInvoiceData(inv);
+      if (lastSync !== today()) {
+        setTimeout(() => autoSync(), 500);
+      } else {
+        setSyncStatus("synced");
+      }
     })();
   }, [session]);
-
-  useEffect(()=>{
-    supabase.from('incidents').select('*').order('occurred_date',{ascending:false}).then(({data})=>{
-      if(data) setIncidents(data);
-    });
-  },[]);
 
   // ---- Realtime（5PC同時同期）----
   useEffect(() => {
     if (!session) return;
     const reload = async (table) => {
-      if (table === 'products')  { const d = await sGet(K.p); if(d?.length) setProducts(d); }
       if (table === 'customers') { const d = await sGet(K.c); if(d?.length) setCustomers(d); }
       if (table === 'cases')     { const d = await sGet(K.r); if(d?.length) setRecords(d); }
       if (table === 'invoices')  { const d = await sGet(K.inv); if(d) setInvoiceData(d); }
     };
-    const channels = ['products','customers','cases','invoices'].map(table =>
+    const channels = ['customers','cases','invoices'].map(table =>
       supabase.channel(`rt_${table}`)
         .on('postgres_changes', { event:'*', schema:'public', table }, () => reload(table))
         .subscribe()
@@ -1074,311 +1008,38 @@ export default function App() {
     return () => channels.forEach(ch => supabase.removeChannel(ch));
   }, [session]);
 
-  const fetchKnowledgeSearchMode = async () => {
-    const {data} = await supabase.from('settings').select('value').eq('key','knowledge_search_mode').single();
-    if(data) setKnowledgeSearchMode(JSON.parse(data.value));
-  };
-
-  const searchKnowledge = async (q) => {
-    setQuestionSearching(true);
-    const lower = q.toLowerCase();
-    const {data} = await supabase
-      .from('knowledge')
-      .select('*')
-      .eq('status','approved')
-      .order('priority',{ascending:false});
-    const results = (data||[]).filter(k=>
-      (k.question_text||'').toLowerCase().includes(lower)||
-      (k.answer_text||'').toLowerCase().includes(lower)
-    ).slice(0,3);
-    setQuestionSearchResults(results);
-    setQuestionSearchDone(true);
-    setQuestionSearching(false);
-  };
-
-  const submitQuestion = async () => {
-    if(!questionInput.trim()) return;
-    setQuestionSaving(true);
-    const row = {
-      question_text: questionInput.trim(),
-      answer_text: null,
-      status: 'pending',
-      priority: 5,
-      original_priority: 5,
-      related_product_ids: questionSelectedProducts.map(p=>String(p.id)),
-      scenario_tags: [],
-      source_type: 'manual',
-      created_by: (await supabase.auth.getUser()).data?.user?.email || '',
-    };
-    await supabase.from('knowledge').insert([row]);
-    setQuestionSaving(false);
-    setQuestionModalStep(0);
-    setQuestionInput('');
-    setQuestionSelectedProducts([]);
-    setQuestionSearchResults([]);
-    setQuestionSearchDone(false);
-    setKnowledgePendingList(prev=>[...prev,{...row,id:Date.now()}]);
-    showToast('質問を登録しました');
-  };
-
-  const fetchPendingList = async () => {
-    setPendingListLoading(true);
-    const isYuta = session&&session.user.email==='y_inoue@olq.co.jp';
-    let query = supabase.from('knowledge').select('*').eq('status','pending');
-    if(isYuta){
-      query = query.not('review_status','eq','assigned');
-    } else {
-      query = query.eq('assigned_to', session?session.user.email:'');
-    }
-    query = query.order('priority',{ascending:false}).order('created_at',{ascending:true});
-    const {data,error} = await query;
-    setPendingListLoading(false);
-    if(error){console.error('fetchPendingList error',error);return;}
-    const list = data||[];
-    setKnowledgePendingList(list);
-    const sourceIds = [];
-    for(const k of list){
-      if(k.refine_source_id) sourceIds.push(k.refine_source_id);
-      if(k.merge_source_ids&&k.merge_source_ids.length) k.merge_source_ids.forEach(id=>sourceIds.push(id));
-    }
-    if(sourceIds.length>0){
-      const unique=[...new Set(sourceIds)];
-      const {data:srcData}=await supabase.from('knowledge').select('id,question_text,answer_text,yuta_correction_note').in('id',unique);
-      const map={};
-      (srcData||[]).forEach(q=>{map[q.id]=q;});
-      setSourceKnowledgeMap(map);
-    }
-  };
-
-  const approveKnowledge = async (id) => {
-    const now = new Date();
-    const pad = n => String(n).padStart(2,'0');
-    const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
-    const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt}).eq('id',id);
-    if(error){console.error(error);return;}
-    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
-    showToast('承認しました');
-  };
-
-  const rejectKnowledge = async (id, reason='') => {
-    const target = knowledgePendingList.find(k=>k.id===id);
-    const {error} = await supabase.from('knowledge').update({
-      status:'rejected',
-      rejection_reason: reason.trim()||null,
-    }).eq('id',id);
-    if(error){console.error(error);return;}
-    // refine系なら元Q&AのIDのlast_refined_atを更新
-    if(target){
-      const sourceIds=[];
-      if(target.refine_source_id) sourceIds.push(target.refine_source_id);
-      if(target.merge_source_ids&&target.merge_source_ids.length) target.merge_source_ids.forEach(id=>sourceIds.push(id));
-      if(sourceIds.length>0){
-        const now=new Date().toISOString();
-        for(const sid of sourceIds){
-          await supabase.from('knowledge').update({last_refined_at:now}).eq('id',sid);
-        }
-      }
-    }
-    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
-    setRejectModal(null);
-    setRejectReason('');
-    showToast('却下しました');
-  };
-
-  const approveWithReplace = async (pending) => {
-    const now = new Date();
-    const pad = n => String(n).padStart(2,'0');
-    const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
-    const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt,edited_by_human:true}).eq('id',pending.id);
-    if(error){console.error(error);return;}
-    if(pending.refine_source_id){
-      await supabase.from('knowledge').delete().eq('id',pending.refine_source_id);
-    }
-    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==pending.id));
-    showToast('承認して差し替えました');
-  };
-
-  const approveHaikuQuestion = async (id, answerText) => {
-    if(!answerText.trim()){showToast('回答を入力してください');return;}
-    const now=new Date();
-    const pad=n=>String(n).padStart(2,'0');
-    const approvedAt=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
-    const {error}=await supabase.from('knowledge').update({
-      status:'approved',
-      answer_text:answerText.trim(),
-      approved_by:'y_inoue@olq.co.jp',
-      approved_at:approvedAt,
-      edited_by_human:true,
-    }).eq('id',id);
-    if(error){console.error(error);return;}
-    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
-    setHaikuAnswers(prev=>{const n={...prev};delete n[id];return n;});
-    showToast('回答して承認しました');
-  };
-
-  const approveMerge = async (pending) => {
-    const now = new Date();
-    const pad = n => String(n).padStart(2,'0');
-    const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
-    const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt,edited_by_human:true}).eq('id',pending.id);
-    if(error){console.error(error);return;}
-    for(const sourceId of (pending.merge_source_ids||[])){
-      await supabase.from('knowledge').delete().eq('id',sourceId);
-    }
-    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==pending.id));
-    showToast('統合して承認しました（元の'+((pending.merge_source_ids||[]).length)+'件を削除）');
-  };
-
-  const fetchRefineModeEnabled = async () => {
-    const {data}=await supabase.from('settings').select('value').eq('key','refine_mode_enabled').single();
-    if(data){try{setRefineModeEnabled(JSON.parse(data.value));}catch{}}
-  };
-
-  const fetchStaffList = async () => {
-    const {data} = await supabase.rpc('get_staff_list');
-    setStaffList((data||[]).filter(u=>u.email!=='y_inoue@olq.co.jp'));
-  };
-
-  const assignToStaff = async (id, email) => {
-    const {error} = await supabase.from('knowledge').update({
-      assigned_to: email,
-      review_status: 'assigned',
-    }).eq('id', id);
-    if(error){console.error(error);return;}
-    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
-    setAssignModal(null);
-    setAssignTarget('');
-    showToast('スタッフに送りました');
-  };
-
-  const reviewComplete = async (id) => {
-    const {error} = await supabase.from('knowledge').update({
-      review_status: 'reviewed',
-      assigned_to: null,
-    }).eq('id', id);
-    if(error){console.error(error);return;}
-    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
-    showToast('レビューを完了しました。雄太さんの確認待ちに戻します。');
-  };
-
-  const toggleRefineMode = async () => {
-    setRefineModeSaving(true);
-    const next=!refineModeEnabled;
-    await supabase.from('settings').update({value:JSON.stringify(next)}).eq('key','refine_mode_enabled');
-    setRefineModeEnabled(next);
-    setRefineModeSaving(false);
-    showToast(next?'ブラッシュアップモードをONにしました':'ブラッシュアップモードをOFFにしました');
-  };
-
-  const updateKnowledgePriority = async (id, priority) => {
-    await supabase.from('knowledge').update({priority:Number(priority)}).eq('id',id);
-    setKnowledgePendingList(prev=>prev.map(k=>k.id===id?{...k,priority:Number(priority)}:k).sort((a,b)=>b.priority-a.priority));
-  };
-
-  const approveWithEdit = async () => {
-    if(!editingPending) return;
-    setEditPendingSaving(true);
-    // 新規画像をSupabase Storageにアップロード
-    let uploadedUrls = [...editPendingImageUrls];
-    if(editPendingImageFiles.length>0){
-      setEditPendingImageUploading(true);
-      for(const file of editPendingImageFiles){
-        try{
-          const ext=file.name.split('.').pop();
-          const path=`knowledge/${editingPending.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-          const {error:upErr}=await supabase.storage.from('knowledge-images').upload(path,file,{upsert:false});
-          if(!upErr){
-            const {data:urlData}=supabase.storage.from('knowledge-images').getPublicUrl(path);
-            if(urlData&&urlData.publicUrl) uploadedUrls.push(urlData.publicUrl);
-          }
-        }catch(e){console.error('image upload error',e);}
-      }
-      setEditPendingImageUploading(false);
-    }
-    const now = new Date();
-    const pad = n => String(n).padStart(2,'0');
-    const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
-    const {error} = await supabase.from('knowledge').update({
-      question_text: editPendingQuestion.trim(),
-      answer_text: editPendingAnswer.trim(),
-      status: 'approved',
-      public_status: editPendingPublicStatus,
-      risk_level: editPendingRiskLevel,
-      needs_human_check: editPendingNeedsHumanCheck,
-      yuta_correction_note: editPendingCorrectionNote.trim()||null,
-      reference_urls: editPendingReferenceUrls,
-      image_urls: uploadedUrls,
-      edited_by_human: true,
-      approved_by: 'y_inoue@olq.co.jp',
-      approved_at: approvedAt,
-    }).eq('id',editingPending.id);
-    setEditPendingSaving(false);
-    if(error){console.error(error);return;}
-    if(editingPending.source_type==='refine_improve'&&editingPending.refine_source_id){
-      await supabase.from('knowledge').delete().eq('id',editingPending.refine_source_id);
-    }
-    if(editingPending.source_type==='refine_merge'&&(editingPending.merge_source_ids||[]).length>0){
-      for(const sid of editingPending.merge_source_ids){
-        await supabase.from('knowledge').delete().eq('id',sid);
-      }
-    }
-    setKnowledgePendingList(prev=>prev.filter(k=>k.id!==editingPending.id));
-    setEditingPending(null);
-    setEditPendingImageFiles([]);
-    setEditPendingImageUrls([]);
-    showToast('訂正して承認しました');
-  };
-
-  const fetchKnowledgeConcepts = async () => {
-    const {data} = await supabase
-      .from('knowledge_concepts')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order');
-    setKnowledgeConcepts(data||[]);
-  };
-
-  const fetchKnowledgeList = async () => {
-    setKnowledgeListLoading(true);
-    const {data,error} = await supabase
-      .from('knowledge')
-      .select('*')
-      .eq('status','approved')
-      .order('created_at',{ascending:false});
-    setKnowledgeListLoading(false);
-    if(error){console.error('knowledge fetch error',error);return;}
-    setKnowledgeList(data||[]);
-  };
-  React.useEffect(()=>{
-    if(tab==='knowledge'){fetchKnowledgeList();fetchKnowledgeConcepts();fetchPendingList();fetchKnowledgeSearchMode();fetchRefineModeEnabled();fetchStaffList();}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[tab]);
-
-  const logActivity = async (action, targetType, targetName, detail="") => {
-    if (!session?.user) return;
+  // HTMLに現在データを埋め込んでダウンロード
+  const autoSync = async (manual=false) => {
+    if (syncStatus==="syncing") return;
+    setSyncStatus("syncing");
+    setSyncLog([]);
     try {
-      await supabase.from('activity_logs').insert({
-        user_id: session.user.id,
-        user_name: session.user.user_metadata?.name || session.user.email,
-        action,
-        target_type: targetType,
-        target_name: targetName,
-        detail,
-      });
-    } catch(e) { console.error('logActivity error:', e); }
+      const siteProds = await fetchAllProducts((msg) => { setSyncMsg(msg); setSyncLog(l => [...l, msg]); });
+      const merged = mergeProducts(siteProds, products);
+      const added   = merged.length - products.length;
+      const changed = siteProds.filter(s => {
+        const cur = products.find(p => p.id === s.id);
+        return cur && (cur.priceIn !== s.priceIn || cur.name !== s.name || cur.brand !== s.brand);
+      }).length;
+      await saveProd(merged);
+      await sSet(K.sync, today());
+      setSyncStatus("synced");
+      setSyncMsg("");
+      if (manual) {
+        const detail = [added>0&&`新製品+${added}件`, changed>0&&`更新${changed}件`].filter(Boolean).join(" / ");
+        showToast(`同期完了（計${merged.length}件）${detail ? " — "+detail : ""}`);
+      }
+    } catch(e) {
+      await sSet(K.sync, today());
+      setSyncStatus(manual?"failed":"idle");
+      setSyncMsg(e?.message||"");
+      if (manual) showToast("同期に失敗しました: "+(e?.message||"不明なエラー"), false);
+    }
   };
 
   const saveProd = async n => {
-    const merged = n.map(p => {
-      const existing = products.find(x => x.id === p.id);
-      return {
-        ...p,
-        noBillingDiscount: p.noBillingDiscount ?? existing?.noBillingDiscount ?? false,
-        memo: p.memo ?? existing?.memo ?? ""
-      };
-    });
-    setProducts(merged);
-    await sSet(K.p, merged);
+    setProducts(n);
+    await sSet(K.p, n);
     // 製品マスタ変更時、全顧客の特別価格を自動同期
     const updated = customers.map(c => {
       if (!(c.specialPrices||[]).length) return c;
@@ -1386,35 +1047,10 @@ export default function App() {
       if (synced.length === c.specialPrices.length && synced.every((s,i)=>s.productName===c.specialPrices[i].productName)) return c;
       return {...c, specialPrices: synced};
     });
-    const changed = updated.some((c, i) => c !== customers[i]);
-    if (changed) { setCustomers(updated); await sSet(K.c, updated); }
+    if (updated !== customers) { setCustomers(updated); await sSet(K.c, updated); }
   };
-  const saveCust = async (n, logInfo) => {
-    setCustomers(n);
-    await sSet(K.c, n);
-    if (logInfo) await logActivity(logInfo.action, 'customer', logInfo.name, logInfo.detail||"");
-  };
-  const saveRec = async (n, logInfo, changed) => {
-    setRecords(n);
-    const toUpsert = changed || n;
-    const rows = toUpsert.map(item => ({ id: String(item.id), data: item, updated_at: new Date().toISOString() }));
-    if (rows.length > 0) {
-      const { error } = await supabase.from('cases').upsert(rows, { onConflict: 'id' });
-      if (error) { console.error('saveRec upsert error', error); alert('保存に失敗しました: ' + error.message); return; }
-    }
-    if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||"");
-  };
-  const deleteCust = async (custId, custName) => {
-    const filtered = customers.filter(x => x.id !== custId);
-    setCustomers(filtered);
-    await supabase.from('customers').delete().eq('id', String(custId));
-    await logActivity("削除", "customer", custName, "顧客を削除しました");
-  };
-  const deleteRec = async (id, logInfo) => {
-    setRecords(prev => prev.filter(x => x.id !== id));
-    await supabase.from('cases').delete().eq('id', String(id));
-    if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||"");
-  };
+  const saveCust = async n => { setCustomers(n); await sSet(K.c, n); };
+  const saveRec  = async n => { setRecords(n);   await sSet(K.r, n); };
   const saveInv  = async n => { setInvoiceData(n); await sSet(K.inv, n); };
 
   const invoiceGroups = {};
@@ -1492,130 +1128,55 @@ export default function App() {
     {id:"invoice",  label:"請求書",      icon:I.print},
     {id:"customers",label:"顧客管理",    icon:I.users},
     {id:"products", label:"製品マスタ",  icon:I.box},
-    {id:"actlogs",  label:"作業履歴",    icon:I.list},
-    {id:"incidents",label:"修理/紛失",   icon:I.list},
-    {id:"knowledge",label:"📖 オルク辞典"},
   ];
 
-  // ナレッジ質問文の自動生成
-  const buildKnowledgeQuestion = (template, selectedProds) => {
-    if(!template) return "";
-    const names = selectedProds.map(p=>(p&&p.name)||"").filter(Boolean);
-    if(template.id==="flow"||template.id==="free") return "";
-    if(names.length===0) return "";
-    const subject = names.length===1 ? names[0] : names.join("と");
-    const suffix = {
-      time:"は何時間使えますか？",
-      combo:"の組み合わせについて",
-      caution:"の注意点について",
-      tips:"の使いこなしのコツについて",
-    };
-    return subject + (suffix[template.id]||"について");
-  };
-
-  const saveKnowledge = async () => {
-    if(!knowledgeQuestion.trim()||!knowledgeAnswer.trim()) return;
-    setKnowledgeSaving(true);
-    const row = {
-      question_text: knowledgeQuestion.trim(),
-      answer_text: knowledgeAnswer.trim(),
-      related_product_ids: knowledgeSelectedProducts.map(p=>String(p.id)),
-      scenario_tags: knowledgeSelectedTags,
-      created_by: session?.user?.user_metadata?.name||session?.user?.email||"",
-      source_type: 'manual',
-      is_internal: knowledgeIsInternal,
-      concept_id: knowledgeConceptId || null,
-    };
-    const {error} = await supabase.from('knowledge').insert([row]);
-    setKnowledgeSaving(false);
-    if(error){ alert('保存に失敗しました: '+error.message); return; }
-    showToast('ナレッジを保存しました');
-    setShowKnowledgeModal(false);
-    setKnowledgeConceptId('');
-    setKnowledgeStep(1);setKnowledgeIsInternal(false);
-    setKnowledgeTemplate(null);
-    setKnowledgeSelectedProducts([]);
-    setKnowledgeProductSearch("");
-    setKnowledgeQuestion("");
-    setKnowledgeAnswer("");
-    setKnowledgeSelectedTags([]);
-  };
-
-  const deleteKnowledge = async (id) => {
-    const {error} = await supabase.from('knowledge').delete().eq('id',id);
-    if(error){showToast('削除に失敗しました');return;}
-    showToast('削除しました');
-    setKnowledgeList(prev=>prev.filter(k=>k.id!==id));
-  };
-
-  const updateKnowledge = async () => {
-    if(!editKnowledgeQuestion.trim()||!editKnowledgeAnswer.trim()) return;
-    setEditKnowledgeSaving(true);
-    const now = new Date().toISOString();
-    const updates = {
-      question_text: editKnowledgeQuestion.trim(),
-      answer_text: editKnowledgeAnswer.trim(),
-      is_internal: editKnowledgeIsInternal,
-      public_status: editKnowledgePublicStatus,
-      concept_id: editKnowledgeConceptId || null,
-      edited_by_human: true,
-      edited_by: session?.user?.email||"",
-      edited_at: now,
-      updated_at: now,
-    };
-    const {error} = await supabase.from('knowledge').update(updates).eq('id',editingKnowledge.id);
-    setEditKnowledgeSaving(false);
-    if(error){showToast('更新に失敗しました');return;}
-    showToast('更新しました');
-    setKnowledgeList(prev=>prev.map(k=>k.id===editingKnowledge.id?{...k,...updates}:k));
-    setEditKnowledgeConceptId('');
-    setEditingKnowledge(null);
-  };
-
-  // ---- auth guard ----
+  // ---- auth/loading guard ----
   if (authLoading) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",fontFamily:"'Noto Sans JP',sans-serif",fontSize:14,color:"#64748b"}}>読み込み中...</div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",fontFamily:"'Noto Sans JP',sans-serif",fontSize:14,color:"#64748b"}}>
+      読み込み中...
+    </div>
   );
   if (!session) return <LoginScreen />;
   if (showImport) return <ImportScreen onDone={()=>setShowImport(false)} showToast={showToast} setCustomers={setCustomers} setRecords={setRecords} setInvoiceData={setInvoiceData} setProducts={setProducts} />;
-  if (showSnapshot && isOwner) return <SnapshotScreen onDone={()=>setShowSnapshot(false)} showToast={showToast} setCustomers={setCustomers} setRecords={setRecords} setInvoiceData={setInvoiceData} setProducts={setProducts} />;
 
   return (
     <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",minHeight:"100vh",background:"#f1f5f9",color:"#1e293b"}}>
       <Toast t={toast}/>
 
 
-
+      {showLog && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowLog(false)}>
+          <div style={{background:"#1e293b",color:"#e2e8f0",borderRadius:12,padding:24,maxWidth:700,width:"90%",maxHeight:"80vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+              <b style={{fontSize:14}}>🔍 同期デバッグログ</b>
+              <button onClick={()=>setShowLog(false)} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:18}}>✕</button>
+            </div>
+            <pre style={{fontSize:11,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-all",color:"#86efac"}}>
+              {syncLog.length ? syncLog.join("\n") : "(ログなし — 再度同期を実行してください)"}
+            </pre>
+          </div>
+        </div>
+      )}
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@media print{.app-header,.app-tabs,.np{display:none!important}body,html{margin:0;padding:0;background:#fff}}.ph-faint::placeholder{color:#e2e8f0!important}`}</style>
       <header className="app-header" style={{background:"#0f172a",color:"#fff",padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
-            <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
-          </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.63</span>
+          <Ico d={I.box} size={20}/>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>OLQ レンタル管理</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={()=>setTab("products")} style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",color:"#86efac",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>🔄 製品同期</button>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
-          {isAdmin && isOwner && <button onClick={()=>setShowSnapshot(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#7dd3fc",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>🕐 スナップショット</button>}
-          <span style={{fontSize:11,color:"#94a3b8"}}>
-            <span onClick={()=>setTab("products")}  style={{cursor:"pointer"}} onMouseEnter={e=>e.target.style.textDecoration="underline"} onMouseLeave={e=>e.target.style.textDecoration="none"}>製品{products.length}件</span>
-            {" / "}
-            <span onClick={()=>setTab("customers")} style={{cursor:"pointer"}} onMouseEnter={e=>e.target.style.textDecoration="underline"} onMouseLeave={e=>e.target.style.textDecoration="none"}>顧客{customers.length}社</span>
-            {" / "}
-            <span onClick={()=>setTab("records")}   style={{cursor:"pointer"}} onMouseEnter={e=>e.target.style.textDecoration="underline"} onMouseLeave={e=>e.target.style.textDecoration="none"}>案件{records.length}件</span>
-          </span>
-          <span style={{fontSize:11,color:"#64748b"}}>{session.user.user_metadata?.name||session.user.email}</span>
+          <span style={{fontSize:11,color:"#94a3b8"}}>製品{products.length}件 / 顧客{customers.length}社 / 案件{records.length}件</span>
+          <span style={{fontSize:11,color:"#64748b"}}>{session.user.email}</span>
           <button onClick={()=>supabase.auth.signOut()} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#f87171",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>ログアウト</button>
         </div>
       </header>
-
-      {newsFeed.length>0&&(()=>{const pn=newsFeed.filter(n=>n.source==="pronews");const sn=newsFeed.filter(n=>n.source==="snrec");const itemStyle={color:"#334155",fontSize:10,textDecoration:"none",background:"#fff",border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 8px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:"1",display:"block",boxShadow:"0 1px 2px rgba(0,0,0,.05)"};return(<div style={{background:"#f1f5f9",borderTop:"1px solid #e2e8f0",borderBottom:"1px solid #e2e8f0",padding:"4px 18px",display:"flex",flexDirection:"column",gap:4}}><span style={{color:"#64748b",fontSize:9,fontWeight:700,letterSpacing:1}}>業界NEWS</span>{[{items:pn,color:"#2563eb",icon:"📹"},{items:sn,color:"#059669",icon:"🎵"}].map((row,ri)=>(<div key={ri} style={{display:"flex",gap:6,alignItems:"center"}}>{row.items.map((n,i)=><a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={itemStyle}><span style={{color:row.color,marginRight:3}}>{row.icon}</span>{n.title}</a>)}</div>))}</div>);})()}
 
       <div className="app-tabs" style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"0 18px",display:"flex"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{background:"none",border:"none",padding:"13px 16px",fontSize:13,fontWeight:600,cursor:"pointer",color:tab===t.id?"#2563eb":"#64748b",borderBottom:tab===t.id?"2px solid #2563eb":"2px solid transparent",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
-            {t.icon&&<Ico d={t.icon} size={14} color={tab===t.id?"#2563eb":"#64748b"}/>}{t.label}
+            <Ico d={t.icon} size={14} color={tab===t.id?"#2563eb":"#64748b"}/>{t.label}
           </button>
         ))}
       </div>
@@ -1641,989 +1202,18 @@ export default function App() {
       )}
 
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
-        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec} onDeleteRec={deleteRec} showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
-        {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
-        {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} products={products} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records} onSaveRec={saveRec} incidents={incidents}/>}
+        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec}  showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={()=>setTab("delivery")} invoiceData={invoiceData} globalQ={globalQ}/>}
+        {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ}/>}
+        {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
-        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
-        {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
-        {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
-        {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
-        {tab==='knowledge'&&(
-          <div style={{padding:"24px 16px",maxWidth:800,margin:"0 auto"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <h2 style={{margin:0,fontSize:18,fontWeight:700}}>📖 オルク辞典</h2>
-              <button onClick={()=>{fetchKnowledgeList();fetchPendingList();}}
-                style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#64748b"}}>
-                🔄 更新
-              </button>
-            </div>
-            {session&&(
-              <div style={{display:'flex',gap:6,marginBottom:12}}>
-                <button onClick={()=>setKnowledgeSubTab('list')}
-                  style={{padding:'5px 14px',borderRadius:6,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
-                    background:knowledgeSubTab==='list'?'#0f172a':'#f1f5f9',
-                    color:knowledgeSubTab==='list'?'#fff':'#64748b'}}>
-                  📚 辞典一覧 {knowledgeList.length>0&&`(${knowledgeList.length})`}
-                </button>
-                <button onClick={()=>setKnowledgeSubTab('pending')}
-                  style={{padding:'5px 14px',borderRadius:6,fontSize:13,fontWeight:600,border:'none',cursor:'pointer',
-                    background:knowledgeSubTab==='pending'?'#dc2626':'#fef2f2',
-                    color:knowledgeSubTab==='pending'?'#fff':'#dc2626'}}>
-                  ✅ 承認待ち {knowledgePendingList.length>0&&`(${knowledgePendingList.length})`}
-                </button>
-              </div>
-            )}
-
-            {knowledgeSubTab==='list'&&(
-            <>{/* フィルター */}
-            <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-              {[{id:"all",label:"全て"},{id:"manual",label:"✏️ 手動"},{id:"ec_auto",label:"🤖 自動EC"},{id:"internal",label:"🔒 内部のみ"}].map(f=>(
-                <button key={f.id} onClick={()=>setKnowledgeFilter(f.id)}
-                  style={{padding:"5px 12px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:500,border:"none",
-                    background:knowledgeFilter===f.id?"#0f172a":"#f1f5f9",
-                    color:knowledgeFilter===f.id?"#fff":"#64748b"}}>
-                  {f.label}
-                </button>
-              ))}
-              <select
-                value={knowledgeCategoryFilter}
-                onChange={e=>setKnowledgeCategoryFilter(e.target.value)}
-                style={{padding:"5px 10px",borderRadius:20,fontSize:12,border:"1px solid #e2e8f0",color:"#475569",background:"#f8fafc",cursor:"pointer"}}>
-                <option value="">📂 カテゴリ: 全て</option>
-                {knowledgeConcepts.filter(c=>!(c.parent_id)).map(parent=>(
-                  <optgroup key={parent.id} label={parent.name}>
-                    {knowledgeConcepts.filter(c=>c.parent_id===parent.id).map(child=>(
-                      <option key={child.id} value={child.id}>{child.name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-
-            {/* 検索 */}
-            <input
-              type="text"
-              placeholder="質問・回答で検索..."
-              value={knowledgeListSearch}
-              onChange={e=>setKnowledgeListSearch(e.target.value)}
-              style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,marginBottom:16,boxSizing:"border-box"}}
-            />
-
-            {knowledgeListLoading&&<div style={{color:"#94a3b8",fontSize:13}}>読み込み中...</div>}
-
-            {!knowledgeListLoading&&(
-              <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                {knowledgeList
-                  .filter(k=>{
-                    if(knowledgeFilter==="manual"&&k.source_type!=="manual") return false;
-                    if(knowledgeFilter==="ec_auto"&&k.source_type!=="ec_auto") return false;
-                    if(knowledgeFilter==="internal"&&!k.is_internal) return false;
-                    if(knowledgeCategoryFilter&&k.concept_id!==knowledgeCategoryFilter) return false;
-                    const q=knowledgeListSearch.toLowerCase();
-                    if(!q) return true;
-                    const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
-                    const prodNames=relatedProds.map(p=>(p&&p.name)||'').join(' ').toLowerCase();
-                    const tags=(k.scenario_tags||[]).join(' ').toLowerCase();
-                    const conceptName=(()=>{const c=knowledgeConcepts.find(x=>x.id===k.concept_id);return c?(c.name||''):'';})().toLowerCase();
-                    return (k.question_text||'').toLowerCase().includes(q)
-                      ||(k.answer_text||'').toLowerCase().includes(q)
-                      ||prodNames.includes(q)
-                      ||tags.includes(q)
-                      ||conceptName.includes(q);
-                  })
-                  .map(k=>{
-                    const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
-                    const isConfirmDelete=knowledgeDeleteConfirmId===k.id;
-                    return(
-                      <div key={k.id} style={{background:"#fff",border:isConfirmDelete?"1px solid #fca5a5":"1px solid #e2e8f0",borderRadius:10,padding:16}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                          <div style={{fontWeight:600,fontSize:14,color:"#0f172a",flex:1}}>❓ {k.question_text||"（質問なし）"}</div>
-                          <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
-                            {!isConfirmDelete&&session&&session.user.email==='y_inoue@olq.co.jp'&&(
-                              <>
-                                <button onClick={()=>{setEditingKnowledge(k);setEditKnowledgeQuestion(k.question_text||"");setEditKnowledgeAnswer(k.answer_text||"");setEditKnowledgeIsInternal(k.is_internal||false);setEditKnowledgeConceptId(k.concept_id||'');setEditKnowledgePublicStatus(k.public_status||'internal_only');}}
-                                  style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#64748b"}}>編集</button>
-                                <button onClick={()=>setKnowledgeDeleteConfirmId(k.id)}
-                                  style={{background:"none",border:"1px solid #fecaca",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#ef4444"}}>削除</button>
-                              </>
-                            )}
-                            {isConfirmDelete&&(
-                              <>
-                                <button onClick={()=>{deleteKnowledge(k.id);setKnowledgeDeleteConfirmId(null);}}
-                                  style={{background:"#ef4444",border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",color:"#fff",fontWeight:600}}>本当に削除</button>
-                                <button onClick={()=>setKnowledgeDeleteConfirmId(null)}
-                                  style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#64748b"}}>キャンセル</button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        {isConfirmDelete&&<div style={{fontSize:12,color:"#ef4444",marginBottom:8}}>このエントリを削除しますか？</div>}
-                        <div style={{fontSize:13,color:"#334155",marginBottom:10,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{k.answer_text}</div>
-                        {(k.image_urls||[]).length>0&&(
-                          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
-                            {(k.image_urls||[]).map((url,i)=>(
-                              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                <img src={url} alt="" style={{width:72,height:56,objectFit:'cover',borderRadius:4,border:'1px solid #e2e8f0'}}/>
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                        <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
-                          {relatedProds.map(p=>(
-                            <span key={(p&&p.id)||""} style={{display:'inline-flex',alignItems:'center',gap:4,background:"#f1f5f9",color:"#475569",borderRadius:4,padding:"2px 8px",fontSize:11}}>
-                              📷 {(p&&p.name)||""}
-                              {(p&&p.ec_url)&&(
-                                <a href={p.ec_url} target="_blank" rel="noopener noreferrer"
-                                  style={{color:'#2563eb',fontSize:10,textDecoration:'none'}} title="ECサイトで見る">🛒</a>
-                              )}
-                            </span>
-                          ))}
-                          {(k.scenario_tags||[]).map(tag=>(<span key={tag} style={{background:"#eff6ff",color:"#3b82f6",borderRadius:4,padding:"2px 8px",fontSize:11}}>{tag}</span>))}
-                          {(()=>{
-                            const ps=k.public_status;
-                            if(ps==='public_safe') return <span style={{background:"#f0fdf4",color:"#16a34a",borderRadius:4,padding:"2px 8px",fontSize:11}}>✅ 顧客公開可</span>;
-                            if(ps==='public_with_caution') return <span style={{background:"#fffbeb",color:"#d97706",borderRadius:4,padding:"2px 8px",fontSize:11}}>⚠️ 注意書き付き</span>;
-                            if(ps==='do_not_answer') return <span style={{background:"#fff1f2",color:"#e11d48",borderRadius:4,padding:"2px 8px",fontSize:11}}>🚫 回答しない</span>;
-                            return <span style={{background:"#fef3c7",color:"#d97706",borderRadius:4,padding:"2px 8px",fontSize:11}}>🔒 社内限定</span>;
-                          })()}
-                          <span style={{background:k.source_type==="ec_auto"?"#f0fdf4":"#f8fafc",color:k.source_type==="ec_auto"?"#16a34a":"#64748b",borderRadius:4,padding:"2px 8px",fontSize:11}}>
-                            {k.source_type==="ec_auto"?"🤖 自動EC":"✏️ 手動"}
-                          </span>
-                          {k.concept_id&&(()=>{const c=knowledgeConcepts.find(x=>x.id===k.concept_id);return c?(<span style={{background:"#f0f9ff",color:"#0369a1",borderRadius:4,padding:"2px 8px",fontSize:11}}>📂 {c.name}</span>):null;})()}
-                          <span style={{marginLeft:"auto",fontSize:11,color:"#94a3b8"}}>{k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                {knowledgeList.filter(k=>{
-                  if(knowledgeFilter==="manual"&&k.source_type!=="manual") return false;
-                  if(knowledgeFilter==="ec_auto"&&k.source_type!=="ec_auto") return false;
-                  if(knowledgeFilter==="internal"&&!k.is_internal) return false;
-                  if(knowledgeCategoryFilter&&k.concept_id!==knowledgeCategoryFilter) return false;
-                  const q=knowledgeListSearch.toLowerCase();
-                  if(!q) return true;
-                  const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
-                  const prodNames=relatedProds.map(p=>(p&&p.name)||'').join(' ').toLowerCase();
-                  const tags=(k.scenario_tags||[]).join(' ').toLowerCase();
-                  const conceptName=(()=>{const c=knowledgeConcepts.find(x=>x.id===k.concept_id);return c?(c.name||''):'';})().toLowerCase();
-                  return (k.question_text||'').toLowerCase().includes(q)
-                    ||(k.answer_text||'').toLowerCase().includes(q)
-                    ||prodNames.includes(q)
-                    ||tags.includes(q)
-                    ||conceptName.includes(q);
-                }).length===0&&(
-                  <div style={{color:"#94a3b8",fontSize:13,textAlign:"center",padding:40}}>まだエントリがありません。「＋」ボタンから追加してください。</div>
-                )}
-              </div>
-            )}
-            </>)}
-
-            {/* 承認待ちリスト */}
-            {knowledgeSubTab==='pending'&&session&&(
-              <div>
-                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'10px 14px',background:'#f8fafc',borderRadius:8,border:'1px solid #e2e8f0'}}>
-                  <span style={{fontSize:13,color:'#64748b'}}>🔍 検索モード</span>
-                  <button onClick={async()=>{
-                    const next=knowledgeSearchMode==='text'?'ai':'text';
-                    await supabase.from('settings').update({value:JSON.stringify(next)}).eq('key','knowledge_search_mode');
-                    setKnowledgeSearchMode(next);
-                  }}
-                    style={{padding:'4px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',
-                      background:knowledgeSearchMode==='ai'?'#0f172a':'#e2e8f0',
-                      color:knowledgeSearchMode==='ai'?'#fff':'#64748b'}}>
-                    {knowledgeSearchMode==='ai'?'🤖 AI':'📝 テキスト'}
-                  </button>
-                  <span style={{fontSize:11,color:'#94a3b8'}}>{knowledgeSearchMode==='text'?'テキストマッチで検索中':'Haikuが意味で判断中'}</span>
-                </div>
-                {pendingListLoading&&<div style={{color:'#94a3b8',fontSize:13}}>読み込み中...</div>}
-                {!pendingListLoading&&knowledgePendingList.length===0&&(
-                  <div style={{color:'#94a3b8',fontSize:13,textAlign:'center',padding:40}}>承認待ちはありません 🎉</div>
-                )}
-                {/* ブラッシュアップモードスイッチ */}
-                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'10px 14px',background:'#fafafa',borderRadius:8,border:'1px solid #e2e8f0'}}>
-                  <span style={{fontSize:13,color:'#64748b'}}>🔧 ブラッシュアップモード</span>
-                  <button onClick={toggleRefineMode} disabled={refineModeSaving}
-                    style={{padding:'4px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',
-                      background:refineModeEnabled?'#0f172a':'#e2e8f0',
-                      color:refineModeEnabled?'#fff':'#64748b'}}>
-                    {refineModeSaving?'...':(refineModeEnabled?'ON':'OFF')}
-                  </button>
-                  <span style={{fontSize:11,color:'#94a3b8'}}>{refineModeEnabled?'毎朝8時に改善・統合提案を自動生成中':'Phase 2移行後にONにする'}</span>
-                </div>
-                {/* 承認待ち検索 */}
-                <div style={{marginBottom:12}}>
-                  <input
-                    value={pendingSearch}
-                    onChange={e=>setPendingSearch(e.target.value)}
-                    placeholder="質問・回答・製品名・タグで検索..."
-                    style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:13,color:'#334155',boxSizing:'border-box'}}
-                  />
-                </div>
-
-                {!pendingListLoading&&knowledgePendingList.filter(k=>{
-                  if(!pendingSearch.trim()) return true;
-                  const q=pendingSearch.toLowerCase();
-                  const relProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
-                  const prodNames=relProds.map(p=>(p&&p.name)||'').join(' ').toLowerCase();
-                  const tags=(k.scenario_tags||[]).join(' ').toLowerCase();
-                  return (k.question_text||'').toLowerCase().includes(q)
-                    ||(k.answer_text||'').toLowerCase().includes(q)
-                    ||prodNames.includes(q)
-                    ||tags.includes(q);
-                }).map(k=>{
-                  const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
-
-                  // 🔧 改善提案カード
-                  if(k.source_type==='refine_improve'){
-                    const sourceQA=sourceKnowledgeMap[k.refine_source_id];
-                    return(
-                      <div key={k.id} style={{background:'#fff',border:'2px solid #f59e0b',borderRadius:10,padding:16,marginBottom:12}}>
-                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
-                          <span style={{background:'#fef3c7',color:'#d97706',borderRadius:6,padding:'2px 10px',fontSize:11,fontWeight:700}}>🔧 改善提案</span>
-                          {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
-                        </div>
-                        {sourceQA&&(
-                          <div style={{background:'#f8fafc',borderRadius:6,padding:10,marginBottom:8,border:'1px solid #e2e8f0'}}>
-                            <div style={{fontSize:11,color:'#94a3b8',marginBottom:4}}>元のQ&A</div>
-                            <div style={{fontWeight:600,fontSize:13,color:'#64748b',marginBottom:4}}>Q: {sourceQA.question_text}</div>
-                            <div style={{fontSize:12,color:'#94a3b8',lineHeight:1.5,whiteSpace:'pre-wrap'}}>A: {sourceQA.answer_text}</div>
-                            {sourceQA.yuta_correction_note&&<div style={{fontSize:11,color:'#f59e0b',marginTop:4}}>訂正メモ: {sourceQA.yuta_correction_note}</div>}
-                          </div>
-                        )}
-                        <div style={{background:'#fffbeb',borderRadius:6,padding:10,marginBottom:10,border:'1px solid #fde68a'}}>
-                          <div style={{fontSize:11,color:'#d97706',marginBottom:4}}>改善版</div>
-                          <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:6}}>Q: {k.question_text}</div>
-                          <div style={{fontSize:13,color:'#334155',lineHeight:1.6,whiteSpace:'pre-wrap'}}>A: {k.answer_text}</div>
-                        </div>
-                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                          <button onClick={()=>approveWithReplace(k)}
-                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#d97706',color:'#fff',fontWeight:600,cursor:'pointer'}}>
-                            ✅ 承認して差し替え
-                          </button>
-                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
-                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
-                            ✏️ 訂正して承認
-                          </button>
-                          <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
-                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
-                            却下
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // 🔗 統合提案カード
-                  if(k.source_type==='refine_merge'){
-                    const sourceQAs=(k.merge_source_ids||[]).map(id=>sourceKnowledgeMap[id]).filter(Boolean);
-                    return(
-                      <div key={k.id} style={{background:'#fff',border:'2px solid #8b5cf6',borderRadius:10,padding:16,marginBottom:12}}>
-                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
-                          <span style={{background:'#ede9fe',color:'#7c3aed',borderRadius:6,padding:'2px 10px',fontSize:11,fontWeight:700}}>🔗 統合提案（元{(k.merge_source_ids||[]).length}件を削除）</span>
-                          {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
-                        </div>
-                        {sourceQAs.map((sq,i)=>(
-                          <div key={sq.id} style={{background:'#f8fafc',borderRadius:6,padding:10,marginBottom:6,border:'1px solid #e2e8f0'}}>
-                            <div style={{fontSize:11,color:'#94a3b8',marginBottom:4}}>元のQ&A {i+1}</div>
-                            <div style={{fontWeight:600,fontSize:13,color:'#64748b',marginBottom:4}}>Q: {sq.question_text}</div>
-                            <div style={{fontSize:12,color:'#94a3b8',lineHeight:1.5,whiteSpace:'pre-wrap'}}>A: {sq.answer_text}</div>
-                            {sq.yuta_correction_note&&<div style={{fontSize:11,color:'#f59e0b',marginTop:4}}>訂正メモ: {sq.yuta_correction_note}</div>}
-                          </div>
-                        ))}
-                        <div style={{background:'#f5f3ff',borderRadius:6,padding:10,marginBottom:10,border:'1px solid #ddd6fe'}}>
-                          <div style={{fontSize:11,color:'#7c3aed',marginBottom:4}}>統合版</div>
-                          <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:6}}>Q: {k.question_text}</div>
-                          <div style={{fontSize:13,color:'#334155',lineHeight:1.6,whiteSpace:'pre-wrap'}}>A: {k.answer_text}</div>
-                        </div>
-                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                          <button onClick={()=>approveMerge(k)}
-                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#7c3aed',color:'#fff',fontWeight:600,cursor:'pointer'}}>
-                            ✅ 承認して統合・元{(k.merge_source_ids||[]).length}件削除
-                          </button>
-                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
-                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
-                            ✏️ 訂正して承認
-                          </button>
-                          <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
-                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
-                            却下
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // ❓ Haikuからの質問カード
-                  if(k.source_type==='haiku_question'){
-                    return(
-                      <div key={k.id} style={{background:'#fff',border:'2px solid #f97316',borderRadius:10,padding:16,marginBottom:12}}>
-                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
-                          <span style={{background:'#fff7ed',color:'#ea580c',borderRadius:6,padding:'2px 10px',fontSize:11,fontWeight:700}}>❓ Haikuからの質問</span>
-                          {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
-                        </div>
-                        <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:4}}>Q: {k.question_text}</div>
-                        <div style={{fontSize:12,color:'#94a3b8',marginBottom:10}}>※ Haikuが製品情報から回答できなかった質問です。雄太さんが直接回答してください。</div>
-                        <textarea
-                          value={haikuAnswers[k.id]||''}
-                          onChange={e=>setHaikuAnswers(prev=>({...prev,[k.id]:e.target.value}))}
-                          placeholder="回答を入力..."
-                          rows={4}
-                          style={{width:'100%',padding:'8px 10px',border:'1px solid #fed7aa',borderRadius:6,fontSize:13,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',marginBottom:8}}
-                        />
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <button onClick={()=>approveHaikuQuestion(k.id,haikuAnswers[k.id]||'')}
-                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#ea580c',color:'#fff',fontWeight:600,cursor:'pointer'}}>
-                            ✅ 回答して承認
-                          </button>
-                          <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
-                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
-                            却下
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // 通常カード（ec_auto / manual）
-                  const isYuta = session&&session.user.email==='y_inoue@olq.co.jp';
-                  return(
-                    <div key={k.id} style={{background:'#fff',border:k.review_status==='reviewed'?'2px solid #22c55e':'1px solid #e2e8f0',borderRadius:10,padding:16,marginBottom:12}}>
-                      {k.review_status==='reviewed'&&(
-                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8,padding:'4px 10px',background:'#f0fdf4',borderRadius:6,border:'1px solid #bbf7d0',width:'fit-content'}}>
-                          <span style={{fontSize:12,color:'#16a34a',fontWeight:600}}>✔ スタッフ確認済み</span>
-                          {k.assigned_to&&<span style={{fontSize:11,color:'#86efac'}}>{k.assigned_to}</span>}
-                        </div>
-                      )}
-                      <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:6}}>❓ {k.question_text||'（質問なし）'}</div>
-                      <div style={{fontSize:13,color:'#334155',marginBottom:10,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{k.answer_text}</div>
-                      <div style={{display:'flex',flexWrap:'wrap',gap:6,alignItems:'center',marginBottom:10}}>
-                        {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
-                        <span style={{background:k.source_type==='ec_auto'?'#f0fdf4':'#f8fafc',color:k.source_type==='ec_auto'?'#16a34a':'#64748b',borderRadius:4,padding:'2px 8px',fontSize:11}}>
-                          {k.source_type==='ec_auto'?'🤖 自動EC':'✏️ 手動'}
-                        </span>
-                      </div>
-                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                        {isYuta&&(<>
-                          <label style={{fontSize:12,color:'#64748b'}}>優先度</label>
-                          <select value={k.priority||5} onChange={e=>updateKnowledgePriority(k.id,e.target.value)}
-                            style={{padding:'3px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}}>
-                            {[10,9,8,7,6,5,4,3,2,1].map(n=>(<option key={n} value={n}>{n}</option>))}
-                          </select>
-                        </>)}
-                        <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
-                          style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',color:'#475569'}}>
-                          ✏️ 訂正する
-                        </button>
-                        {isYuta&&(<>
-                          <button onClick={()=>approveKnowledge(k.id)}
-                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#0f172a',color:'#fff',fontWeight:600,cursor:'pointer'}}>
-                            ✅ 承認
-                          </button>
-                          <button onClick={()=>{setAssignModal(k.id);setAssignTarget('');}}
-                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #bfdbfe',background:'#fff',color:'#2563eb',cursor:'pointer'}}>
-                            👤 スタッフに送る
-                          </button>
-                        </>)}
-                        {!isYuta&&(
-                          <button onClick={()=>reviewComplete(k.id)}
-                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#16a34a',color:'#fff',fontWeight:600,cursor:'pointer'}}>
-                            ✅ レビュー完了
-                          </button>
-                        )}
-                        <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
-                          style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
-                          却下
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* 編集モーダル */}
-            {editingKnowledge&&(
-              <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9002,display:"flex",alignItems:"center",justifyContent:"center"}}
-                onClick={e=>{if(e.target===e.currentTarget)setEditingKnowledge(null);}}>
-                <div style={{background:"#fff",borderRadius:12,padding:24,width:"90%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                    <span style={{fontWeight:700,fontSize:16}}>📖 エントリを編集</span>
-                    <button onClick={()=>setEditingKnowledge(null)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b"}}>×</button>
-                  </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>質問</div>
-                    <textarea value={editKnowledgeQuestion} onChange={e=>setEditKnowledgeQuestion(e.target.value)}
-                      style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,minHeight:60,resize:"vertical",boxSizing:"border-box"}}/>
-                  </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>回答</div>
-                    <textarea value={editKnowledgeAnswer} onChange={e=>setEditKnowledgeAnswer(e.target.value)}
-                      style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,minHeight:100,resize:"vertical",boxSizing:"border-box"}}/>
-                  </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>カテゴリ</div>
-                    <select
-                      value={editKnowledgeConceptId}
-                      onChange={e=>setEditKnowledgeConceptId(e.target.value)}
-                      style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,color:"#334155",background:"#fff"}}>
-                      <option value="">未分類</option>
-                      {knowledgeConcepts.filter(c=>!(c.parent_id)).map(parent=>(
-                        <optgroup key={parent.id} label={parent.name}>
-                          {knowledgeConcepts.filter(c=>c.parent_id===parent.id).map(child=>(
-                            <option key={child.id} value={child.id}>{child.name}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>公開ステータス</div>
-                    <select value={editKnowledgePublicStatus} onChange={e=>setEditKnowledgePublicStatus(e.target.value)}
-                      style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,color:"#334155",background:"#fff"}}>
-                      <option value="internal_only">🔒 社内限定</option>
-                      <option value="public_safe">✅ 顧客公開可</option>
-                      <option value="public_with_caution">⚠️ 注意書き付きで公開</option>
-                      <option value="do_not_answer">🚫 回答しない</option>
-                    </select>
-                  </div>
-                  <button onClick={updateKnowledge} disabled={editKnowledgeSaving}
-                    style={{width:"100%",padding:"10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer"}}>
-                    {editKnowledgeSaving?"保存中...":"保存する"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 訂正して承認モーダル */}
-            {editingPending&&(
-              <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:9003,display:'flex',alignItems:'center',justifyContent:'center'}}
-                onClick={e=>{if(e.target===e.currentTarget)setEditingPending(null);}}>
-                <div style={{background:'#fff',borderRadius:12,padding:24,width:'90%',maxWidth:480,maxHeight:'80vh',overflowY:'auto'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                    <span style={{fontWeight:700,fontSize:16}}>✏️ 訂正して承認</span>
-                    <button onClick={()=>setEditingPending(null)} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#64748b'}}>×</button>
-                  </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>質問</div>
-                    <textarea value={editPendingQuestion} onChange={e=>setEditPendingQuestion(e.target.value)}
-                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:60,resize:'vertical',boxSizing:'border-box'}}/>
-                  </div>
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>回答</div>
-                    <textarea value={editPendingAnswer} onChange={e=>setEditPendingAnswer(e.target.value)}
-                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:100,resize:'vertical',boxSizing:'border-box'}}/>
-                  </div>
-                  {editingPending&&editingPending.source_url&&(
-                    <div style={{marginBottom:12,padding:'8px 12px',background:'#f8fafc',borderRadius:6,border:'1px solid #e2e8f0'}}>
-                      <div style={{fontSize:11,color:'#94a3b8',marginBottom:4}}>📎 参照元URL（確認用）</div>
-                      <a href={editingPending.source_url} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'#2563eb',wordBreak:'break-all'}}>{editingPending.source_url}</a>
-                    </div>
-                  )}
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>公開ステータス</div>
-                    <select value={editPendingPublicStatus} onChange={e=>setEditPendingPublicStatus(e.target.value)}
-                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,color:'#334155',background:'#fff'}}>
-                      <option value="internal_only">🔒 社内限定</option>
-                      <option value="public_safe">✅ 顧客公開可</option>
-                      <option value="public_with_caution">⚠️ 注意書き付きで公開</option>
-                      <option value="do_not_answer">🚫 回答しない</option>
-                    </select>
-                  </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>リスクレベル</div>
-                    <select value={editPendingRiskLevel} onChange={e=>setEditPendingRiskLevel(e.target.value)}
-                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,color:'#334155',background:'#fff'}}>
-                      <option value="low">🟢 low：仕様・スペック・一般情報</option>
-                      <option value="medium">🟡 medium：使いこなし・組み合わせ・注意事項</option>
-                      <option value="high">🔴 high：現場リスク直結・損害の可能性あり</option>
-                    </select>
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-                    <input type="checkbox" id="editNeedsHumanCheck" checked={editPendingNeedsHumanCheck} onChange={e=>setEditPendingNeedsHumanCheck(e.target.checked)}/>
-                    <label htmlFor="editNeedsHumanCheck" style={{fontSize:13,color:'#475569',cursor:'pointer'}}>👤 スタッフ確認が必要（LINE Botで自動回答しない）</label>
-                  </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:12,color:'#64748b',marginBottom:6}}>参考URL（任意・複数追加可）</div>
-                    {editPendingReferenceUrls.map((ref,i)=>(
-                      <div key={i} style={{display:'flex',gap:6,marginBottom:6,alignItems:'center'}}>
-                        <input value={ref.label||''} onChange={e=>setEditPendingReferenceUrls(prev=>prev.map((r,j)=>j===i?{...r,label:e.target.value}:r))}
-                          placeholder="ラベル（例：メーカー公式）"
-                          style={{flex:'0 0 130px',padding:'6px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12}}/>
-                        <input value={ref.url||''} onChange={e=>setEditPendingReferenceUrls(prev=>prev.map((r,j)=>j===i?{...r,url:e.target.value}:r))}
-                          placeholder="https://..."
-                          style={{flex:1,padding:'6px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:12}}/>
-                        <button type="button" onClick={()=>setEditPendingReferenceUrls(prev=>prev.filter((_,j)=>j!==i))}
-                          style={{padding:'4px 8px',borderRadius:6,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',fontSize:12,cursor:'pointer',flexShrink:0}}>×</button>
-                      </div>
-                    ))}
-                    <button type="button" onClick={()=>setEditPendingReferenceUrls(prev=>[...prev,{label:'',url:''}])}
-                      style={{padding:'5px 12px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8fafc',fontSize:12,cursor:'pointer',color:'#475569'}}>
-                      ＋ URLを追加
-                    </button>
-                  </div>
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>訂正メモ（任意）</div>
-                    <textarea value={editPendingCorrectionNote} onChange={e=>setEditPendingCorrectionNote(e.target.value)}
-                      placeholder="AIの回答をどう訂正したか・なぜ変えたかを記録（学習データになります）"
-                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:60,resize:'vertical',boxSizing:'border-box'}}/>
-                  </div>
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:12,color:'#64748b',marginBottom:6}}>画像（任意・複数可）</div>
-                    {editPendingImageUrls.length>0&&(
-                      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
-                        {editPendingImageUrls.map((url,i)=>(
-                          <div key={i} style={{position:'relative'}}>
-                            <img src={url} alt="" style={{width:72,height:56,objectFit:'cover',borderRadius:4,border:'1px solid #e2e8f0'}}/>
-                            <button type="button" onClick={()=>setEditPendingImageUrls(prev=>prev.filter((_,j)=>j!==i))}
-                              style={{position:'absolute',top:-4,right:-4,width:16,height:16,borderRadius:'50%',background:'#ef4444',border:'none',color:'#fff',fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>×</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {editPendingImageFiles.length>0&&(
-                      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
-                        {editPendingImageFiles.map((f,i)=>(
-                          <div key={i} style={{position:'relative'}}>
-                            <img src={URL.createObjectURL(f)} alt="" style={{width:72,height:56,objectFit:'cover',borderRadius:4,border:'1px solid #fbbf24'}}/>
-                            <button type="button" onClick={()=>setEditPendingImageFiles(prev=>prev.filter((_,j)=>j!==i))}
-                              style={{position:'absolute',top:-4,right:-4,width:16,height:16,borderRadius:'50%',background:'#ef4444',border:'none',color:'#fff',fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>×</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <label style={{display:'inline-block',padding:'5px 12px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8fafc',fontSize:12,cursor:'pointer',color:'#475569'}}>
-                      📷 画像を追加
-                      <input type="file" accept="image/*" multiple style={{display:'none'}} onChange={e=>{
-                        const files=Array.from(e.target.files||[]);
-                        setEditPendingImageFiles(prev=>[...prev,...files]);
-                        e.target.value='';
-                      }}/>
-                    </label>
-                    {editPendingImageUploading&&<span style={{fontSize:12,color:'#94a3b8',marginLeft:8}}>アップロード中...</span>}
-                  </div>
-                  <button onClick={approveWithEdit} disabled={editPendingSaving}
-                    style={{width:'100%',padding:'10px',background:'#0f172a',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer'}}>
-                    {editPendingSaving?'保存中...':'訂正して承認する'}
-                  </button>
-                </div>
-              </div>
-            )}
-            {/* 却下理由モーダル */}
-            {rejectModal&&(
-              <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:9004,display:'flex',alignItems:'center',justifyContent:'center'}}
-                onClick={e=>{if(e.target===e.currentTarget){setRejectModal(null);setRejectReason('');}}}>
-                <div style={{background:'#fff',borderRadius:12,padding:24,width:'90%',maxWidth:400}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                    <span style={{fontWeight:700,fontSize:16}}>却下理由（任意）</span>
-                    <button onClick={()=>{setRejectModal(null);setRejectReason('');}} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#64748b'}}>×</button>
-                  </div>
-                  <textarea value={rejectReason} onChange={e=>setRejectReason(e.target.value)}
-                    placeholder="例：提案の方向性が違う / 既に承認済みと重複 / 情報が古い（任意）"
-                    style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,minHeight:80,resize:'vertical',boxSizing:'border-box',marginBottom:16}}/>
-                  <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-                    <button onClick={()=>{setRejectModal(null);setRejectReason('');}}
-                      style={{padding:'8px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:13}}>キャンセル</button>
-                    <button onClick={()=>rejectKnowledge(rejectModal,rejectReason)}
-                      style={{padding:'8px 20px',borderRadius:6,border:'none',background:'#ef4444',color:'#fff',fontWeight:600,cursor:'pointer',fontSize:13}}>却下する</button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* スタッフ送信モーダル */}
-            {assignModal&&(
-              <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:9005,display:'flex',alignItems:'center',justifyContent:'center'}}
-                onClick={e=>{if(e.target===e.currentTarget){setAssignModal(null);setAssignTarget('');}}}>
-                <div style={{background:'#fff',borderRadius:12,padding:24,width:'90%',maxWidth:400}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                    <span style={{fontWeight:700,fontSize:16}}>👤 スタッフに送る</span>
-                    <button onClick={()=>{setAssignModal(null);setAssignTarget('');}} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#64748b'}}>×</button>
-                  </div>
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:12,color:'#64748b',marginBottom:6}}>担当スタッフを選択</div>
-                    <select value={assignTarget} onChange={e=>setAssignTarget(e.target.value)}
-                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,color:'#334155',background:'#fff'}}>
-                      <option value="">選択してください</option>
-                      {staffList.map(s=>(<option key={s.id} value={s.email}>{s.email}</option>))}
-                    </select>
-                  </div>
-                  <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-                    <button onClick={()=>{setAssignModal(null);setAssignTarget('');}}
-                      style={{padding:'8px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:13}}>キャンセル</button>
-                    <button onClick={()=>{if(assignTarget)assignToStaff(assignModal,assignTarget);}}
-                      disabled={!assignTarget}
-                      style={{padding:'8px 20px',borderRadius:6,border:'none',background:assignTarget?'#2563eb':'#e2e8f0',color:assignTarget?'#fff':'#94a3b8',fontWeight:600,cursor:assignTarget?'pointer':'default',fontSize:13}}>送る</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
+        {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
       </div>
-
-      {/* ＋ナレッジ 浮遊ボタン */}
-      {session && (
-        <>
-          <button
-            onClick={()=>setQuestionModalStep(1)}
-            style={{
-              position:"fixed",bottom:24,right:24,zIndex:9000,
-              background:"#0f172a",color:"#fff",border:"none",
-              borderRadius:"50%",width:52,height:52,
-              fontSize:22,cursor:"pointer",
-              boxShadow:"0 4px 16px rgba(0,0,0,0.25)",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              fontWeight:700
-            }}
-            title="質問を登録"
-          >❓</button>
-
-          {questionModalStep>0&&(
-            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:9001,display:'flex',alignItems:'center',justifyContent:'center'}}
-              onClick={e=>{if(e.target===e.currentTarget){setQuestionModalStep(0);setQuestionInput('');setQuestionSelectedProducts([]);setQuestionSearchResults([]);setQuestionSearchDone(false);}}}>
-              <div style={{background:'#fff',borderRadius:12,padding:24,width:'90%',maxWidth:480,maxHeight:'80vh',overflowY:'auto'}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                  <span style={{fontWeight:700,fontSize:16}}>❓ 質問を登録</span>
-                  <button onClick={()=>{setQuestionModalStep(0);setQuestionInput('');setQuestionSelectedProducts([]);setQuestionSearchResults([]);setQuestionSearchDone(false);}}
-                    style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#64748b'}}>×</button>
-                </div>
-
-                {/* ステップ1: 入り口選択 */}
-                {questionModalStep===1&&(
-                  <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                    <div style={{fontSize:13,color:'#64748b',marginBottom:4}}>どちらについての質問ですか？</div>
-                    <button onClick={()=>{setQuestionCategory('product');setQuestionModalStep(2);}}
-                      style={{padding:'14px 16px',borderRadius:8,border:'1px solid #e2e8f0',background:'#f8fafc',cursor:'pointer',textAlign:'left',fontSize:14,fontWeight:500,color:'#0f172a'}}>
-                      📷 機材について
-                    </button>
-                    <button onClick={()=>{setQuestionCategory('general');setQuestionModalStep(3);}}
-                      style={{padding:'14px 16px',borderRadius:8,border:'1px solid #e2e8f0',background:'#f8fafc',cursor:'pointer',textAlign:'left',fontSize:14,fontWeight:500,color:'#0f172a'}}>
-                      🏢 社内・その他について
-                    </button>
-                  </div>
-                )}
-
-                {/* ステップ2: 機材選択 */}
-                {questionModalStep===2&&(
-                  <div>
-                    <button onClick={()=>setQuestionModalStep(1)}
-                      style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:13,marginBottom:12,padding:0}}>← 戻る</button>
-                    <div style={{fontSize:13,color:'#64748b',marginBottom:8}}>機材を選択（任意）</div>
-                    {questionSelectedProducts.length>0&&(
-                      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
-                        {questionSelectedProducts.map(p=>(
-                          <span key={p.id} style={{background:'#0f172a',color:'#fff',borderRadius:20,padding:'4px 10px',fontSize:12,display:'flex',alignItems:'center',gap:6}}>
-                            {(p&&p.name)||''}
-                            <button onClick={()=>setQuestionSelectedProducts(s=>s.filter(x=>x.id!==p.id))}
-                              style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',padding:0,fontSize:14,lineHeight:1}}>×</button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <input type="text" placeholder="機材名で検索..." value={questionProductSearch}
-                      onChange={e=>setQuestionProductSearch(e.target.value)}
-                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,marginBottom:6,boxSizing:'border-box'}}/>
-                    {questionProductSearch.trim()&&(
-                      <div style={{border:'1px solid #e2e8f0',borderRadius:6,maxHeight:160,overflowY:'auto',marginBottom:10}}>
-                        {products.filter(p=>{
-                          const n=((p&&p.name)||'').toLowerCase();
-                          const b=((p&&p.brand)||'').toLowerCase();
-                          const q=questionProductSearch.toLowerCase();
-                          return (n.includes(q)||b.includes(q))&&!questionSelectedProducts.some(s=>s.id===p.id);
-                        }).slice(0,8).map(p=>(
-                          <div key={p.id} onClick={()=>{setQuestionSelectedProducts(s=>[...s,p]);setQuestionProductSearch('');}}
-                            style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f1f5f9'}}
-                            onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
-                            onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                            <span style={{color:'#94a3b8',fontSize:11,marginRight:6}}>{(p&&p.brand)||''}</span>{(p&&p.name)||''}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <button onClick={()=>setQuestionModalStep(3)}
-                      style={{width:'100%',padding:'10px',borderRadius:8,border:'none',background:'#0f172a',color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:8}}>
-                      次へ →
-                    </button>
-                  </div>
-                )}
-
-                {/* ステップ3: 質問入力・検索 */}
-                {questionModalStep===3&&(
-                  <div>
-                    <button onClick={()=>setQuestionModalStep(questionCategory==='product'?2:1)}
-                      style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:13,marginBottom:12,padding:0}}>← 戻る</button>
-                    <div style={{fontSize:13,color:'#64748b',marginBottom:8}}>質問を入力してください</div>
-                    <textarea value={questionInput} onChange={e=>{setQuestionInput(e.target.value);setQuestionSearchDone(false);setQuestionSearchResults([]);}}
-                      placeholder="例：外気温が低い時のバッテリーはどうすれば..."
-                      rows={3}
-                      style={{width:'100%',padding:'8px 12px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:13,resize:'vertical',boxSizing:'border-box',marginBottom:10}}/>
-                    {!questionSearchDone&&(
-                      <button onClick={()=>searchKnowledge(questionInput)} disabled={!questionInput.trim()||questionSearching}
-                        style={{width:'100%',padding:'10px',borderRadius:8,border:'none',
-                          background:questionInput.trim()&&!questionSearching?'#0f172a':'#e2e8f0',
-                          color:questionInput.trim()&&!questionSearching?'#fff':'#94a3b8',
-                          fontSize:14,fontWeight:600,cursor:'pointer',marginBottom:10}}>
-                        {questionSearching?'検索中...':'🔍 検索する'}
-                      </button>
-                    )}
-                    {questionSearchDone&&questionSearchResults.length>0&&(
-                      <div style={{marginBottom:12}}>
-                        <div style={{fontSize:12,color:'#0369a1',fontWeight:600,marginBottom:8}}>💡 似た質問が見つかりました</div>
-                        {questionSearchResults.map(k=>(
-                          <div key={k.id} style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:8,padding:12,marginBottom:8}}>
-                            <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>❓ {k.question_text}</div>
-                            <div style={{fontSize:12,color:'#334155',lineHeight:1.6}}>{k.answer_text}</div>
-                          </div>
-                        ))}
-                        <button onClick={()=>{setQuestionSearchDone(false);setQuestionSearchResults([]);}}
-                          style={{width:'100%',padding:'8px',borderRadius:8,border:'1px solid #e2e8f0',background:'#fff',fontSize:13,cursor:'pointer',color:'#475569',marginTop:4}}>
-                          違う・別の質問を登録する
-                        </button>
-                      </div>
-                    )}
-                    {questionSearchDone&&questionSearchResults.length===0&&(
-                      <div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:12,marginBottom:12,fontSize:13,color:'#92400e'}}>
-                        似た質問は見つかりませんでした。登録しますか？
-                      </div>
-                    )}
-                    {questionSearchDone&&(
-                      <button onClick={submitQuestion} disabled={questionSaving}
-                        style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:'#0f172a',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>
-                        {questionSaving?'登録中...':'❓ 質問を登録する'}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {showKnowledgeModal && (
-            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9001,display:"flex",alignItems:"center",justifyContent:"center"}}
-              onClick={e=>{if(e.target===e.currentTarget){setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeIsInternal(false);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");setKnowledgeQuestion("");setKnowledgeAnswer("");setKnowledgeSelectedTags([]);}}}>
-              <div style={{background:"#fff",borderRadius:12,padding:24,width:"90%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                  <span style={{fontWeight:700,fontSize:16}}>📚 ナレッジを追加</span>
-                  <button onClick={()=>{setShowKnowledgeModal(false);setKnowledgeStep(1);setKnowledgeIsInternal(false);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");setKnowledgeQuestion("");setKnowledgeAnswer("");setKnowledgeSelectedTags([]);}}
-                    style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b"}}>×</button>
-                </div>
-                <div>
-                  {/* ステップ1：テンプレ選択 */}
-                  {knowledgeStep===1&&(
-                    <div>
-                      <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>どんな質問でしたか？</div>
-                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                        {KNOWLEDGE_TEMPLATES.map(t=>(
-                          <button key={t.id}
-                            onClick={()=>{setKnowledgeTemplate(t);setKnowledgeStep(2);}}
-                            style={{
-                              display:"flex",alignItems:"center",gap:12,
-                              padding:"12px 16px",borderRadius:8,border:"1px solid #e2e8f0",
-                              background:"#f8fafc",cursor:"pointer",textAlign:"left",
-                              fontSize:14,fontWeight:500,color:"#0f172a",
-                              transition:"background 0.15s"
-                            }}
-                            onMouseEnter={e=>e.currentTarget.style.background="#f1f5f9"}
-                            onMouseLeave={e=>e.currentTarget.style.background="#f8fafc"}
-                          >
-                            <span style={{fontSize:20}}>{t.icon}</span>
-                            <span>{t.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ステップ2：機材選択 */}
-                  {knowledgeStep===2&&knowledgeTemplate&&(
-                    <div>
-                      <button onClick={()=>{setKnowledgeStep(1);setKnowledgeTemplate(null);setKnowledgeSelectedProducts([]);setKnowledgeProductSearch("");}}
-                        style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:12,padding:0}}>
-                        ← 戻る
-                      </button>
-                      <div style={{padding:"10px 14px",background:"#f8fafc",borderRadius:8,marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontSize:18}}>{knowledgeTemplate.icon}</span>
-                        <span style={{fontWeight:600,fontSize:14}}>{knowledgeTemplate.label}</span>
-                      </div>
-
-                      {(knowledgeTemplate.id==="flow"||knowledgeTemplate.id==="free")?(
-                        <div style={{color:"#64748b",fontSize:13,marginBottom:16}}>機材の選択は不要です。次へ進んでください。</div>
-                      ):(
-                        <div>
-                          <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>
-                            {knowledgeTemplate.multiProduct?"関連する機材を選択（複数可）":"機材を選択"}
-                          </div>
-
-                          {knowledgeSelectedProducts.length>0&&(
-                            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-                              {knowledgeSelectedProducts.map(p=>(
-                                <span key={p.id} style={{background:"#0f172a",color:"#fff",borderRadius:20,padding:"4px 10px",fontSize:12,display:"flex",alignItems:"center",gap:6}}>
-                                  {(p&&p.name)||""}
-                                  <button onClick={()=>setKnowledgeSelectedProducts(s=>s.filter(x=>x.id!==p.id))}
-                                    style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",padding:0,fontSize:14,lineHeight:1}}>×</button>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          <input
-                            type="text"
-                            placeholder="機材名で検索..."
-                            value={knowledgeProductSearch}
-                            onChange={e=>setKnowledgeProductSearch(e.target.value)}
-                            style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,marginBottom:6,boxSizing:"border-box"}}
-                          />
-
-                          {knowledgeProductSearch.trim()&&(
-                            <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:200,overflowY:"auto",marginBottom:10}}>
-                              {products
-                                .filter(p=>{
-                                  const n=((p&&p.name)||"").toLowerCase();
-                                  const b=((p&&p.brand)||"").toLowerCase();
-                                  const q=knowledgeProductSearch.toLowerCase();
-                                  return (n.includes(q)||b.includes(q))&&!knowledgeSelectedProducts.some(s=>s.id===p.id);
-                                })
-                                .slice(0,8)
-                                .map(p=>(
-                                  <div key={p.id}
-                                    onClick={()=>{
-                                      if(!knowledgeTemplate.multiProduct) setKnowledgeSelectedProducts([p]);
-                                      else setKnowledgeSelectedProducts(s=>[...s,p]);
-                                      setKnowledgeProductSearch("");
-                                    }}
-                                    style={{padding:"8px 12px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9"}}
-                                    onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
-                                    onMouseLeave={e=>e.currentTarget.style.background="#fff"}
-                                  >
-                                    <span style={{color:"#94a3b8",fontSize:11,marginRight:6}}>{(p&&p.brand)||""}</span>
-                                    {(p&&p.name)||""}
-                                  </div>
-                                ))
-                              }
-                              {products.filter(p=>{
-                                const n=((p&&p.name)||"").toLowerCase();
-                                const b=((p&&p.brand)||"").toLowerCase();
-                                const q=knowledgeProductSearch.toLowerCase();
-                                return (n.includes(q)||b.includes(q))&&!knowledgeSelectedProducts.some(s=>s.id===p.id);
-                              }).length===0&&(
-                                <div style={{padding:"8px 12px",color:"#94a3b8",fontSize:13}}>該当なし</div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <button
-                        onClick={()=>{setKnowledgeQuestion(buildKnowledgeQuestion(knowledgeTemplate,knowledgeSelectedProducts));setKnowledgeStep(3);}}
-                        disabled={
-                          knowledgeTemplate.id!=="flow"&&
-                          knowledgeTemplate.id!=="free"&&
-                          knowledgeSelectedProducts.length===0
-                        }
-                        style={{
-                          width:"100%",padding:"10px",borderRadius:8,border:"none",
-                          background:knowledgeSelectedProducts.length>0||knowledgeTemplate.id==="flow"||knowledgeTemplate.id==="free"?"#0f172a":"#e2e8f0",
-                          color:knowledgeSelectedProducts.length>0||knowledgeTemplate.id==="flow"||knowledgeTemplate.id==="free"?"#fff":"#94a3b8",
-                          fontSize:14,fontWeight:600,cursor:knowledgeSelectedProducts.length>0||knowledgeTemplate.id==="flow"||knowledgeTemplate.id==="free"?"pointer":"not-allowed"
-                        }}
-                      >次へ →</button>
-                    </div>
-                  )}
-
-                  {/* ステップ3：回答入力・保存 */}
-                  {knowledgeStep===3&&knowledgeTemplate&&(
-                    <div>
-                      <button onClick={()=>setKnowledgeStep(2)}
-                        style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:12,padding:0}}>
-                        ← 戻る
-                      </button>
-
-                      <div style={{marginBottom:14}}>
-                        <div style={{fontSize:12,color:"#64748b",marginBottom:4,fontWeight:600}}>質問</div>
-                        <input
-                          type="text"
-                          value={knowledgeQuestion}
-                          onChange={e=>setKnowledgeQuestion(e.target.value)}
-                          placeholder="質問文を入力..."
-                          style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,boxSizing:"border-box"}}
-                        />
-                      </div>
-
-                      <div style={{marginBottom:14}}>
-                        <div style={{fontSize:12,color:"#64748b",marginBottom:4,fontWeight:600}}>回答 <span style={{color:"#ef4444"}}>*</span></div>
-                        <textarea
-                          value={knowledgeAnswer}
-                          onChange={e=>setKnowledgeAnswer(e.target.value)}
-                          placeholder="回答を入力してください..."
-                          rows={5}
-                          style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,resize:"vertical",boxSizing:"border-box"}}
-                        />
-                      </div>
-
-                      <div style={{marginBottom:18}}>
-                        <div style={{fontSize:12,color:"#64748b",marginBottom:6,fontWeight:600}}>タグ（任意）</div>
-                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                          {SCENARIO_TAGS.map(tag=>{
-                            const selected=knowledgeSelectedTags.includes(tag);
-                            return(
-                              <button key={tag}
-                                onClick={()=>setKnowledgeSelectedTags(s=>selected?s.filter(t=>t!==tag):[...s,tag])}
-                                style={{
-                                  padding:"4px 10px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid",
-                                  background:selected?"#0f172a":"#f8fafc",
-                                  color:selected?"#fff":"#64748b",
-                                  borderColor:selected?"#0f172a":"#e2e8f0"
-                                }}
-                              >{tag}</button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div style={{marginBottom:12}}>
-                        <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>カテゴリ</div>
-                        <select
-                          value={knowledgeConceptId}
-                          onChange={e=>setKnowledgeConceptId(e.target.value)}
-                          style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,color:"#334155",background:"#fff"}}>
-                          <option value="">未分類</option>
-                          {knowledgeConcepts.filter(c=>!(c.parent_id)).map(parent=>(
-                            <optgroup key={parent.id} label={parent.name}>
-                              {knowledgeConcepts.filter(c=>c.parent_id===parent.id).map(child=>(
-                                <option key={child.id} value={child.id}>{child.name}</option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </div>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                        <input type="checkbox" id="addIsInternal" checked={knowledgeIsInternal} onChange={e=>setKnowledgeIsInternal(e.target.checked)}/>
-                        <label htmlFor="addIsInternal" style={{fontSize:13,color:"#475569",cursor:"pointer"}}>🔒 内部のみ（スタッフ限定・LINE Botに出さない）</label>
-                      </div>
-                      <button
-                        onClick={saveKnowledge}
-                        disabled={!knowledgeAnswer.trim()||knowledgeSaving}
-                        style={{
-                          width:"100%",padding:"11px",borderRadius:8,border:"none",
-                          background:knowledgeAnswer.trim()&&!knowledgeSaving?"#0f172a":"#e2e8f0",
-                          color:knowledgeAnswer.trim()&&!knowledgeSaving?"#fff":"#94a3b8",
-                          fontSize:14,fontWeight:700,
-                          cursor:knowledgeAnswer.trim()&&!knowledgeSaving?"pointer":"not-allowed"
-                        }}
-                      >{knowledgeSaving?"保存中...":"💾 保存する"}</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }
 
-function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ,session}){
+function RecordsTab({records,customers,products,onSave,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ}){
   // 締め済みの案件月セット
   const lockedMonths = new Set(
     Object.entries(invoiceData||{}).filter(([,d])=>d.status==="locked").map(([k])=>k.split("__")[1]).filter(Boolean)
@@ -2648,68 +1238,24 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
   });
   const emptyLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false};
   const emptyManualLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false,isManual:true,isFee:false,noBillingDiscount:false};
-  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:session?.user?.user_metadata?.name?.split(/[\s　]/)[0]||"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false,isExtension:false,extendedFrom:"",extendedFromNo:"",adjustDays:"",adjustReason:""};
+  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:today(),paymentMethod:"credit",includeInsurance:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
-  const [fil,setFil]=useState({q:"",cid:"",month:new Date().toISOString().slice(0,7),locked:""});
+  const [fil,setFil]=useState({q:"",cid:"",month:"",locked:""});
   const [expandedCust,setExpandedCust]=useState({}); // {custId: bool}
   const [expandedProj,setExpandedProj]=useState({}); // {custId_projName: bool}
-  const [returnModal,setReturnModal]=useState(null);
-  // {id, returnDate, billingEndDate, selectedLines:{[lineIdx]:bool}}
-  const [extModal,setExtModal]=useState(null); // {record, lines, selected}
+  const [returnModal,setReturnModal]=useState(null); // {id, returnDate:"", billingEndDate:""}
   const [lineSearches,setLineSearches]=useState([""]);
   const [custSearch,setCustSearch]=useState(""); // 顧客絞り込み入力
-  const [deleteModal,setDeleteModal]=useState(null);
 
   // 旧データ互換
   const getLines=r=>(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
-  // ライン単位の計上終了日（なければrecord単位にフォールバック）
-  const getLineReturnDate=(ln,r)=>ln.returnDate??r.returnDate??null;
-  // ライン単位の実返却日（なければrecord単位にフォールバック）
-  const getLineActualReturnDate=(ln,r)=>ln.actualReturnDate??r.actualReturnDate??null;
-  // レコードのステータスを導出（active:延長中 / partial:一部返却済 / closed:完了）
-  const getRecordStatus=r=>{
-    if(!r.isExtension) return 'closed';
-    const lines=getLines(r);
-    const allClosed=lines.every(ln=>getLineReturnDate(ln,r)!==null);
-    const someClosed=lines.some(ln=>getLineReturnDate(ln,r)!==null);
-    if(allClosed) return 'closed';
-    if(someClosed) return 'partial';
-    return 'active';
-  };
 
   const cust = customers.find(c=>c.id===form.customerId);
   const days        = calcDays(form.startDate,form.endDate); // 実日数
-  const editingRecord = editId ? records.find(r=>r.id===editId) : null;
-  const billingDays = (form.billingType==="daily" && editingRecord && editingRecord.isExtension && !form.endDateOpen && form.endDate)
-    ? chainBillingDays(editingRecord, records, form.endDate)
-    : calcBillingDays(days);                  // 請求日数
-  const chainContext = (() => {
-    if (!editingRecord || !editingRecord.isExtension) return null;
-    if (form.billingType !== "daily" || form.endDateOpen || !form.startDate || !form.endDate) return null;
-    const baseNo = (editingRecord.deliveryNo || "").replace(/E\d+.*$/, "");
-    if (!baseNo) return null;
-    let rootStart = form.startDate;
-    (records || []).forEach(x => {
-      if ((x.deliveryNo || "").replace(/E\d+.*$/, "") === baseNo && x.startDate && x.startDate < rootStart) {
-        rootStart = x.startDate;
-      }
-    });
-    const cumBefore = Math.max(0, calcDays(rootStart, form.startDate) - 1);
-    const cumThrough = calcDays(rootStart, form.endDate);
-    const totalBillingDays = calcBillingDays(cumThrough);
-    const prevBillingDays = calcBillingDays(cumBefore);
-    const thisBillingDays = Math.max(0, totalBillingDays - prevBillingDays);
-    return { cumThrough, totalBillingDays, prevBillingDays, thisBillingDays };
-  })();
-  const adjustedBillingDays = (form.billingType==="daily" && form.adjustDays && Number(form.adjustDays)>0) ? Number(form.adjustDays) : billingDays;
-  const billingQty  = form.billingType==="monthly" ? (Number(form.months)||1) : adjustedBillingDays;
-  // noDisc集計
-  const validLines = (form.lines||[]).filter(ln=>ln.productId||ln.isManual);
-  const noDiscLines = validLines.filter(ln=>!ln.isFee&&(products.find(p=>p.id===ln.productId)?.noBillingDiscount||ln.noBillingDiscount));
-  const allNoDisc  = validLines.length>0 && noDiscLines.length===validLines.length;
-  const someNoDisc = noDiscLines.length>0 && !allNoDisc;
+  const billingDays = calcBillingDays(days);                  // 請求日数
+  const billingQty  = form.billingType==="monthly" ? (Number(form.months)||1) : billingDays;
   // 製品ごとのnoBillingDiscountに応じてbillingQtyを切り替え
   const lineAmounts = (form.lines||[]).map(ln=>{
     const prod = products.find(p=>p.id===ln.productId);
@@ -2717,7 +1263,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
     // isFee（手数料）は日数掛けなし（台数×単価のみ）
     const qty = ln.isFee ? 1
               : form.billingType==="monthly" ? (Number(form.months)||1)
-              : noDisc ? days : adjustedBillingDays;
+              : noDisc ? days : billingDays;
     return (Number(ln.unitPrice)||0)*(Number(ln.quantity)||0)*qty;
   });
   const totalAmount = lineAmounts.reduce((s,a)=>s+a,0);
@@ -2726,7 +1272,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
 
   // expandRows=trueの時、subItemsを台数分に自動同期
   const syncSubItems=(ln)=>{
-    if(!ln.expandRows) return {...ln,subItems:[]};
+    if(!ln.expandRows) return ln;
     const n=Math.max(1,Number(ln.quantity)||1);
     const cur=ln.subItems||[];
     const synced=Array.from({length:n},(_,i)=>cur[i]||{no:"",note:""});
@@ -2741,7 +1287,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
         const p=products.find(x=>x.id===patch.productId);
         const c=customers.find(x=>x.id===f.customerId);
         updated.unitPrice=String(resolvePrice(p,c));
-        updated.equipmentName=(p&&p.name)||"";
+        updated.equipmentName=p?.fullName||"";
         updated.noBillingDiscount=!!p?.noBillingDiscount;
       }
       // expandRows切替 or quantity変更時にsubItemsを同期
@@ -2755,111 +1301,37 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
   const addLine=()=>{setForm(f=>({...f,lines:[...(f.lines||[]),{...emptyLine}]}));setLineSearches(s=>[...s,""]);}; 
   const addManualLine=()=>{setForm(f=>({...f,lines:[...(f.lines||[]),{...emptyManualLine}]}));setLineSearches(s=>[...s,""]);};
   const removeLine=idx=>{if((form.lines||[]).length<=1)return;setForm(f=>({...f,lines:f.lines.filter((_,i)=>i!==idx)}));setLineSearches(s=>s.filter((_,i)=>i!==idx));};
-  const moveLine=(idx,dir)=>{
-    setForm(f=>{
-      const lines=[...f.lines];
-      const target=idx+dir;
-      if(target<0||target>=lines.length) return f;
-      [lines[idx],lines[target]]=[lines[target],lines[idx]];
-      return {...f,lines};
-    });
-    setLineSearches(s=>{
-      const n=[...s];
-      const target=idx+dir;
-      if(target<0||target>=n.length) return s;
-      [n[idx],n[target]]=[n[target],n[idx]];
-      return n;
-    });
-  };
   const setLineProdQ=(idx,v)=>setLineSearches(s=>{const n=[...s];n[idx]=v;return n;});
   const addSub=(li)=>setLine(li,{subItems:[...(form.lines[li].subItems||[]),{no:"",note:""}]});
   const removeSub=(li,si)=>setLine(li,{subItems:form.lines[li].subItems.filter((_,j)=>j!==si)});
   const setSub=(li,si,patch)=>{const subs=[...(form.lines[li].subItems||[])];subs[si]={...subs[si],...patch};setLine(li,{subItems:subs});};
-  const APPLE_NOTICE="⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。";
-  React.useEffect(()=>{
-    const validLines=(form.lines||[]).filter(ln=>ln.productId||ln.isManual);
-    const hasApple=validLines.some(ln=>/iPhone|iPad/i.test(ln.equipmentName||(products.find(p=>p.id===ln.productId)?.fullName||"")));
-    setForm(f=>{
-      const base=(f.notes||"").replace(/\n*⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。/g,"").trimEnd();
-      const next=hasApple?(base?(base+"\n\n"+APPLE_NOTICE):APPLE_NOTICE):base;
-      if(next===(f.notes||"")) return f;
-      return {...f,notes:next};
-    });
-  },[form.lines.map(ln=>ln.productId).join(","),form.lines.map(ln=>ln.equipmentName).join(",")]);
-
-  React.useEffect(()=>{
-    setForm(f=>{
-      const reason=(f.adjustReason||"").trim();
-      const base=(f.notes||"").replace(/\n*【日数調整】.*$/s,"").trimEnd();
-      const next=reason?(base?(base+"\n\n【日数調整】"+reason):"【日数調整】"+reason):base;
-      if(next===(f.notes||"")) return f;
-      return {...f,notes:next};
-    });
-  },[form.adjustReason]);
 
   const submit=async()=>{
     if(!form.customerId){showToast("顧客は必須です",false);return;}
-    if(form.billingType==="daily"&&form.adjustDays!==""&&form.adjustDays!==undefined){
-      if(!Number(form.adjustDays)||Number(form.adjustDays)<1){showToast("調整日数を1以上で入力してください",false);return;}
-      if(!form.adjustReason.trim()){showToast("調整理由を入力してください",false);return;}
-    }
-    if(form.issueReceipt){
-      if(!form.receiptDate){showToast("領収日を入力してください",false);return;}
-      if(!form.paymentMethod){showToast("支払方法を選択してください",false);return;}
-    }
-    const validLines=(form.lines||[]).filter(ln=>{
-      if(ln.isManual) return !!ln.equipmentName;
-      return !!ln.productId;
-    });
+    const validLines=(form.lines||[]).filter(ln=>ln.isManual?(!!ln.equipmentName&&!!ln.unitPrice):(ln.productId&&ln.unitPrice));
     if(!validLines.length){showToast("製品を1つ以上追加してください",false);return;}
     const lines=validLines.map(ln=>{
       const p=products.find(x=>x.id===ln.productId);
       const noDisc=p?.noBillingDiscount||ln.noBillingDiscount;
       return{...ln,unitPrice:Number(ln.unitPrice),quantity:Number(ln.quantity)||1,
-        equipmentName:ln.isManual?ln.equipmentName:((p&&p.name)||ln.equipmentName||""),
+        equipmentName:ln.isManual?ln.equipmentName:(p?.fullName||ln.equipmentName||""),
         noBillingDiscount:ln.isManual?!!ln.noBillingDiscount:!!noDisc,
         isFee:!!ln.isFee,isManual:!!ln.isManual};
     });
-    const rec={customerId:form.customerId,projectName:form.projectName,noProjectName:!!form.noProjectName,projectDetail:form.projectDetail,ecOrderNo:form.ecOrderNo||"",ordererName:form.ordererName,ourStaff:form.ourStaff,
+    const rec={customerId:form.customerId,projectName:form.projectName,projectDetail:form.projectDetail,ecOrderNo:form.ecOrderNo||"",ordererName:form.ordererName,ourStaff:form.ourStaff,
       billingType:form.billingType,months:form.billingType==="monthly"?(Number(form.months)||1):0,
-      days:form.billingType==="monthly"?0:days,billingDays:form.billingType==="monthly"?0:adjustedBillingDays,startDate:form.startDate,endDate:form.endDateOpen?"":form.endDate,endDateOpen:form.billingType==="monthly"&&!!form.endDateOpen,notes:(()=>{const NOTICE="⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。";const hasApple=lines.some(ln=>/iPhone|iPad/i.test(ln.equipmentName||""));const base=(form.notes||"").replace(/\n*⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。/g,"").trimEnd();return hasApple?(base?(base+"\n\n"+NOTICE):NOTICE):base;})(),adjustDays:form.adjustDays||"",adjustReason:form.adjustDays&&form.adjustReason?form.adjustReason:"",
-      issueReceipt:!!form.issueReceipt,receiptDate:form.issueReceipt?(form.receiptDate||""):"",paymentMethod:form.issueReceipt?(form.paymentMethod||"credit"):"",receiptNote:form.issueReceipt?(form.receiptNote||""):"",receiptNameCustom:form.issueReceipt?!!form.receiptNameCustom:false,receiptNameOverride:form.issueReceipt?(form.receiptNameOverride||""):"",receiptHonorific:form.issueReceipt?(form.receiptHonorific||"御中"):"",
+      days:form.billingType==="monthly"?0:days,billingDays:form.billingType==="monthly"?0:billingDays,startDate:form.startDate,endDate:form.endDateOpen?"":form.endDate,endDateOpen:form.billingType==="monthly"&&!!form.endDateOpen,notes:form.notes,
+      issueReceipt:!!form.issueReceipt,receiptDate:form.issueReceipt?(form.receiptDate||""):"",paymentMethod:form.issueReceipt?(form.paymentMethod||"credit"):"",
       includeInsurance:!!form.includeInsurance,
       lines,amount:totalAmount,insuranceAmount,
       equipmentName:lines.map(l=>l.equipmentName).join(", "),unitPrice:lines[0]?.unitPrice||0,quantity:lines.reduce((s,l)=>s+(Number(l.quantity)||0),0),
       productId:lines[0]?.productId||"",
       id:editId||uid(),updatedAt:Date.now(),createdAt:editId?records.find(r=>r.id===editId)?.createdAt:Date.now()};
-    if(!editId && !rec.deliveryNo) {
-      const no = await nextDeliveryNo();
-      if(no==='ERR'){showToast("伝票番号の採番に失敗しました。もう一度登録ボタンを押してください。",false);return;}
-      rec.deliveryNo = no;
-    } else if(editId) {
-      const orig = records.find(r=>r.id===editId);
-      if(orig?.deliveryNo) {
-        const base = orig.deliveryNo.replace(/R(\d+)$/, '');
-        const m = orig.deliveryNo.match(/R(\d+)$/);
-        const n = m ? parseInt(m[1])+1 : 1;
-        rec.deliveryNo = base + 'R' + n;
-      }
-    }
-    const origForExt = records.find(r=>r.id===editId);
-    if(origForExt){
-      if(origForExt.isExtension) rec.isExtension = true;
-      if(origForExt.extendedFrom) rec.extendedFrom = origForExt.extendedFrom;
-      if(origForExt.extendedFromNo) rec.extendedFromNo = origForExt.extendedFromNo;
-      if(origForExt.isProvisionalClose) rec.isProvisionalClose = true;
-    }
-    const custName=customers.find(x=>x.id===form.customerId)?.name||"";
-    try {
-      await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName},[rec]);
-    } catch(e) {
-      showToast("保存に失敗しました。もう一度登録ボタンを押してください。",false);
-      console.error("save error",e);
-      return;
-    }
+    if(!editId && !rec.deliveryNo) { rec.deliveryNo = await nextDeliveryNo(); }
+    await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records]);
     const wasNew=!editId;
     showToast(editId?"更新しました":"登録しました");setForm(E);setEditId(null);setOpen(false);setLineSearches([""]);
-    if(onAfterSubmit) onAfterSubmit(rec);
+    if(wasNew&&onAfterSubmit) onAfterSubmit();
   };
 
   const mnths=[...new Set(records.map(r=>r.startDate?.slice(0,7)))].filter(Boolean).sort().reverse();
@@ -2984,7 +1456,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                         <>
                           <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#92400e",cursor:"pointer",userSelect:"none",background:"#fff7ed",borderRadius:4,padding:"2px 7px",border:"1px solid #fed7aa"}}>
                             <input type="checkbox" checked={!!ln.isFee} onChange={e=>setLine(li,{isFee:e.target.checked,noBillingDiscount:e.target.checked?false:ln.noBillingDiscount})} style={{cursor:"pointer"}}/>
-                            手数料及び販売（日数なし）
+                            手数料（日数なし）
                           </label>
                           {!ln.isFee&&(
                             <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",cursor:"pointer",userSelect:"none"}}>
@@ -3000,12 +1472,6 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                           行を増やす（各台個別入力）
                         </label>
                       )}
-                      <div style={{display:"flex",gap:2}}>
-                        <button type="button" onClick={()=>moveLine(li,-1)} disabled={li===0}
-                          style={{background:"none",border:"1px solid #e2e8f0",borderRadius:4,padding:"1px 5px",cursor:li===0?"not-allowed":"pointer",opacity:li===0?0.3:1,fontSize:10}}>↑</button>
-                        <button type="button" onClick={()=>moveLine(li,1)} disabled={li===(form.lines||[]).length-1}
-                          style={{background:"none",border:"1px solid #e2e8f0",borderRadius:4,padding:"1px 5px",cursor:li===(form.lines||[]).length-1?"not-allowed":"pointer",opacity:li===(form.lines||[]).length-1?0.3:1,fontSize:10}}>↓</button>
-                      </div>
                       {form.lines.length>1&&<button type="button" onClick={()=>removeLine(li)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.trash} size={14} color="#ef4444"/></button>}
                     </div>
                   </div>
@@ -3030,14 +1496,14 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                       </label>
                       <input type="number" value={ln.unitPrice} onChange={e=>setLine(li,{unitPrice:e.target.value})} style={{...S.inp,fontSize:11,padding:"6px 8px"}}/>
                     </div>
-                    <div><label style={{fontSize:10,color:"#64748b",fontWeight:600}}>台数</label><input type="text" inputMode="numeric" pattern="[0-9]*" value={ln.quantity} onChange={e=>setLine(li,{quantity:e.target.value})} style={{...S.inp,fontSize:11,padding:"6px 8px"}}/></div>
+                    <div><label style={{fontSize:10,color:"#64748b",fontWeight:600}}>台数</label><input type="number" min={1} value={ln.quantity} onChange={e=>setLine(li,{quantity:e.target.value})} style={{...S.inp,fontSize:11,padding:"6px 8px"}}/></div>
                   </div>
 
                   {/* 機材No.と行備考 */}
                   {(!ln.expandRows||isManual)&&(
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
                       <div><label style={{fontSize:10,color:"#64748b",fontWeight:600}}>機材No.</label><input value={ln.equipNo} onChange={e=>setLine(li,{equipNo:e.target.value})} style={{...S.inp,fontSize:11,padding:"6px 8px"}}/></div>
-                      <div><label style={{fontSize:10,color:"#64748b",fontWeight:600}}>行備考</label><input value={ln.lineNote||""} onChange={e=>setLine(li,{lineNote:e.target.value.slice(0,16)})} maxLength={16} style={{...S.inp,fontSize:11,padding:"6px 8px"}} placeholder="バッテリー数など"/><div style={{fontSize:9,color:"#94a3b8",marginTop:2}}>※16文字以内</div></div>
+                      <div><label style={{fontSize:10,color:"#64748b",fontWeight:600}}>行備考</label><input value={ln.lineNote||""} onChange={e=>setLine(li,{lineNote:e.target.value})} style={{...S.inp,fontSize:11,padding:"6px 8px"}} placeholder="バッテリー数など"/></div>
                     </div>
                   )}
 
@@ -3048,14 +1514,14 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                       {(ln.subItems||[]).slice(0,qty).map((si,si2)=>(
                         <div key={si2} style={{display:"grid",gridTemplateColumns:"22px 1fr 1fr",gap:4,marginBottom:4,alignItems:"center",background:si2===0?"#eff6ff":"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"5px 8px"}}>
                           <span style={{fontSize:10,fontWeight:700,color:si2===0?"#2563eb":"#94a3b8",textAlign:"center"}}>{si2===0?qty+"台":"―"}</span>
-                          <input value={si.no} onChange={e=>{const v=e.target.value;const w=v.split("").reduce((s,c)=>s+(c.charCodeAt(0)>255?2:1),0);if(w<=4)setSub(li,si2,{no:v});}} style={{...S.inp,fontSize:11,padding:"4px 6px"}} placeholder={`機材No.（${si2+1}台目）`} maxLength={4}/>
+                          <input value={si.no} onChange={e=>setSub(li,si2,{no:e.target.value})} style={{...S.inp,fontSize:11,padding:"4px 6px"}} placeholder={`機材No.（${si2+1}台目）`}/>
                           <input value={si.note||""} onChange={e=>setSub(li,si2,{note:e.target.value})} style={{...S.inp,fontSize:11,padding:"4px 6px"}} placeholder="行備考（バッテリー数など）"/>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {lineAmounts[li]>0&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600,marginTop:6}}>小計: {fmt(lineAmounts[li])}{ln.isFee&&<span style={{color:"#92400e",marginLeft:6,fontSize:10}}>（日数掛けなし）</span>}{form.billingType==="daily"&&!ln.isFee&&(lProd?.noBillingDiscount||ln.noBillingDiscount)&&<span style={{color:"#dc2626",marginLeft:6,fontSize:10}}>（日数値引き非適用）</span>}</div>}
+                  {lineAmounts[li]>0&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600,marginTop:6}}>小計: {fmt(lineAmounts[li])}{ln.isFee&&<span style={{color:"#92400e",marginLeft:6,fontSize:10}}>（日数掛けなし）</span>}</div>}
                 </div>
               );
             })}
@@ -3064,18 +1530,13 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
           <div style={{marginTop:14,background:form.billingType==="monthly"?"#faf5ff":"#eff6ff",borderRadius:9,padding:"12px 18px",display:"flex",gap:24,flexWrap:"wrap",fontSize:13,alignItems:"center"}}>
             {form.billingType==="monthly"
               ?<span><span style={{color:"#64748b"}}>月数: </span><strong style={{color:"#9333ea",fontSize:17}}>{(form.months||1)}ヶ月</strong></span>
-              :<span style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
-                {allNoDisc
-                  ?<><span style={{color:"#64748b"}}>実日数:</span><strong style={{color:"#2563eb",fontSize:17}}>{days}日</strong><span style={{fontSize:11,color:"#dc2626",marginLeft:2}}>日数値引き非適用</span></>
-                  :<><span style={{color:"#64748b"}}>実日数:</span>
-                    <strong style={{color:"#94a3b8",fontSize:15}}>{days}日</strong>
-                    <span style={{color:"#94a3b8",fontSize:12}}>→</span>
-                    <span style={{color:"#64748b"}}>請求日数:</span>
-                    <strong style={{color:"#2563eb",fontSize:17}}>{adjustedBillingDays}日</strong>
-                    {days!==billingDays&&<span style={{fontSize:10,color:"#f59e0b",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:4,padding:"1px 6px"}}>割引適用</span>}
-                    {someNoDisc&&<span style={{fontSize:10,color:"#dc2626",marginLeft:2}}>※一部製品は日数値引き非適用</span>}
-                  </>
-                }
+              :<span style={{display:"flex",alignItems:"baseline",gap:6}}>
+                <span style={{color:"#64748b"}}>実日数:</span>
+                <strong style={{color:"#94a3b8",fontSize:15}}>{days}日</strong>
+                <span style={{color:"#94a3b8",fontSize:12}}>→</span>
+                <span style={{color:"#64748b"}}>請求日数:</span>
+                <strong style={{color:"#2563eb",fontSize:17}}>{billingDays}日</strong>
+                {days!==billingDays&&<span style={{fontSize:10,color:"#f59e0b",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:4,padding:"1px 6px"}}>割引適用</span>}
               </span>
             }
             <span><span style={{color:"#64748b"}}>機材合計(税抜): </span><strong style={{color:"#16a34a",fontSize:17}}>{fmt(totalAmount)}</strong></span>
@@ -3083,43 +1544,6 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
             <span><span style={{color:"#64748b"}}>合計(税込): </span><strong style={{color:"#9333ea",fontSize:17}}>{fmt(taxIn(grandTotal))}</strong></span>
             <span style={{fontSize:11,color:"#94a3b8"}}>{form.lines?.length||0}品目</span>
           </div>
-          {form.billingType==="daily"&&(
-            <div style={{marginBottom:10,background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"8px 14px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:form.adjustDays!==""&&form.adjustDays!==undefined?10:0}}>
-                <span style={{fontSize:12,fontWeight:700,color:"#0369a1"}}>📅 日数調整</span>
-                <span style={{fontSize:11,color:"#64748b"}}>自動計算：{billingDays}日</span>
-                {chainContext && (
-                  <div style={{marginTop:4,fontSize:11,color:"#0369a1",background:"#e0f2fe",borderRadius:4,padding:"4px 8px",lineHeight:1.6}}>
-                    🔗 元案件含む累計 <strong>{chainContext.cumThrough}</strong>日 → 合計 <strong>{chainContext.totalBillingDays}</strong>日請求（元案件 {chainContext.prevBillingDays}日請求済 → 今回 <strong>{chainContext.thisBillingDays}</strong>日）
-                  </div>
-                )}
-                {(form.adjustDays===""||form.adjustDays===undefined)&&(
-                  <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:String(billingDays),adjustReason:""}))}
-                    style={{...S.btn("#0369a1",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>日数を調整する</button>
-                )}
-                {form.adjustDays!==""&&form.adjustDays!==undefined&&(
-                  <button type="button" onClick={()=>setForm(f=>({...f,adjustDays:"",adjustReason:""}))}
-                    style={{...S.btn("#94a3b8",true),fontSize:11,padding:"3px 10px",marginLeft:"auto"}}>調整をキャンセル</button>
-                )}
-              </div>
-              {form.adjustDays!==""&&form.adjustDays!==undefined&&(
-                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:"10px 16px"}}>
-                  <div>
-                    <label style={S.lbl}>調整後の日数 *</label>
-                    <input type="number" min={0.5} max={billingDays} step={0.5} value={form.adjustDays}
-                      onChange={e=>{const v=Number(e.target.value);if(v>billingDays||v<0.5)return;setForm(f=>({...f,adjustDays:e.target.value}));}}
-                      style={S.inp} placeholder={`0.5〜${billingDays}日`}/>
-                    <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{billingDays}日以下・0.5刻みで入力</div>
-                  </div>
-                  <div>
-                    <label style={S.lbl}>調整理由 *（納品書控に表示）</label>
-                    <input type="text" value={form.adjustReason} onChange={e=>setForm(f=>({...f,adjustReason:e.target.value}))}
-                      style={S.inp} placeholder="例：撮影短縮のため1日減"/>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
           {/* 補償料チェック */}
           <div style={{marginTop:10,display:"flex",alignItems:"center",gap:10,background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"10px 14px"}}>
             <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,fontWeight:700,color:"#92400e",userSelect:"none"}}>
@@ -3143,30 +1567,10 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                 <div>
                   <label style={S.lbl}>支払方法</label>
                   <div style={{display:"flex",gap:2,background:"#e2e8f0",borderRadius:6,padding:2}}>
-                    {[{k:"ec",l:"💳 ECクレジット"},{k:"square",l:"🟦 スクエア"},{k:"cash",l:"💴 現金"}].map(t=>(
-                      <button key={t.k} type="button" onClick={()=>setForm(f=>({...f,paymentMethod:t.k,receiptNote:t.k==="ec"?"機材レンタル代として　[ECクレジット]":t.k==="square"?"機材レンタル代として　[スクエア クレジット]":"機材レンタル代として　[現金]"}))} style={{flex:1,background:form.paymentMethod===t.k?"#fff":"transparent",border:"none",borderRadius:5,padding:"6px 0",fontSize:12,fontWeight:form.paymentMethod===t.k?700:500,color:form.paymentMethod===t.k?"#713f12":"#94a3b8",cursor:"pointer",boxShadow:form.paymentMethod===t.k?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>{t.l}</button>
+                    {[{k:"credit",l:"💳 クレジット"},{k:"cash",l:"💴 現金"}].map(t=>(
+                      <button key={t.k} type="button" onClick={()=>setForm(f=>({...f,paymentMethod:t.k}))} style={{flex:1,background:form.paymentMethod===t.k?"#fff":"transparent",border:"none",borderRadius:5,padding:"6px 0",fontSize:12,fontWeight:form.paymentMethod===t.k?700:500,color:form.paymentMethod===t.k?"#713f12":"#94a3b8",cursor:"pointer",boxShadow:form.paymentMethod===t.k?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>{t.l}</button>
                     ))}
                   </div>
-                </div>
-                <div style={{gridColumn:"1/-1"}}>
-                  <label style={S.lbl}>但し書き</label>
-                  <input type="text" value={form.receiptNote} onChange={e=>setForm(f=>({...f,receiptNote:e.target.value}))} style={S.inp} placeholder="例：機材レンタル代として　[クレジット スクエア]"/>
-                </div>
-                <div style={{gridColumn:"1/-1"}}>
-                  <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,userSelect:"none"}}>
-                    <input type="checkbox" checked={!!form.receiptNameCustom} onChange={e=>setForm(f=>({...f,receiptNameCustom:e.target.checked}))} style={{cursor:"pointer"}}/>
-                    宛名を変更する
-                  </label>
-                  {form.receiptNameCustom&&(
-                    <div style={{display:"flex",gap:8,alignItems:"center",marginTop:6}}>
-                      <input type="text" value={form.receiptNameOverride} onChange={e=>setForm(f=>({...f,receiptNameOverride:e.target.value}))} style={{...S.inp,flex:1}} placeholder="宛名"/>
-                      <div style={{display:"flex",gap:2,background:"#e2e8f0",borderRadius:6,padding:2,flexShrink:0}}>
-                        {["御中","様"].map(h=>(
-                          <button key={h} type="button" onClick={()=>setForm(f=>({...f,receiptHonorific:h}))} style={{background:form.receiptHonorific===h?"#fff":"transparent",border:"none",borderRadius:5,padding:"5px 12px",fontSize:12,fontWeight:form.receiptHonorific===h?700:500,color:form.receiptHonorific===h?"#713f12":"#94a3b8",cursor:"pointer"}}>{h}</button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -3199,105 +1603,11 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
           </div>
         </div>
       )}
-      {deleteModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
-            <div style={{fontSize:15,fontWeight:700,marginBottom:8,color:"#991b1b"}}>⚠️ 案件を削除しますか？システム全体に影響するので、実行する場合は管理者に確認してください。</div>
-            <div style={{fontSize:13,color:"#374151",marginBottom:6}}>顧客：{deleteModal.custName}</div>
-            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>案件名：{deleteModal.record.projectName||"（案件名なし）"}</div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={async()=>{const r=deleteModal.record;setDeleteModal(null);await onDeleteRec(r.id,{action:"削除",name:r.projectName||deleteModal.custName});showToast("削除しました");}} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>削除する</button>
-              <button onClick={()=>setDeleteModal(null)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* 戻り[終了]モーダル */}
       {returnModal&&(
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:12,padding:24,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:24,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
             <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>📦 戻り[終了]の設定</div>
-            <div style={{overflowY:"auto",flex:1,marginBottom:8}}>
-            {returnModal&&(()=>{
-              const targetRec=records.find(x=>x.id===returnModal.id);
-              const rLns=targetRec?getLines(targetRec):[];
-              const isExtRec=targetRec?.isExtension;
-              const hasMultiLine=rLns.length>1;
-              const hasPartialQty=isExtRec&&rLns.some(ln=>(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec));
-              const hasSubItems=isExtRec&&rLns.some(ln=>ln.subItems&&ln.subItems.length>0&&!getLineReturnDate(ln,targetRec));
-              return (hasMultiLine||hasPartialQty||hasSubItems)&&(
-                <div style={{marginBottom:12}}>
-                  <label style={{...S.lbl,marginBottom:6}}>返却する機材を選択</label>
-                  {rLns.map((ln,i)=>{
-                    const lineReturned=!!getLineReturnDate(ln,targetRec);
-                    const hasSI=ln.subItems&&ln.subItems.length>0;
-                    const showSubItemsList=isExtRec&&hasSI&&!lineReturned&&!!returnModal.selectedLines?.[i];
-                    return (
-                      <div key={i} style={{marginBottom:6,border:"1px solid #e2e8f0",borderRadius:6,background:returnModal.selectedLines?.[i]?"#eff6ff":"#fff",overflow:"hidden"}}>
-                        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"6px 10px"}}>
-                          <input type="checkbox" checked={!!returnModal.selectedLines?.[i]}
-                            disabled={lineReturned}
-                            onChange={e=>setReturnModal(p=>{
-                              const checked=e.target.checked;
-                              const newSelectedLines={...p.selectedLines,[i]:checked};
-                              const newSelectedSubItems={...(p.selectedSubItems||{})};
-                              if(isExtRec&&hasSI){
-                                if(checked){
-                                  newSelectedSubItems[i]=Object.fromEntries(ln.subItems.map((_,si)=>[si,true]));
-                                } else {
-                                  delete newSelectedSubItems[i];
-                                }
-                              }
-                              return {...p,selectedLines:newSelectedLines,selectedSubItems:newSelectedSubItems};
-                            })}/>
-                          <span style={{fontSize:12}}>{ln.equipmentName||`機材${i+1}`}</span>
-                          {isExtRec&&(Number(ln.quantity)||1)>1&&!lineReturned&&!hasSI&&(
-                            <span style={{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}>
-                              <span style={{fontSize:11,color:"#64748b"}}>返却数</span>
-                              <input type="text" inputMode="numeric" value={returnModal.returnQtys?.[i]??(Number(ln.quantity)||1)}
-                                onClick={e=>e.stopPropagation()}
-                                onChange={e=>{const raw=e.target.value.replace(/[^0-9]/g,"");const v=raw===""?"":(Math.min(Math.max(1,Number(raw)),Number(ln.quantity)||1));setReturnModal(p=>({...p,returnQtys:{...p.returnQtys,[i]:v}}));}}
-                                style={{width:48,padding:"2px 4px",border:"1px solid #e2e8f0",borderRadius:4,fontSize:12,textAlign:"center"}}/>
-                              <span style={{fontSize:11,color:"#64748b"}}>/{Number(ln.quantity)||1}台</span>
-                            </span>
-                          )}
-                          {hasSI&&!lineReturned&&isExtRec&&(
-                            <span style={{fontSize:11,color:"#64748b",marginLeft:"auto"}}>
-                              {(()=>{const ss=returnModal.selectedSubItems?.[i]||{};const cnt=Object.values(ss).filter(Boolean).length;return `${cnt}/${ln.subItems.length}台`;})()}
-                            </span>
-                          )}
-                          {lineReturned&&<span style={{fontSize:10,color:"#16a34a",marginLeft:"auto"}}>✓ 返却済</span>}
-                        </label>
-                        {showSubItemsList&&(
-                          <div style={{padding:"8px 10px 10px 32px",borderTop:"1px solid #e2e8f0",background:"#f8fafc"}}>
-                            <div style={{display:"flex",gap:6,marginBottom:6}}>
-                              <button type="button" onClick={e=>{e.stopPropagation();setReturnModal(p=>({...p,selectedSubItems:{...(p.selectedSubItems||{}),[i]:Object.fromEntries(ln.subItems.map((_,si)=>[si,true]))}}));}}
-                                style={{padding:"3px 10px",fontSize:11,border:"1px solid #cbd5e1",borderRadius:4,background:"#fff",color:"#475569",cursor:"pointer"}}>全選択</button>
-                              <button type="button" onClick={e=>{e.stopPropagation();setReturnModal(p=>({...p,selectedSubItems:{...(p.selectedSubItems||{}),[i]:Object.fromEntries(ln.subItems.map((_,si)=>[si,false]))}}));}}
-                                style={{padding:"3px 10px",fontSize:11,border:"1px solid #cbd5e1",borderRadius:4,background:"#fff",color:"#475569",cursor:"pointer"}}>全解除</button>
-                            </div>
-                            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:4}}>
-                              {ln.subItems.map((si,siIdx)=>{
-                                const siChecked=!!returnModal.selectedSubItems?.[i]?.[siIdx];
-                                return (
-                                  <label key={siIdx} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 6px",border:"1px solid #e2e8f0",borderRadius:4,background:siChecked?"#dbeafe":"#fff",cursor:"pointer",fontSize:11}}>
-                                    <input type="checkbox" checked={siChecked}
-                                      onClick={e=>e.stopPropagation()}
-                                      onChange={e=>{const checked=e.target.checked;setReturnModal(p=>({...p,selectedSubItems:{...(p.selectedSubItems||{}),[i]:{...(p.selectedSubItems?.[i]||{}),[siIdx]:checked}}}));}}/>
-                                    <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>No.{si.no}{si.note?` (${si.note})`:""}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-            </div>
             <div style={{marginBottom:12}}>
               <label style={S.lbl}>返却日（機材が戻った日）</label>
               <input type="date" value={returnModal.returnDate}
@@ -3314,189 +1624,11 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
             <div style={{display:"flex",gap:8}}>
               <button onClick={async()=>{
                 if(!returnModal.billingEndDate){showToast("計上終了日を入力してください",false);return;}
-                const targetRec=records.find(x=>x.id===returnModal.id);
-                if(!targetRec){setReturnModal(null);return;}
-                const rLns=getLines(targetRec);
-                const selectedIdxs=Object.entries(returnModal.selectedLines||{}).filter(([,v])=>v).map(([k])=>Number(k));
-                if(selectedIdxs.length===0){showToast("返却する機材を1つ以上選択してください",false);return;}
-                const processed=[];
-                rLns.forEach((ln,i)=>{
-                  const alreadyReturned=!!getLineReturnDate(ln,targetRec);
-                  if(alreadyReturned){processed.push({ln,isReturned:true});return;}
-                  if(!selectedIdxs.includes(i)){processed.push({ln,isReturned:false});return;}
-                  const lineQty=Number(ln.quantity)||1;
-                  const hasSI=ln.subItems&&ln.subItems.length>0;
-                  if(hasSI&&targetRec.isExtension){
-                    const siSel=returnModal.selectedSubItems?.[i]||{};
-                    const returnedSubItems=ln.subItems.filter((_,siIdx)=>!!siSel[siIdx]);
-                    const continuingSubItems=ln.subItems.filter((_,siIdx)=>!siSel[siIdx]);
-                    if(returnedSubItems.length===0){
-                      processed.push({ln,isReturned:false});
-                      return;
-                    }
-                    if(continuingSubItems.length===0){
-                      processed.push({ln:{...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
-                      return;
-                    }
-                    processed.push({ln:{...ln,subItems:returnedSubItems,quantity:returnedSubItems.length,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
-                    processed.push({ln:{...ln,subItems:continuingSubItems,quantity:continuingSubItems.length,returnDate:undefined,actualReturnDate:undefined},isReturned:false});
-                    return;
-                  }
-                  const retQty=Math.min(Math.max(1,Number(returnModal.returnQtys?.[i]??lineQty)),lineQty);
-                  if(retQty>=lineQty){
-                    processed.push({ln:{...ln,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
-                  } else {
-                    processed.push({ln:{...ln,quantity:retQty,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate},isReturned:true});
-                    processed.push({ln:{...ln,quantity:lineQty-retQty,returnDate:undefined,actualReturnDate:undefined},isReturned:false});
-                  }
-                });
-                const returnedLines=processed.filter(p=>p.isReturned).map(p=>p.ln);
-                const continuingLines=processed.filter(p=>!p.isReturned).map(p=>p.ln);
-                const allLinesInOrder=processed.map(p=>p.ln);
-                const shouldSplit=continuingLines.length>0&&!!targetRec.isExtension;
-                if(shouldSplit){
-                  const origDays=calcDays(targetRec.startDate,returnModal.billingEndDate);
-                  const origBillingDays=chainBillingDays(targetRec, records, returnModal.billingEndDate);
-                  const origAmount=returnedLines.reduce((s,ln)=>{
-                    const noDisc=ln.noBillingDiscount;
-                    const qty=noDisc?origDays:origBillingDays;
-                    return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
-                  },0);
-                  const updatedOriginal={
-                    ...targetRec,
-                    lines:returnedLines,
-                    returnDate:returnModal.billingEndDate,
-                    actualReturnDate:returnModal.returnDate,
-                    endDate:returnModal.billingEndDate,
-                    endDateOpen:false,
-                    days:origDays,
-                    billingDays:origBillingDays,
-                    amount:origAmount,
-                    insuranceAmount:targetRec.includeInsurance?Math.round(origAmount*0.1):0,
-                  };
-                  const baseNo=(targetRec.deliveryNo||"").replace(/E\d+$/,"");
-                  let maxE=0;
-                  if(baseNo){
-                    records.forEach(x=>{
-                      const dn=x.deliveryNo||"";
-                      if(!dn.startsWith(baseNo+"E"))return;
-                      const suffix=dn.slice(baseNo.length+1);
-                      if(/^\d+$/.test(suffix)){const n=parseInt(suffix);if(n>maxE)maxE=n;}
-                    });
-                  }
-                  const newDeliveryNo=baseNo?(baseNo+"E"+(maxE+1)):(await nextDeliveryNo());
-                  const _now=new Date();
-                  const _pad=n=>String(n).padStart(2,"0");
-                  const createdAtStr=_now.getFullYear()+"-"+_pad(_now.getMonth()+1)+"-"+_pad(_now.getDate())+"T"+_pad(_now.getHours())+":"+_pad(_now.getMinutes())+":"+_pad(_now.getSeconds());
-                  const continuingRec={
-                    ...targetRec,
-                    id:uid(),
-                    deliveryNo:newDeliveryNo,
-                    lines:continuingLines.map(ln=>({...ln})),
-                    returnDate:undefined,
-                    actualReturnDate:undefined,
-                    endDate:targetRec.startDate,
-                    endDateOpen:true,
-                    isExtension:true,
-                    extendedFrom:targetRec.extendedFrom||targetRec.id,
-                    extendedFromNo:targetRec.extendedFromNo||targetRec.deliveryNo||"",
-                    amount:0,
-                    insuranceAmount:0,
-                    days:undefined,
-                    billingDays:undefined,
-                    createdAt:createdAtStr,
-                  };
-                  await onSave([...records.map(x=>x.id===targetRec.id?updatedOriginal:x),continuingRec],null,[updatedOriginal,continuingRec]);
-                  showToast("返却確定・継続分("+newDeliveryNo+")を作成しました");
-                } else {
-                  const updatedLines=allLinesInOrder;
-                  const allClosed=updatedLines.every(ln=>ln.returnDate);
-                  const newAmount=updatedLines.reduce((s,ln)=>{
-                    if(!ln.returnDate) return s;
-                    const d=calcDays(targetRec.startDate,ln.returnDate);
-                    const noDisc=ln.noBillingDiscount;
-                    const qty=noDisc?d:chainBillingDays(targetRec, records, ln.returnDate);
-                    return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
-                  },0);
-                  const newInsurance=targetRec.includeInsurance?Math.round(newAmount*0.1):0;
-                  const updatedRec={...records.find(x=>x.id===returnModal.id),lines:updatedLines,returnDate:allClosed?returnModal.billingEndDate:records.find(x=>x.id===returnModal.id)?.returnDate,actualReturnDate:allClosed?returnModal.returnDate:records.find(x=>x.id===returnModal.id)?.actualReturnDate,endDate:allClosed?returnModal.billingEndDate:records.find(x=>x.id===returnModal.id)?.endDate,endDateOpen:!allClosed,days:allClosed?calcDays(records.find(x=>x.id===returnModal.id)?.startDate,returnModal.billingEndDate):records.find(x=>x.id===returnModal.id)?.days,billingDays:allClosed?calcBillingDays(calcDays(records.find(x=>x.id===returnModal.id)?.startDate,returnModal.billingEndDate)):records.find(x=>x.id===returnModal.id)?.billingDays,amount:newAmount,insuranceAmount:newInsurance};
-                  await onSave(records.map(x=>x.id===returnModal.id?updatedRec:x),null,[updatedRec]);
-                  showToast("計上終了日を設定しました");
-                }
+                await onSave(records.map(x=>x.id===returnModal.id?{...x,returnDate:returnModal.billingEndDate,actualReturnDate:returnModal.returnDate}:x));
+                showToast("計上終了日: "+returnModal.billingEndDate+" で設定しました");
                 setReturnModal(null);
               }} style={S.btn("#7c3aed",true)}>設定する</button>
               <button onClick={()=>setReturnModal(null)} style={S.btn("#94a3b8")}>キャンセル</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* 延長モーダル */}
-      {extModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-            <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
-            <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
-            <div style={{overflowY:"auto",flex:1,marginBottom:16}}>
-            {(extModal.units||[]).map((u,i)=>(
-              <label key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[i]?"#eff6ff":"#fff"}}>
-                <input type="checkbox" checked={!!extModal.selected[i]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[i]:e.target.checked}}))}/>
-                <div>
-                  <div style={{fontWeight:600,fontSize:13}}>{u.equipmentName}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>No.{u.no}　¥{Number(u.unitPrice).toLocaleString()}/日　{u.note}</div>
-                </div>
-              </label>
-            ))}
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={async()=>{
-                const r=extModal.record;
-                const selectedUnits=extModal.units.filter((_,i)=>extModal.selected[i]);
-                if(selectedUnits.length===0){alert("製品を1つ以上選択してください");return;}
-                const lineMap={};
-                selectedUnits.forEach(u=>{
-                  if(!lineMap[u.lineIdx]) lineMap[u.lineIdx]={...u.originalLine,subItems:[],quantity:0};
-                  lineMap[u.lineIdx].subItems.push({no:u.no,note:u.note});
-                  lineMap[u.lineIdx].quantity=lineMap[u.lineIdx].subItems.length;
-                });
-                const selectedLines=Object.values(lineMap);
-                const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):today();
-                const baseNo=r.deliveryNo||"";
-                const eMatch=baseNo.match(/E(\d+)$/);
-                const delivNo=baseNo?(baseNo.replace(/E\d+$/,"")+"E"+(eMatch?parseInt(eMatch[1])+1:1)):await nextDeliveryNo();
-                const newRec={
-                  ...E,
-                  id:uid(),
-                  customerId:r.customerId,
-                  projectName:r.projectName||"",
-                  projectDetail:r.projectDetail||"",
-                  ordererName:r.ordererName||"",
-                  ecOrderNo:r.ecOrderNo||"",
-                  ourStaff:r.ourStaff||"",
-                  billingType:"daily",
-                  startDate:nextDay,
-                  endDate:nextDay,
-                  endDateOpen:true,
-                  isExtension:true,
-                  extendedFrom:r.id,
-                  extendedFromNo:r.deliveryNo||"",
-                  deliveryNo:delivNo,
-                  lines:selectedLines.map(ln=>({...ln})),
-                  receiptNote:r.receiptNote||"機材レンタル代として　[クレジット スクエア]",
-                  paymentMethod:r.paymentMethod||"credit",
-                  includeInsurance:false,
-                  issueReceipt:false,
-                  createdAt:new Date().toISOString(),
-                };
-                try {
-                  await onSave([...records,newRec],null,[newRec]);
-                  setExtModal(null);
-                  showToast("延長案件を作成しました");
-                } catch(e) {
-                  showToast("保存に失敗しました。もう一度お試しください。",false);
-                  console.error("extModal save error",e);
-                }
-              }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
-              <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
             </div>
           </div>
         </div>
@@ -3527,9 +1659,8 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
           {filtered.length===0
             ?<div style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません。「新規登録」から追加してください。</div>
             :(()=>{
-              const filteredExtension = filtered.filter(r=>r.isExtension===true&&!r.returnDate);
-              const filteredMonthly = filtered.filter(r=>r.billingType==="monthly"&&!r.isExtension);
-              const filteredDaily   = filtered.filter(r=>r.billingType!=="monthly"&&(!r.isExtension||r.returnDate));
+              const filteredMonthly = filtered.filter(r=>r.billingType==="monthly");
+              const filteredDaily   = filtered.filter(r=>r.billingType!=="monthly");
               const renderGroup = (recs, sectionLabel, sectionColor) => {
                 if(recs.length===0) return null;
                 const custGroups={};
@@ -3540,7 +1671,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
               });
               return Object.entries(custGroups).map(([cid,{c,recs}])=>{
                 const custOpen=!!expandedCust[cid]; // default open
-                const custTotal=recs.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
+                const custTotal=recs.reduce((s,r)=>s+(r.amount||0),0);
                 const hasLocked=recs.some(r=>isRecordLocked(r));
                 // 案件名ごとにグループ化
                 const projGroups={};
@@ -3563,7 +1694,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                     {custOpen&&Object.entries(projGroups).map(([projName,pRecs])=>{
                       const pk=cid+"__"+projName;
                       const projOpen=!!expandedProj[pk]; // default open
-                      const projTotal=pRecs.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
+                      const projTotal=pRecs.reduce((s,r)=>s+(r.amount||0),0);
                       return(
                         <div key={pk}>
                           {/* 案件名ヘッダー行 */}
@@ -3578,23 +1709,13 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                           {projOpen&&(
                             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                               <tbody>
-                                {[...pRecs].sort((a,b)=>{
-                                  const aBase=(a.isExtension?a.extendedFromNo:a.deliveryNo)||"";
-                                  const bBase=(b.isExtension?b.extendedFromNo:b.deliveryNo)||"";
-                                  if(aBase!==bBase) return aBase.localeCompare(bBase,"ja");
-                                  const aIsExt=a.isExtension?1:0;
-                                  const bIsExt=b.isExtension?1:0;
-                                  if(aIsExt!==bIsExt) return aIsExt-bIsExt;
-                                  return (a.deliveryNo||"").localeCompare(b.deliveryNo||"","ja");
-                                }).map(r=>{
+                                {pRecs.map(r=>{
                                   const isM=r.billingType==="monthly";
                                   const rL=getLines(r);
                                   const locked=isRecordLocked(r);
                                   return(
                                     <tr key={r.id} style={{borderTop:"1px solid #f1f5f9",background:locked?"#f0fdf4":"#fff"}}>
-                                      <td style={{padding:"8px 16px 8px 56px",color:"#64748b",fontSize:11,whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.deliveryNo&&<span style={{marginLeft:6,fontSize:10,color:"#94a3b8",background:"#f1f5f9",borderRadius:4,padding:"1px 5px"}}>No.{r.deliveryNo}</span>}{r.isExtension&&(r.returnDate
-  ?<span style={{fontSize:10,background:"#dcfce7",color:"#15803d",borderRadius:4,padding:"1px 6px",marginLeft:4,fontWeight:700}}>✓ 延長処理済</span>
-  :<span style={{fontSize:10,background:"#dbeafe",color:"#1d4ed8",borderRadius:4,padding:"1px 6px",marginLeft:4,fontWeight:700}}>🔄 延長中</span>)}{r.isExtension&&r.extendedFromNo&&<span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>元No.{r.extendedFromNo}</span>}</td>
+                                      <td style={{padding:"8px 16px 8px 56px",color:"#64748b",fontSize:11,whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.deliveryNo&&<span style={{marginLeft:6,fontSize:10,color:"#94a3b8",background:"#f1f5f9",borderRadius:4,padding:"1px 5px"}}>No.{r.deliveryNo}</span>}</td>
                                       <td style={{padding:"8px 12px"}}>
                                         {rL.length===1
                                           ?<span>{rL[0].equipmentName||r.equipmentName} <span style={{color:"#94a3b8"}}>×{rL[0].quantity||r.quantity}</span></span>
@@ -3605,75 +1726,17 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                                         {isM?<span style={{background:"#faf5ff",color:"#7c3aed",borderRadius:4,padding:"1px 5px",fontSize:10,fontWeight:700}}>月極</span>
                                             :<span style={{background:"#eff6ff",color:"#2563eb",borderRadius:4,padding:"1px 5px",fontSize:10,fontWeight:700}}>日極</span>}
                                       </td>
-                                      <td style={{padding:"8px 8px",textAlign:"center",fontWeight:600,color:isM?"#7c3aed":"#2563eb",whiteSpace:"nowrap"}}>{isM?(r.months||1)+"ヶ月":r.endDateOpen?"継続中":(()=>{const hasNoDisc=getLines(r).some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);return (hasNoDisc?(r.days||0):(r.billingDays||r.days||0))+"日";})()}</td>
-                                      <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a",whiteSpace:"nowrap"}}>{fmt((r.amount||0)+(r.insuranceAmount||0))}</td>
+                                      <td style={{padding:"8px 8px",textAlign:"center",fontWeight:600,color:isM?"#7c3aed":"#2563eb",whiteSpace:"nowrap"}}>{isM?(r.months||1)+"ヶ月":(r.billingDays||r.days)+"日"}</td>
+                                      <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a",whiteSpace:"nowrap"}}>{fmt(r.amount)}</td>
                                       <td style={{padding:"8px 12px",whiteSpace:"nowrap",textAlign:"right"}}>
                                         {locked&&<span style={{fontSize:10,marginRight:4,color:"#15803d"}}>🔒</span>}
-                                        {!r.isExtension&&!(records||[]).some(x=>x.extendedFromNo===r.deliveryNo&&r.deliveryNo)&&(
-                                        <button onClick={e=>{
-                                          e.stopPropagation();
-                                          const rLns=getLines(r);
-                                          const units=[];
-                                          rLns.forEach((ln,lineIdx)=>{
-                                            const qty=Number(ln.quantity)||1;
-                                            if(ln.subItems&&ln.subItems.length>0){
-                                              ln.subItems.forEach((si,siIdx)=>units.push({lineIdx,siIdx,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:si.no,note:si.note||"",originalLine:ln}));
-                                            } else {
-                                              for(let i=0;i<qty;i++) units.push({lineIdx,siIdx:i,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:i+1,note:"",originalLine:ln});
-                                            }
-                                          });
-                                          setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
-                                        }} style={{...S.ib("#0369a1"),marginRight:4,fontSize:10}}>🔄 延長</button>
-                                        )}
                                         {(r.endDateOpen||(!r.endDate&&r.billingType==="monthly"))&&!r.returnDate&&(
-                                          <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today(),selectedLines:Object.fromEntries(getLines(r).map((ln,i)=>[i,!getLineReturnDate(ln,r)])),returnQtys:Object.fromEntries(getLines(r).map((ln,i)=>[i,Number(ln.quantity)||1]))});}}
+                                          <button onClick={e=>{e.stopPropagation();setReturnModal({id:r.id,returnDate:today(),billingEndDate:today()});}}
                                             style={{...S.ib("#7c3aed"),marginRight:4,fontSize:10}}>📦 戻り[終了]</button>
                                         )}
-                                        {r.isProvisionalClose&&!isRecordLocked(r)&&(
-                                          <button onClick={async e=>{
-                                            e.stopPropagation();
-                                            const continuingRec=(records||[]).find(x=>
-                                              x.extendedFromNo===(r.extendedFromNo||r.deliveryNo)
-                                              && x.endDateOpen===true
-                                              && !x.isProvisionalClose
-                                              && x.startDate
-                                              && r.returnDate
-                                              && x.startDate>r.returnDate
-                                            );
-                                            if(continuingRec){
-                                              const isModified=(continuingRec.amount&&continuingRec.amount>0)
-                                                ||continuingRec.returnDate
-                                                ||(continuingRec.lines&&continuingRec.lines.some(ln=>ln.returnDate));
-                                              if(isModified){
-                                                showToast("継続レコードが既に編集されているため取り消しできません",false);
-                                                return;
-                                              }
-                                            }
-                                            const restoredOriginal={
-                                              ...r,
-                                              endDate:r.startDate,
-                                              endDateOpen:true,
-                                              returnDate:undefined,
-                                              actualReturnDate:undefined,
-                                              isProvisionalClose:false,
-                                              days:undefined,
-                                              billingDays:undefined,
-                                              amount:0,
-                                              insuranceAmount:0,
-                                            };
-                                            if(continuingRec) await onDeleteRec(continuingRec.id);
-                                            const newRecords=(records||[]).map(x=>x.id===r.id?restoredOriginal:x);
-                                            await onSave(newRecords,{
-                                              action:"暫定締め取消",
-                                              name:r.deliveryNo||"",
-                                              detail:continuingRec?`継続レコード ${continuingRec.deliveryNo||""} を削除`:"継続レコードなし"
-                                            },[restoredOriginal]);
-                                            showToast("暫定締めを取り消しました");
-                                          }} style={{...S.ib("#0891b2"),marginRight:4,fontSize:10}}>⏪ 暫定締め取消</button>
-                                        )}
-                                        {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>{r.isProvisionalClose?"⚠️ 暫定締め:":"計上終了:"}{r.returnDate}</span>}
-                                        <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"編集"))return;const rLns=getLines(r);setForm({customerId:r.customerId,projectName:r.projectName||"",noProjectName:!!r.noProjectName,projectDetail:r.projectDetail||"",ecOrderNo:r.ecOrderNo||"",ordererName:r.ordererName||"",ourStaff:r.ourStaff||"",billingType:r.billingType||"daily",months:String(r.months||1),startDate:r.startDate,endDate:r.endDate||today(),endDateOpen:!!r.endDateOpen,notes:r.notes||"",issueReceipt:!!r.issueReceipt,receiptDate:r.receiptDate||today(),paymentMethod:r.paymentMethod||"credit",adjustDays:r.adjustDays||"",adjustReason:r.adjustReason||"",includeInsurance:!!(r.includeInsurance||(r.insuranceAmount||0)>0),lines:rLns.map(ln=>({productId:ln.productId||"",equipNo:ln.equipNo||"",unitPrice:String(ln.unitPrice||""),quantity:String(ln.quantity||1),lineNote:ln.lineNote||"",subItems:ln.subItems||[],equipmentName:ln.equipmentName||"",expandRows:!!ln.expandRows,isManual:!!ln.isManual,isFee:!!ln.isFee,noBillingDiscount:!!ln.noBillingDiscount}))});setLineSearches(rLns.map(()=>""));setEditId(r.id);setOpen(true);}} style={{...S.ib(locked?"#64748b":"#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/></button>
-                                        <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"削除"))return;setDeleteModal({record:r,custName:customers.find(x=>x.id===r.customerId)?.name||""});}} style={S.ib(locked?"#64748b":"#991b1b")}><Ico d={I.trash} size={12}/></button>
+                                        {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>計上終了:{r.returnDate}</span>}
+                                        <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"編集"))return;const rLns=getLines(r);setForm({customerId:r.customerId,projectName:r.projectName||"",projectDetail:r.projectDetail||"",ecOrderNo:r.ecOrderNo||"",ordererName:r.ordererName||"",ourStaff:r.ourStaff||"",billingType:r.billingType||"daily",months:String(r.months||1),startDate:r.startDate,endDate:r.endDate||today(),endDateOpen:!!r.endDateOpen,notes:r.notes||"",issueReceipt:!!r.issueReceipt,receiptDate:r.receiptDate||today(),paymentMethod:r.paymentMethod||"credit",includeInsurance:!!r.includeInsurance,lines:rLns.map(ln=>({productId:ln.productId||"",equipNo:ln.equipNo||"",unitPrice:String(ln.unitPrice||""),quantity:String(ln.quantity||1),lineNote:ln.lineNote||"",subItems:ln.subItems||[],equipmentName:ln.equipmentName||""}))});setLineSearches(rLns.map(()=>""));setEditId(r.id);setOpen(true);}} style={{...S.ib(locked?"#64748b":"#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/></button>
+                                        <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"削除"))return;await onSave(records.filter(x=>x.id!==r.id));showToast("削除しました");}} style={S.ib(locked?"#64748b":"#991b1b")}><Ico d={I.trash} size={12}/></button>
                                       </td>
                                     </tr>
                                   );
@@ -3689,15 +1752,6 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
               });
               };
               return(<>
-                {filteredExtension.length>0&&(
-                  <div>
-                    <div style={{padding:"8px 16px",background:"#dbeafe",borderBottom:"2px solid #93c5fd",display:"flex",alignItems:"center",gap:8}}>
-                      <span style={{fontSize:12,fontWeight:700,color:"#1d4ed8"}}>🔄 延長中案件</span>
-                      <span style={{fontSize:11,color:"#3b82f6"}}>{filteredExtension.length}件</span>
-                    </div>
-                    {renderGroup(filteredExtension,"延長中","#dbeafe")}
-                  </div>
-                )}
                 {filteredMonthly.length>0&&(
                   <div>
                     <div style={{padding:"8px 16px",background:"#f5f3ff",borderBottom:"2px solid #ede9fe",display:"flex",alignItems:"center",gap:8}}>
@@ -3721,7 +1775,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
           {filtered.length>0&&(
             <div style={{background:"#eff6ff",padding:"9px 16px",display:"flex",justifyContent:"flex-end",gap:16,fontSize:12,fontWeight:700,borderTop:"2px solid #e2e8f0"}}>
               <span style={{color:"#64748b"}}>合計（税抜）</span>
-              <span style={{color:"#16a34a",fontSize:14}}>{fmt(filtered.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0))}</span>
+              <span style={{color:"#16a34a",fontSize:14}}>{fmt(filtered.reduce((s,r)=>s+r.amount,0))}</span>
             </div>
           )}
         </div>
@@ -3742,32 +1796,6 @@ async function nextInvoiceNo(month) {
   const { data, error } = await supabase.rpc('next_invoice_no');
   if (error) { console.error('nextInvoiceNo error', error); return `${month}-ERR`; }
   return `${month}-${String(data).padStart(3,'0')}`;
-}
-
-function makeExtFlatItems(lines) {
-  const items = [];
-  lines.forEach((ln, li) => {
-    if (!ln.subItems || ln.subItems.length === 0) {
-      items.push({ key: String(li), lineIdx: li, subIdx: null, equipmentName: ln.equipmentName, equipNo: ln.equipNo, quantity: ln.quantity, unitPrice: ln.unitPrice });
-    } else {
-      ln.subItems.forEach((si, si_i) => {
-        items.push({ key: `${li}-${si_i}`, lineIdx: li, subIdx: si_i, equipmentName: ln.equipmentName, equipNo: si.equipNo || ln.equipNo, quantity: si.quantity || 1, unitPrice: ln.unitPrice });
-      });
-    }
-  });
-  return items;
-}
-function buildExtLines(lines, flatItems, selected) {
-  const selItems = flatItems.filter(item => selected[item.key]);
-  const lineMap = {};
-  selItems.forEach(item => {
-    if (!lineMap[item.lineIdx]) lineMap[item.lineIdx] = { ...lines[item.lineIdx], subItems: item.subIdx !== null ? [] : (lines[item.lineIdx].subItems || []) };
-    if (item.subIdx !== null) {
-      lineMap[item.lineIdx].subItems.push(lines[item.lineIdx].subItems[item.subIdx]);
-      lineMap[item.lineIdx].quantity = lineMap[item.lineIdx].subItems.length;
-    }
-  });
-  return Object.values(lineMap);
 }
 
 async function nextDeliveryNo() {
@@ -3800,7 +1828,7 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
         <div style={{fontSize:22*fs,fontWeight:800,letterSpacing:8}}>納 品 書</div>
         <div style={{textAlign:"right",fontSize:10.5*fs,lineHeight:2}}>
           <div>納品書No.　<strong>{no}</strong></div>
-          <div>日付　{fmtD(r.createdAt||r.startDate)}</div>
+          <div>日付　{fmtD(r.startDate)}</div>
         </div>
       </div>
       {/* 宛名 + 自社 */}
@@ -3820,7 +1848,7 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
           <div>東京都港区新橋6-10-2</div>
           <div>第二新洋ビル 1F</div>
           <div>TEL: 03-5777-1100</div>
-          <div>MAIL: rental@olq.co.jp</div>
+          <div>FAX: 03-5777-1101</div>
         </div>
       </div>
       <div style={{fontSize:10*fs,color:"#444",marginBottom:10*fs}}>毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>
@@ -3833,20 +1861,12 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
           rowIdx++;
           if(showPrice){
             dataRows.push(<tr key={`m${li}`}><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{rowIdx}</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`}}>{ln.equipmentName}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right"}}>{fmt(ln.unitPrice)}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{ln.quantity}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",whiteSpace:"nowrap"}}>{fmtD(r.endDate)}</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,fontSize:9*fs}}>{r.billingType==="monthly"?"月極"+(ln.lineNote?" "+ln.lineNote:""):(ln.lineNote||"")}</td></tr>);
-            (ln.expandRows?(ln.subItems||[]):[]).forEach((si,si2)=>{rowIdx++;dataRows.push(<tr key={`s${li}_${si2}`}><td style={{border:bdr,padding:`${2*fs}px`,color:"#aaa"}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px ${2*fs}px ${14*fs}px`,fontSize:9*fs,color:"#555"}}>└ No.{si.no}</td><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px`,fontSize:9*fs,color:"#666"}}>{si.note||""}</td></tr>);});
+            (ln.subItems||[]).forEach((si,si2)=>{rowIdx++;dataRows.push(<tr key={`s${li}_${si2}`}><td style={{border:bdr,padding:`${2*fs}px`,color:"#aaa"}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px ${2*fs}px ${14*fs}px`,fontSize:9*fs,color:"#555"}}>└ No.{si.no}</td><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px`,fontSize:8.5*fs,color:"#666"}}>{si.note||""}</td></tr>);});
           } else {
             dataRows.push(<tr key={`m${li}`}><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{rowIdx}</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`}}>{ln.equipmentName}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{ln.quantity}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",whiteSpace:"nowrap"}}>{fmtD(r.endDate)}</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,fontSize:9*fs}}>{r.billingType==="monthly"?"月極"+(ln.lineNote?" "+ln.lineNote:""):(ln.lineNote||"")}</td></tr>);
-            (ln.expandRows?(ln.subItems||[]):[]).forEach((si,si2)=>{rowIdx++;dataRows.push(<tr key={`s${li}_${si2}`}><td style={{border:bdr,padding:`${2*fs}px`,color:"#aaa"}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px ${2*fs}px ${16*fs}px`,fontSize:9*fs,color:"#555"}}>└ No.{si.no}</td><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px`,fontSize:9*fs,color:"#666"}}>{si.note||""}</td></tr>);});
+            (ln.subItems||[]).forEach((si,si2)=>{rowIdx++;dataRows.push(<tr key={`s${li}_${si2}`}><td style={{border:bdr,padding:`${2*fs}px`,color:"#aaa"}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px ${2*fs}px ${16*fs}px`,fontSize:9*fs,color:"#555"}}>└ No.{si.no}</td><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px`,fontSize:8.5*fs,color:"#666"}}>{si.note||""}</td></tr>);});
           }
         });
-        if((r.insuranceAmount||0)>0){
-          rowIdx++;
-          if(showPrice){
-            dataRows.push(<tr key="ins"><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",color:"#aaa"}}></td><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,color:"#92400e"}}>補償料</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(r.insuranceAmount)}</td></tr>);
-          } else {
-            dataRows.push(<tr key="ins"><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",color:"#aaa"}}></td><td colSpan={4} style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,color:"#92400e"}}>補償料</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(r.insuranceAmount)}</td></tr>);
-          }
-        }
         const emptyCount=Math.max(0,ROWS-rowIdx);
         const cols = showPrice
           ? [{l:"No.",w:28},{l:"機材名"},{l:"単価",w:60},{l:"数量",w:40},{l:"開始日",w:72},{l:"終了日",w:72},{l:"備考"}]
@@ -3865,11 +1885,11 @@ function DeliveryCustomer({r, g, no, forPrint, showPrice}){
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:10*fs,marginTop:-1}}>
         <tbody><tr>
           <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,width:48*fs,fontWeight:700,verticalAlign:"top",letterSpacing:4}}>備　考</td>
-          <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,minHeight:90*fs,whiteSpace:"pre-wrap"}}>{[r.notes,r.adjustReason].filter(Boolean).join("\n")||" "}</td>
+          <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,minHeight:90*fs,whiteSpace:"pre-wrap"}}>{r.notes||" "}</td>
         </tr></tbody>
       </table>
       {/* 注意事項 */}
-      <div style={{marginTop:12*fs,fontSize:9*fs,color:"#666",lineHeight:1.7}}>
+      <div style={{marginTop:12*fs,fontSize:8.5*fs,color:"#666",lineHeight:1.7}}>
         <div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div>
       </div>
     </div>
@@ -3888,7 +1908,7 @@ function DeliveryCopy({r, g, no, forPrint}){
         <div style={{fontSize:22*fs,fontWeight:800,letterSpacing:4}}>納品書控</div>
         <div style={{textAlign:"right",fontSize:10.5*fs,lineHeight:2}}>
           <div>納品書No.　<strong>{no}</strong></div>
-          <div>日付　{fmtD(r.createdAt||r.startDate)}</div>
+          <div>日付　{fmtD(r.startDate)}</div>
         </div>
       </div>
       {/* 宛名 + 自社 */}
@@ -3921,7 +1941,7 @@ function DeliveryCopy({r, g, no, forPrint}){
           <div>東京都港区新橋6-10-2</div>
           <div>第二新洋ビル 1F</div>
           <div>TEL: 03-5777-1100</div>
-          <div>MAIL: rental@olq.co.jp</div>
+          <div>FAX: 03-5777-1101</div>
         </div>
       </div>
       {/* テーブル（機材No・単価あり） */}
@@ -3932,16 +1952,12 @@ function DeliveryCopy({r, g, no, forPrint}){
         lines.forEach((ln,li)=>{
           rowIdx++;
           dataRows.push(<tr key={`m${li}`}><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{rowIdx}</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`}}>{ln.equipmentName}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{ln.equipNo}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right"}}>{fmt(ln.unitPrice)}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center"}}>{ln.quantity}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",whiteSpace:"nowrap"}}>{fmtD(r.endDate)}</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,fontSize:9*fs}}>{r.billingType==="monthly"?"月極"+(ln.lineNote?" "+ln.lineNote:""):(ln.lineNote||"")}</td></tr>);
-          (ln.expandRows?(ln.subItems||[]):[]).forEach((si,si2)=>{rowIdx++;dataRows.push(<tr key={`s${li}_${si2}`}><td style={{border:bdr,padding:`${2*fs}px`,color:"#aaa"}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px ${2*fs}px ${14*fs}px`,fontSize:9*fs,color:"#555"}}>└ {ln.equipmentName}</td><td style={{border:bdr,padding:`${2*fs}px`,textAlign:"center",fontSize:9*fs}}>{si.no}</td><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px`,fontSize:9*fs,color:"#666"}}>{si.note||""}</td></tr>);});
+          (ln.subItems||[]).forEach((si,si2)=>{rowIdx++;dataRows.push(<tr key={`s${li}_${si2}`}><td style={{border:bdr,padding:`${2*fs}px`,color:"#aaa"}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px ${2*fs}px ${14*fs}px`,fontSize:9*fs,color:"#555"}}>└ {ln.equipmentName}</td><td style={{border:bdr,padding:`${2*fs}px`,textAlign:"center",fontSize:9*fs}}>{si.no}</td><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px`}}/><td style={{border:bdr,padding:`${2*fs}px ${5*fs}px`,fontSize:8.5*fs,color:"#666"}}>{si.note||""}</td></tr>);});
         });
-        if((r.insuranceAmount||0)>0){
-          rowIdx++;
-          dataRows.push(<tr key="ins"><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"center",color:"#aaa"}}></td><td colSpan={6} style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,color:"#92400e"}}>補償料</td><td style={{border:bdr,padding:`${3*fs}px ${5*fs}px`,textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(r.insuranceAmount)}</td></tr>);
-        }
         const emptyCount=Math.max(0,ROWS-rowIdx);
         return(
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10*fs,marginTop:10*fs}}>
-          <thead><tr>{[{l:"No.",w:28},{l:"機材名"},{l:"機材No",w:52},{l:"単価",w:60},{l:"数量",w:40},{l:"開始日",w:72},{l:"終了日",w:72},{l:"備考"}].map(h=><th key={h.l} style={{border:bdr,padding:`${3*fs}px ${4*fs}px`,textAlign:"center",fontWeight:700,background:"#f5f5f5",width:h.w?h.w*fs:undefined}}>{h.l}</th>)}</tr></thead>
+          <thead><tr>{[{l:"No.",w:28},{l:"機材名"},{l:"単価",w:60},{l:"数量",w:40},{l:"開始日",w:72},{l:"終了日",w:72},{l:"備考"}].map(h=><th key={h.l} style={{border:bdr,padding:`${3*fs}px ${4*fs}px`,textAlign:"center",fontWeight:700,background:"#f5f5f5",width:h.w?h.w*fs:undefined}}>{h.l}</th>)}</tr></thead>
           <tbody>
             {dataRows}
             {Array.from({length:emptyCount}).map((_,i)=><tr key={`e${i}`}>{[28,0,36,52,36,68,68,0].map((w,j)=><td key={j} style={{border:bdr,padding:`${3*fs}px`,height:14*fs}}>{j===0?<span style={{color:"#ccc"}}>{rowIdx+i+1}</span>:""}</td>)}</tr>)}
@@ -3952,7 +1968,7 @@ function DeliveryCopy({r, g, no, forPrint}){
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:10*fs,marginTop:-1}}>
         <tbody><tr>
           <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,width:48*fs,fontWeight:700,verticalAlign:"top",letterSpacing:4}}>備　考</td>
-          <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,minHeight:90*fs,whiteSpace:"pre-wrap"}}>{[r.notes,r.adjustReason].filter(Boolean).join("\n")||" "}</td>
+          <td style={{border:bdr,padding:`${4*fs}px ${6*fs}px`,minHeight:90*fs,whiteSpace:"pre-wrap"}}>{r.notes||" "}</td>
         </tr></tbody>
       </table>
     </div>
@@ -3963,9 +1979,8 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
   const fs = forPrint ? 1 : 0.78;
   const bdr = "1px solid #555";
   const receiptDateStr = r.receiptDate ? new Date(r.receiptDate).toLocaleDateString("ja-JP") : new Date(r.startDate).toLocaleDateString("ja-JP");
-  const payLabel = r.paymentMethod==="cash" ? "現金" : r.paymentMethod==="square" ? "スクエア クレジット" : "ECクレジット";
-  const receiptName = r.receiptNameCustom && r.receiptNameOverride ? r.receiptNameOverride : (g.customer?.invoiceName || g.customerName || "");
-  const honorific = r.receiptNameCustom && r.receiptNameOverride ? (r.receiptHonorific || '様') : ((receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様');
+  const payLabel = r.paymentMethod==="cash" ? "現金" : "クレジット　スクエア";
+  const receiptName = r.ordererName || g.customer?.contact || g.customer?.invoiceName || g.customerName || "";
   const subTot = Math.round(r.amount / 1.1 * (r.amount > 0 ? 1 : 0));
   // r.amount = 機材合計(税抜), insuranceAmount = 補償料(税抜)
   const equipAmt = r.amount || 0;
@@ -3989,7 +2004,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
           </div>
         </div>
       </div>
-      <div style={{fontSize:15*fs,fontWeight:700,borderBottom:"2px solid #111",paddingBottom:3,display:"inline-block",minWidth:200*fs,marginBottom:12*fs}}>{receiptName}　{honorific}</div>
+      <div style={{fontSize:15*fs,fontWeight:700,borderBottom:"2px solid #111",paddingBottom:3,display:"inline-block",minWidth:200*fs,marginBottom:12*fs}}>{receiptName}　様</div>
       <div style={{margin:`${8*fs}px 0`,fontSize:12*fs}}>
         <span style={{marginRight:14}}>合計金額</span>
         <span style={{fontSize:26*fs,fontWeight:900,borderBottom:"2px solid #111",padding:`0 16*fspx`}}>{fmt(grandTot+taxAmt)}</span>
@@ -3997,7 +2012,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
       </div>
       <div style={{fontSize:10*fs,marginBottom:10*fs}}>上記、正に領収いたしました。</div>
       <div style={{fontSize:10*fs,padding:`${6*fs}px ${10*fs}px`,background:"#f9f9f9",border:`1px solid #ddd`,borderRadius:3,marginBottom:12*fs}}>
-        {r.receiptNote || `機材レンタル代として　［${payLabel}］`}
+        但書き　機材レンタル代として　［{payLabel}］
       </div>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:9.5*fs}}>
         <thead>
@@ -4024,7 +2039,7 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
           })}
           {insurAmt>0&&(
             <tr style={{background:"#fff7ed"}}>
-              <td colSpan={4} style={{border:bdr,padding:`${3*fs}px ${4*fs}px`,color:"#92400e"}}>補償料</td>
+              <td colSpan={4} style={{border:bdr,padding:`${3*fs}px ${4*fs}px`,color:"#92400e"}}>補償料（機材合計の10%）</td>
               <td style={{border:bdr}}></td>
               <td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(insurAmt)}</td>
             </tr>
@@ -4033,57 +2048,212 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
         <tfoot>
           <tr><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${6*fs}px`,textAlign:"right",fontWeight:700}}>小計[10%対象]</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right",fontWeight:700}}>{fmt(grandTot)}</td></tr>
           <tr><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${6*fs}px`,textAlign:"center"}}>消費税[10%]</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right"}}>{fmt(taxAmt)}</td></tr>
-          <tr style={{background:"#f0f0f0"}}><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${6*fs}px`,textAlign:"right",fontWeight:900}}>税込合計</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right",fontWeight:900}}>{fmt(grandTot+taxAmt)}</td></tr>
+          <tr style={{background:"#fff7e6"}}><td colSpan={5} style={{border:bdr,padding:`${3*fs}px ${6*fs}px`,textAlign:"right",fontWeight:900}}>税込合計</td><td style={{border:bdr,padding:`${3*fs}px`,textAlign:"right",fontWeight:900}}>{fmt(grandTot+taxAmt)}</td></tr>
         </tfoot>
       </table>
     </div>
   );
 }
+function InvoicePreview({type,g,forPrint}){
+  const equipTot=g.items.reduce((s,r)=>s+(r.amount||0),0);
+  const insurTot=g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
+  const baseTot=equipTot+insurTot;
+  const adjustments=g.adjustments||[];
+  const adjSum=adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
+  const tot=baseTot+adjSum;
+  const tax=Math.round(tot*0.1);
+  if(type==="invoice"){
+    const firstRec = g.items[0];
+    const invNo = g.invNo || (g.month ? `${g.month}-???` : genDeliveryNo(firstRec,0));
+    const rawDate = g.issueDate||(()=>{
+      const [y,m] = (monthStr).split("-").map(Number);
+      if(y&&m){ const ld=new Date(y,m,0); return `${y}-${String(m).padStart(2,"0")}-${String(ld.getDate()).padStart(2,"0")}`; }
+      return "";
+    })();
+    const issueDateStr = rawDate ? (()=>{const d=new Date(rawDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;})() : "";
+    const staff = g.customer?.staff || firstRec?.ourStaff || "井上 雄太";
+    return(
+      <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",padding:"24px 28px",color:"#111",background:"#fff",fontSize:11}}>
+        {/* タイトル */}
+        <div style={{textAlign:"center",fontSize:16,fontWeight:"bold",marginBottom:14}}>ご請求書</div>
+        {/* grid 2列×2行: 左=顧客/挨拶, 右=管理No〜MAIL */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto",alignItems:"start",gap:"8px 0",marginBottom:14}}>
+          {/* 左上: 顧客名・住所 */}
+          <div style={{gridColumn:1,gridRow:1,paddingBottom:6}}>
+            <div style={{fontSize:16,fontWeight:"bold",marginBottom:6}}>{g.customerName}　御中</div>
+            {g.projectName&&<div style={{fontSize:12,fontWeight:"bold",marginBottom:4}}>{ g.projectName}</div>}
+            {g.customer?.zipCode&&<div style={{marginBottom:1}}>〒{ g.customer.zipCode}</div>}
+            {g.customer?.address&&(g.customer.address).split("\n").map((line,i)=><div key={{i}} style={{marginBottom:1}}>{line}</div>)}
+          </div>
+          {/* 右列（2行分）: 管理No〜MAIL */}
+          <div style={{gridColumn:2,gridRow:"1/3",fontSize:10,lineHeight:1.9,whiteSpace:"nowrap",paddingLeft:16,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+            <div>
+              <div style={{display:"flex",gap:4}}><span style={{minWidth:52}}>管理No</span><strong>{invNo}</strong></div>
+              <div style={{display:"flex",gap:4}}><span style={{minWidth:52}}>日付</span><span>{issueDateStr}</span></div>
+              <div style={{marginBottom:8}}>登録番号 T5-0104-0109-2630</div>
+              <div style={{fontWeight:"bold",fontSize:11.5,marginBottom:2}}>オルク株式会社</div>
+              <div style={{position:"relative"}}>
+                <div>〒105-0004</div>
+                <div>東京都港区新橋6-10-2</div>
+                <div>第二新洋ビル 1F</div>
+                <img src="data:image/png;base64,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" style={{position:"absolute",top:-4,right:-4,width:62,height:62,mixBlendMode:"multiply",background:"#fff"}}/>
+              </div>
+            </div>
+            <div style={{height:"1em"}}/>
+            <div>担当：{staff}</div>
+            <div>TEL：03-5777-1100</div>
+            <div>MAIL：invoice@olq.co.jp</div>
+          </div>
+          {/* 左下: 挨拶文・ご請求金額 */}
+          <div style={{gridColumn:1,gridRow:2,paddingTop:"4em"}}>
+            <div style={{fontSize:10.5,marginBottom:8}}>毎度ありがとうございます。下記の通りご請求申し上げます。</div>
+            <div style={{display:"flex",alignItems:"baseline",gap:12}}>
+              <span style={{fontSize:13,fontWeight:"bold"}}>ご請求金額</span>
+              <span style={{fontSize:22,fontWeight:"bold",borderBottom:"2px solid #111",padding:"0 10px"}}>{ fmt(tot+tax)}</span>
+              <span style={{fontSize:11}}>（税込）</span>
+            </div>
+          </div>
+        </div>
 
-function AdjAmountInput({value,onChange,disabled,style}){
-  const [str,setStr]=React.useState(value===0?"":String(value));
-  React.useEffect(()=>{setStr(value===0?"":String(value));},[value]);
-  return <input
-    type="text" inputMode="numeric"
-    value={str}
-    style={style}
-    disabled={disabled}
-    onChange={e=>{
-      const v=e.target.value.replace(/[^0-9\-]/g,"");
-      const raw=v.startsWith("-")?"-"+v.slice(1).replace(/-/g,""):v.replace(/-/g,"");
-      setStr(raw);
-      if(raw===""){onChange(0);return;}
-      if(raw==="-")return;
-      const num=Number(raw);
-      if(!isNaN(num))onChange(num);
-    }}
-  />;
+        {/* 明細テーブル */}
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:10.5}}>
+          <thead>
+            <tr style={{background:"#f0f0f0"}}>
+              {["ご利用日","日数","ご発注者","製品名","台数","単価","金額"].map(h=>(
+                <th key={h} style={{...S.td,textAlign:"center",fontWeight:"bold",padding:"5px 6px",whiteSpace:"nowrap",background:"#f0f0f0"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {g.items.flatMap(r=>{
+              const rLines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
+              const days=r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0);
+              return rLines.map((ln,li)=>{
+                const lineAmt=ln.amount!==undefined?ln.amount:Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1)));
+                return(
+                  <tr key={`${r.id}-${li}`}>
+                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"top"}} rowSpan={rLines.length}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}{r.billingType==="monthly"&&<div style={{fontSize:10,marginTop:2}}>[月極]</div>}{r.ecOrderNo&&<div style={{fontSize:10,marginTop:2}}>EC:{r.ecOrderNo}</div>}</td>}
+                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",verticalAlign:"top"}} rowSpan={rLines.length}>{days}</td>}
+                    {li===0&&<td style={{...S.td,padding:"4px 6px",textAlign:"center",fontSize:10,verticalAlign:"top"}} rowSpan={rLines.length}>{r.ordererName ? r.ordererName+"　様" : ""}</td>}
+                    <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>
+                      {ln.equipmentName||r.equipmentName}
+                      {li===0&&r.projectDetail&&<span style={{color:"#555",fontSize:10}}>　[{r.projectDetail}]</span>}
+
+                    </td>
+                    <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{ln.quantity||1}</td>
+                    <td style={{...S.td,padding:"4px 6px",textAlign:"center"}}>{fmt(ln.unitPrice||r.unitPrice)}</td>
+                    <td style={{...S.td,padding:"4px 6px",textAlign:"center",fontWeight:"bold"}}>{fmt(lineAmt)}</td>
+                  </tr>
+                );
+              });
+            })}
+            {insurTot>0&&(
+              <tr style={{background:"#fff7ed"}}>
+                <td colSpan={6} style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#92400e"}}>補償料（機材合計の10%）</td>
+                <td style={{...S.td,padding:"4px 6px",textAlign:"right",color:"#92400e",fontWeight:600}}>{fmt(insurTot)}</td>
+              </tr>
+            )}
+          </tbody>
+          <tfoot>
+            {(()=>{
+              const pc=g.customer?.paymentCycle||"";
+              const [my,mm]=(g.month||"").split("-").map(Number);
+              let dueStr="";
+              if(my&&mm&&pc&&pc!=="スクエア"&&pc!=="その他"){
+                let addM=0,dayVal=0;
+                if(pc.includes("翌月"))addM=1;else if(pc.includes("翌々月"))addM=2;
+                const m2=(mm-1+addM)%12+1,y2=my+Math.floor((mm-1+addM)/12);
+                if(pc.endsWith("末日")){dayVal=new Date(y2,m2,0).getDate();}
+                else{const n=parseInt((pc.match(/[0-9]+日/)||[])[0])||0;dayVal=n;}
+                if(dayVal)dueStr=y2+"年"+m2+"月"+dayVal+"日";
+              }
+              return(<>
+                <tr>
+                  <td colSpan={4} rowSpan={3+adjustments.filter(a=>a.label||a.amount).length} style={{...S.td,padding:"10px 12px",verticalAlign:"middle",fontSize:10.5,lineHeight:1.9,textAlign:"center"}}>
+                    <div style={{display:"inline-flex",gap:24,textAlign:"left"}}>
+                      <div>
+                        <div style={{fontWeight:"bold",marginBottom:2}}>お振込先</div>
+                        <div>みずほ銀行　新橋中央支店　店番号　051</div>
+                        <div>普通口座　2333044</div>
+                        <div>口座名義　オルク株式会社</div>
+                      </div>
+                      <div style={{paddingTop:"2em"}}>
+                        {pc&&pc!=="スクエア"&&pc!=="その他"&&<div>お支払い条件：{pc}</div>}
+                        {dueStr&&<div>お支払い期日：<span style={{color:"#c00",fontWeight:"bold"}}>{dueStr}</span></div>}
+                        <div>※振込み手数料はご負担願います。</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td colSpan={2} style={{...S.td,padding:"5px 8px",textAlign:"center",fontWeight:"bold",background:"#f0f0f0"}}>小計[10%対象]</td>
+                  <td style={{...S.td,padding:"5px 8px",textAlign:"right",fontWeight:"bold",background:"#f0f0f0"}}>{fmt(baseTot)}</td>
+                </tr>
+                {adjustments.filter(a=>a.label||a.amount).map(a=>(
+                  <tr key={a.id} style={{background:"#fefce8"}}>
+                    <td colSpan={2} style={{...S.td,padding:"4px 8px",textAlign:"right",color:"#92400e"}}>{a.label||"調整"}</td>
+                    <td style={{...S.td,padding:"4px 8px",textAlign:"right",fontWeight:"bold",color:Number(a.amount)<0?"#dc2626":"#16a34a"}}>{fmt(Number(a.amount)||0)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={2} style={{...S.td,padding:"5px 8px",textAlign:"right"}}>消費税[10%]</td>
+                  <td style={{...S.td,padding:"5px 8px",textAlign:"right"}}>{fmt(tax)}</td>
+                </tr>
+                <tr style={{background:"#f0f0f0"}}>
+                  <td colSpan={2} style={{...S.td,padding:"6px 8px",textAlign:"center",fontWeight:"bold",fontSize:12}}>税込合計</td>
+                  <td style={{...S.td,padding:"6px 8px",textAlign:"right",fontWeight:"bold",fontSize:12}}>{fmt(tot+tax)}</td>
+                </tr>
+              </>);
+            })()}
+          </tfoot>
+        </table>
+      </div>
+    );
+  }
+  // 納品書 / 納品書・領収証: 各1ページずつ
+  return(
+    <div style={{fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif",color:"#111",background:"#fff",minHeight:"100%"}}>
+      {g.items.map((r,idx)=>{
+        const no = genDeliveryNo(r, idx);
+        const isLast = idx===g.items.length-1;
+        return(
+          <div key={r.id}>
+            <div style={{borderBottom:"3px solid #2563eb",marginBottom:2}}>
+              <DeliveryCustomer r={r} g={g} no={no} forPrint={forPrint} showPrice={!!g.customer?.showDeliveryPrice}/>
+            </div>
+            <div style={{borderBottom:(type==="delivery-receipt"&&r.issueReceipt)||!isLast?"4px dashed #cbd5e1":"none"}}>
+              <DeliveryCopy r={r} g={g} no={no} forPrint={forPrint}/>
+            </div>
+            {type==="delivery-receipt"&&r.issueReceipt&&(
+              <ReceiptPage r={r} g={g} no={no} isLast={isLast} forPrint={forPrint}/>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // 印刷用HTML生成 & ダウンロード
-function downloadPrintHTML(type, g, products, extraDiscount, incidents, allRecords) {
+function downloadPrintHTML(type, g) {
   if (!g || !g.items || !g.items.length) return;
   const title = type==="invoice" ? `ご請求書_${g.customerName}御中${g.projectName?"_"+g.projectName:""}_${g.month||""}` : type==="delivery-receipt" ? `納品書・領収証_${g.customerName}_${g.month||""}` : `納品書_${g.customerName}_${g.month||""}`;
-  const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}tr{page-break-inside:avoid}
+  const css = `@page{margin:0mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;margin:0}
-table{border-collapse:separate;border-spacing:0;width:100%;border-top:1px solid #aaa;border-left:1px solid #aaa}td,th{border-right:1px solid #aaa;border-bottom:1px solid #aaa;padding:3px 5px;font-size:10px}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:3px 5px;font-size:10px}
 th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{text-align:center}
-.pb{page-break-after:always;width:794px;box-sizing:border-box;position:relative}.pb-last{width:794px;box-sizing:border-box;position:relative}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
+.pb{page-break-after:always}.title{text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px}
+.hdr{display:flex;justify-content:space-between;margin:14px 0 10px}.cust-name{font-size:16px;font-weight:bold;border-bottom:2px solid #111;padding-bottom:3px;display:inline-block}
 .olq{text-align:right;font-size:10px;line-height:1.8}.amount{font-size:20px;font-weight:bold;color:#c00}
 .note{font-size:9px;color:#666;line-height:1.7;margin-top:12px}.sign-box{border:2px solid #333;border-radius:4px;padding:8px 14px;min-width:140px;min-height:70px;display:inline-block;margin-right:14px}
-.sign-label{font-weight:bold;font-size:9px;margin-bottom:2px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:4px 6px}
+.sign-label{font-weight:bold;font-size:11px;margin-bottom:4px}.sign-date{color:#bbb;font-size:10px}.sub-row td{font-size:10px;color:#555;padding:3px 7px}
 .empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}`;
 
   let body = "";
   const fd = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
   const fm = n => `¥${Number(n||0).toLocaleString()}`;
   const fn = n => Number(n||0).toLocaleString();
-  const gIncidentsPdf=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
-  const incidentTotPdf=gIncidentsPdf.reduce((s,x)=>s+(x.charge_amount||0),0);
   const equipTotG = g.items.reduce((s,r) => s+(r.amount||0), 0);
   const insurTotG = g.items.reduce((s,r) => s+(r.insuranceAmount||0), 0);
-  const tot = equipTotG + insurTotG + incidentTotPdf;
+  const tot = equipTotG + insurTotG;
   const tax = Math.round(tot * 0.1);
 
   if (type === "invoice") {
@@ -4091,27 +2261,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     const adjustments = g.adjustments || [];
     const adjSum = adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
     const totIns = g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
-    const showDiscountLine = !!g.customer?.showDiscountLine;
-    const extraDiscountAmt = Number(extraDiscount)||0;
-    const listTot = showDiscountLine ? g.items.reduce((s,r)=>{
-      if(r.billingType==="monthly") return s+(r.amount||0);
-      const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,unitPrice:r.unitPrice,quantity:r.quantity}];
-      const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
-      return s+rLines.reduce((s2,ln)=>{
-        const prod=(products||[]).find(p=>p.id===ln.productId);
-        const lp=prod?prod.priceEx:(ln.unitPrice||0);
-        const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;
-        const days=hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
-        return s2+Math.round(lp*(ln.quantity||1)*days);
-      },0);
-    },0) : tot;
-    const totalDiscount = showDiscountLine ? (listTot - (equipTotG + insurTotG) + extraDiscountAmt) : 0;
-    const grandTot = showDiscountLine ? (tot + adjSum - extraDiscountAmt) : (tot + adjSum);
+    const grandTot = tot + adjSum;
     const taxAmt = Math.round(grandTot * 0.1);
     // 管理No：先頭案件のcreatedAtから生成
     const firstRec = g.items[0];
     const invNo = g.invNo || (g.month ? `${g.month}-???` : genDeliveryNo(firstRec,0));
-    const monthStr = g.month || "";
     const rawDate = g.issueDate||(()=>{
       const [y,m] = (monthStr).split("-").map(Number);
       if(y&&m){ const ld=new Date(y,m,0); return `${y}-${String(m).padStart(2,"0")}-${String(ld.getDate()).padStart(2,"0")}`; }
@@ -4119,31 +2273,26 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     })();
     const issueDateStr = rawDate ? (()=>{const d=new Date(rawDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;})() : "";
     // 担当者
-    const staff = g.customer?.staff || "井上 雄太";
+    const staff = g.customer?.staff || firstRec?.ourStaff || "井上 雄太";
     // 顧客住所
 
 
-    const invCustomerName = g.customer?.invoiceName || g.customerName || "";
-    const PAGE_WEIGHT_REST = 57;
-    const allInvRows = [];
-    const strWidth = str => [...(str||"")].reduce((w,c) => w+(c.match(/[^\x01-\x7E]/)?2:1),0);
-    const invHeaderHtml = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
-        <!-- 左: 顧客名・住所 -->
-        <div style="padding-bottom:6px">
-          <div style="font-size:14px;font-weight:bold;margin-bottom:6px">${g.customer?.invoiceName || g.customerName}　御中</div>
+    body += `<div style="padding:4px 38px;max-width:760px;margin:0 auto;font-size:10px">
+      <div style="text-align:center;font-size:14px;font-weight:bold;margin-bottom:14px">ご請求書</div>
+      <!-- grid 2列×2行（ヘッダー固定高さ：窓付き封筒対応） -->
+      <div style="display:grid;grid-template-columns:1fr auto;align-items:stretch;gap:4px 0;margin-bottom:8px">
+        <!-- 左上: 顧客名・住所 -->
+        <div style="grid-column:1;grid-row:1;padding-bottom:6px">
+          <div style="font-size:14px;font-weight:bold;margin-bottom:6px">${g.customerName}　御中</div>
           ${g.projectName?`<div style="font-size:12px;font-weight:bold;margin-bottom:4px">${g.projectName}</div>`:""}
           ${g.customer?.zipCode?`<div style="margin-bottom:1px">〒${g.customer.zipCode}</div>`:""}
           ${(g.customer?.address||"").split("\n").map(l=>`<div style="margin-bottom:1px">${l}</div>`).join("")}
-          ${g.customer?.contact?`<div style="margin-bottom:1px">${g.customer.contact}　様</div>`:""}
         </div>
-        <!-- 中央: タイトル -->
-        <div style="text-align:center;font-size:14px;font-weight:bold;padding:0 24px">ご請求書</div>
-        <!-- 右: 管理No〜MAIL -->
-        <div style="font-size:10px;line-height:1.9;white-space:nowrap;text-align:right;grid-row:1/3;display:flex;flex-direction:column;justify-content:space-between">
+        <!-- 右列（2行分）: 管理No〜MAIL -->
+        <div style="grid-column:2;grid-row:1/3;font-size:10px;line-height:1.9;white-space:nowrap;padding-left:16px;display:flex;flex-direction:column;justify-content:space-between">
           <div>
-            <div>管理No　<strong>${invNo}</strong></div>
-            <div>日付　${issueDateStr}</div>
-            ${(()=>{const ri=g.items.find(r=>r.issueReceipt&&r.receiptDate);if(!ri)return "";const rd=new Date(ri.receiptDate+"T00:00:00");const pm=ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット";return `<div style="color:#0369a1;font-weight:bold">${rd.getMonth()+1}月${rd.getDate()}日 領収済　${pm}</div>`;})()}
+            <div style="display:flex;gap:6px"><span style="min-width:52px">管理No</span><strong>${invNo}</strong></div>
+            <div style="display:flex;gap:6px"><span style="min-width:52px">日付</span><span>${issueDateStr}</span></div>
             <div style="margin-bottom:8px">登録番号 T5-0104-0109-2630</div>
             <div style="font-weight:bold;font-size:10px;margin-bottom:2px">オルク株式会社</div>
             <div style="position:relative">
@@ -4159,7 +2308,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </div>
         </div>
         <!-- 左下: 挨拶文・ご請求金額 -->
-        <div style="grid-column:1/3;grid-row:2;padding-top:0;display:flex;flex-direction:column;justify-content:flex-end;min-height:0">
+        <div style="grid-column:1;grid-row:2;padding-top:4em">
           <div style="font-size:10px;margin-bottom:4px">毎度ありがとうございます。下記の通りご請求申し上げます。</div>
           <div style="display:flex;align-items:baseline;gap:14px">
             <span style="font-size:12px;font-weight:bold">ご請求金額</span>
@@ -4167,164 +2316,53 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <span style="font-size:10px">（税込）</span>
           </div>
         </div>
-      </div>`;
-    const invTableHeadHtml = `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0"><thead><tr style="background:#f0f0f0"><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;white-space:nowrap">ご利用日</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:40px">日数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:70px">ご発注者</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">製品名</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:36px">台数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:72px">単価</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:80px">金額</th></tr></thead>`;
-    (()=>{const _bNo=dn=>(dn||"").replace(/E\d+.*$/,"");const chainEndMap={};g.items.forEach(r=>{const bk=_bNo(r.deliveryNo);if(!bk)return;const re=r.returnDate||r.endDate||"";if(!chainEndMap[bk]||re>chainEndMap[bk])chainEndMap[bk]=re;});const gKey=r=>{const bk=_bNo(r.deliveryNo);return(bk&&chainEndMap[bk])||(r.returnDate||r.endDate||"");};const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");buildChainBlocks(_sorted).forEach((block, _bi) => {
-  if (block.type === "chain") {
-    const { header: h, segments } = block;
-    const chainOrdener = segments[0].ordererName ? segments[0].ordererName+"　様" : "";
-    // 製品（productId）ごとのlegマップを構築
-    const legMap = {};
-    const legOrder = [];
-    segments.forEach(r => {
-      const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId,equipmentName:r.equipmentName,unitPrice:r.unitPrice,quantity:r.quantity,noBillingDiscount:r.noBillingDiscount}];
-      rLns.forEach(ln => {
-        const pid = ln.productId || ln.equipmentName || "";
-        if (!legMap[pid]) { legMap[pid]=[]; legOrder.push(pid); }
-        legMap[pid].push({record:r, line:ln});
+      </div>
+      <!-- 明細テーブル -->
+      <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0">
+        <thead>
+          <tr style="background:#f0f0f0">
+            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;white-space:nowrap">ご利用日</th>
+            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:40px">日数</th>
+            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:70px">ご発注者</th>
+            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center">製品名</th>
+            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:36px">台数</th>
+            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:72px">単価</th>
+            <th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:80px">金額</th>
+          </tr>
+        </thead>
+        <tbody>`;
+    g.items.forEach(r => {
+      const days = r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0);
+      const orderer = r.ordererName ? r.ordererName+"　様" : "";
+      const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
+      const lineCount = rLines.length;
+      rLines.forEach((ln,li)=>{
+        const lineAmt = ln.amount!==undefined ? ln.amount : Math.round((ln.unitPrice||0)*(ln.quantity||1)*(r.billingType==="monthly"?(r.months||1):(r.billingDays||r.days||1)));
+        const equipName = ln.equipmentName||r.equipmentName||"";
+        const nameExtra = li===0?(r.projectDetail?`<span style="color:#555;font-size:10px">　[${r.projectDetail}]</span>`:""):"";
+        body += `<tr>
+          ${li===0?`<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:top" rowspan="${lineCount}">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:top" rowspan="${lineCount}">${days}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:top" rowspan="${lineCount}">${orderer}</td>`:""}
+          <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
+          <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
+          <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(ln.unitPrice||r.unitPrice)}</td>
+          <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
+        </tr>`;
       });
     });
-    legOrder.forEach(pid => {
-      const legs = legMap[pid];
-      const firstLeg = legs[0];
-      const baseLn = firstLeg.line;
-      const _ceqName = baseLn.equipmentName || firstLeg.record.equipmentName || "";const _cProjInfo=g.projectName?(firstLeg.record.projectDetail||""):firstLeg.record.projectName?firstLeg.record.projectName+(firstLeg.record.projectDetail?`　${firstLeg.record.projectDetail}`:""):(firstLeg.record.projectDetail||"");const _ceqNameDisp=_ceqName+(_cProjInfo?`<span style="color:#555;font-size:10px">　[${_cProjInfo}]</span>`:"");
-      const _cqty = baseLn.quantity || 1;
-      const _cprod2 = showDiscountLine ? (products||[]).find(p=>p.id===baseLn.productId) : null;
-      const _clistPrice2 = _cprod2 ? _cprod2.priceEx : (baseLn.unitPrice||0);
-      const _cprice = fn(showDiscountLine ? _clistPrice2 : (baseLn.unitPrice||0));
-      const _hasNoDisc = !!(baseLn.noBillingDiscount || (products||[]).find(p=>p.id===baseLn.productId)?.noBillingDiscount);
-      // ガード(b): 台数・単価がlegで異なる場合はsingle扱い
-      const allSame = legs.every(leg=>(leg.line.quantity||1)===_cqty&&(leg.line.unitPrice||0)===(baseLn.unitPrice||0));
-      const hasMainRecord=legs.some(({record:r})=>!r.isExtension);
-      if (legs.length===1 || !allSame || !hasMainRecord) {
-        // single扱い
-        legs.forEach(({record:r, line:ln}) => {
-          const lineEndDate=ln.returnDate||r.endDate;
-          const prod=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
-          const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
-          const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:(ln.unitPrice||0);
-          const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
-          const useDaysSgl=r.billingType==="monthly"?(r.months||1):(noDisc?(r.days||1):(r.billingDays||r.days||1));
-          const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysSgl):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysSgl);
-          const equipName=ln.equipmentName||r.equipmentName||"";
-          const _csProjInfo=g.projectName?(r.projectDetail||""):r.projectName?r.projectName+(r.projectDetail?`　${r.projectDetail}`:""):(r.projectDetail||"");
-          const _csNameExtra=_csProjInfo?`<span style="color:#555;font-size:10px">　[${_csProjInfo}]</span>`:"";
-          const _dd=!noDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);
-          const _ddDays=_dd?r.billingDays:(r.days||0);
-          const _ddSub=_dd?`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`:"";
-          allInvRows.push({html:`<tr>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}<div style="font-size:7px;color:#555">${r.isExtension?"└ご延長":"└ご注文"}</div></td>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${equipName}${_csNameExtra}</td>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${ln.quantity||1}</td>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(dispPrice)}</td>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(lineAmt)}</td>
-          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));const base=sw>=150?4:sw>=100?3:sw>=50?2:1;return base+1+(r.ecOrderNo?1:0);})()});
-        });
-      } else {
-        // chainブロック（leg>=2かつ台数・単価一致）
-        const _legRspan = legs.length + 1;
-        // ガード(a): 金額・日数はlegの保存値を合算（calcBillingDaysで再計算しない）
-        let _clineTotal=0, _legCalDays=0, _legBillDays=0;
-        legs.forEach(({record:r, line:ln}) => {
-          const prod3=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
-          const lp=prod3?prod3.priceEx:(ln.unitPrice||0);
-          const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
-          const lineEnd=ln.returnDate||r.endDate;
-          const cbd=noDisc?0:(chainBillingDays(r,allRecords||g.items,lineEnd)||calcBillingDays(r.days||0));
-          const useDays=noDisc?(r.days||1):(cbd||r.days||1);
-          _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*useDays):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDays);
-          _legCalDays+=(r.days||0);
-          _legBillDays+=noDisc?(r.days||0):cbd;
-        });
-        const _legStart=legs[0].record.startDate||"";
-        const _legEnd=legs[legs.length-1].record.returnDate||legs[legs.length-1].record.endDate||"";
-        const _noValueDisc=_hasNoDisc||_legBillDays>=_legCalDays;
-        const _chainBillDisp=_noValueDisc?_legCalDays:_legBillDays;
-        const _chainDateSub=_noValueDisc?``:`<div style="font-size:8px;color:#555;margin-top:1px">合計${_legCalDays}日間 → 日数値引</div>`;
-        const _csegRows=legs.map(({record:r},si)=>{
-          const _se=r.returnDate||r.endDate;
-          const _sl=r.isExtension?"ご延長":"ご注文";
-          const _isLast=si===legs.length-1;
-          return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:7px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
-        }).join("");
-        const _hasEc=!!(firstLeg.record.ecOrderNo);const _csw=strWidth(_ceqName);const _cweight=legs.length+(_csw>=150?4:_csw>=100?3:_csw>=50?2:1)+(_noValueDisc?0:1)+(_hasEc?1:0);
-        allInvRows.push({html:`<tr>
-          <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${firstLeg.record.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${firstLeg.record.ecOrderNo}</div>`:""}${_chainDateSub}</td>
-          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
-          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
-          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ceqNameDisp}</td>
-          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_cqty}</td>
-          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${_cprice}</td>
-          <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(_clineTotal)}</td>
-        </tr>${_csegRows}`, weight:_cweight});
-      }
-    });
-    segments.filter(r=>(r.insuranceAmount||0)>0).forEach(r=>{
-      allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
-    });
-  } else {
-    const r = block.record;
-    const _ri = _sorted.indexOf(r);
-    const orderer = r.ordererName ? r.ordererName+"　様" : "";
-    const rLines = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName,quantity:r.quantity,unitPrice:r.unitPrice,amount:r.amount,lineNote:r.lineNote||""}];
-    const hasPerLineDate=rLines.some(ln=>ln.returnDate&&ln.returnDate!==r.endDate);
-    const hasNoBilling=rLines.some(ln=>ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);
-    const days = r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.days||0);
-    const lineCount = rLines.length;
-    rLines.forEach((ln,li)=>{
-      const lineEndDate=ln.returnDate||r.endDate;
-      const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
-      const listPrice = prod ? prod.priceEx : (ln.unitPrice||0);
-      const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:r.billingType==="monthly"?Math.round((ln.amount||0)/(ln.quantity||1)):(ln.unitPrice||r.unitPrice);
-      const useDaysForLinePdf=ln.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
-      const lineDaysPdf=ln.isFee?"手数料及び販売":r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():(r.days||0));
-      const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLinePdf):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLinePdf);
-      const equipName = ln.equipmentName||r.equipmentName||"";
-      const projInfo = g.projectName ? (r.projectDetail||"") : r.projectName
-        ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
-        : (r.projectDetail || "");
-      const nameExtra = projInfo ? `<span style="color:#555;font-size:10px">　[${projInfo}]</span>` : "";
-      allInvRows.push({html:`<tr>
-        ${ln.isFee
-          ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
-          : hasPerLineDate
-            ? `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${lineDaysPdf}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
-            : (()=>{const _dd=!hasNoBilling&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);const _ddDays=_dd?r.billingDays:days;const _ddSub=_dd?`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`:"";return `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`;})()}
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
-      </tr>`, weight: (()=>{const sw=strWidth(equipName+(projInfo?`　[${projInfo}]`:""));const base=sw>=150?4:sw>=100?3:sw>=50?2:1;const dd=!hasPerLineDate&&!hasNoBilling&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);return((r.billingType==="monthly"||r.ecOrderNo)?Math.max(2,base):base)+(dd?1:0);})()});
-    });
-    if((r.insuranceAmount||0)>0){
-      allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
+    // 補償料行
+    if(totIns>0){
+      body += `<tr style="background:#fff7ed">
+        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e">補償料（機材合計の10%）</td>
+        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e;font-weight:bold">${fn(totIns)}</td>
+      </tr>`;
     }
-    if(_hasBoth&&_ri===_lastMIdx){allInvRows.push({html:`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`, weight:1});}
-  }
-});})();
-    gIncidentsPdf.forEach(inc=>{
-      allInvRows.push({html:`<tr>
-        <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理/破損"}</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle"></td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.item_name}</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${inc.quantity||1}</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.unit_price||inc.charge_amount)}</td>
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(inc.charge_amount)}</td>
-      </tr>`, weight:1});
-    });
     // 調整行
     adjustments.filter(a=>a.label||a.amount).forEach(a=>{
-      allInvRows.push({html:`<tr>
-        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">${a.label||"調整"}</td>
-        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(Number(a.amount)||0)}</td>
-      </tr>`, weight:1});
+      body += `<tr style="background:#fefce8">
+        <td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e">${a.label||"調整"}</td>
+        <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold;color:${Number(a.amount)<0?"#dc2626":"#16a34a"}">${fn(Number(a.amount)||0)}</td>
+      </tr>`;
     });
-    if(showDiscountLine && totalDiscount > 0){
-      allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">お値引き</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:bold">▲${fn(totalDiscount)}</td></tr>`, weight:1});
-    }
     const pcH = g.customer?.paymentCycle||"";
     const [myH,mmH] = (g.month||"").split("-").map(Number);
     let dueStrH = "";
@@ -4338,7 +2376,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     }
     const dueHtml = dueStrH ? `<div>お支払い期日：<span style="color:#c00;font-weight:bold">${dueStrH}</span></div>` : "";
     const pcHtml = pcH&&pcH!=="スクエア"&&pcH!=="その他" ? `<div>お支払い条件：${pcH}</div>` : "";
-    const invFooterHtml = `<tbody style="break-inside:avoid;page-break-inside:avoid">
+    body += `</tbody>
+        <tfoot>
           <tr>
             <td colspan="4" rowspan="3" style="border:1px solid #aaa;padding:6px 10px;vertical-align:middle;font-size:8px;line-height:1.8;text-align:center">
               <div style="display:inline-flex;gap:24px;text-align:left">
@@ -4365,231 +2404,116 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <td colspan="2" style="border:1px solid #aaa;padding:3px 6px;text-align:center">税込合計</td>
             <td style="border:1px solid #aaa;padding:3px 6px;text-align:center">${fn(grandTot+taxAmt)}</td>
           </tr>
-        </tbody>`;
-    const invQrHtml = `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://rental.olq.co.jp&ecc=H&color=444444&qzone=2" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>`;
-    const buildInvPages=(w1,wRest)=>{
-      const pages=[];let current=[],currentW=0,isFirst=true;
-      for(const row of allInvRows){
-        const limit=isFirst?w1:wRest;
-        if(currentW+row.weight>limit&&current.length>0){
-          pages.push(current);current=[row];currentW=row.weight;isFirst=false;
-        }else{current.push(row);currentW+=row.weight;}
-      }
-      if(current.length>0)pages.push(current);
-      if(pages.length===0)pages.push([]);
-      return pages;
-    };
-    let invPages=buildInvPages(40,PAGE_WEIGHT_REST);
-    if(invPages.length===1)invPages=buildInvPages(40,PAGE_WEIGHT_REST);
-    const totalInvPages=invPages.length;
-    invPages.forEach((pageRows,pageIdx)=>{
-      const isFirstPage=pageIdx===0;
-      const isLastPage=pageIdx===totalInvPages-1;
-      const pageNo=pageIdx+1;
-      body+=`<div class="${isLastPage?"pb-last":"pb"}" style="padding:${isFirstPage?"0px":"20px"} 34px 28px 34px;position:relative;font-size:10px">`;
-      if(isFirstPage){
-        body+=invHeaderHtml;
-      } else {
-        body+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999"><div style="font-size:11px;font-weight:bold">${invCustomerName}　御中　ご請求書（続き）</div><div style="font-size:9px;color:#666">管理No：${invNo}　${pageNo}/${totalInvPages}ページ</div></div>`;
-      }
-      body+=invTableHeadHtml+`<tbody>`+pageRows.map(r=>r.html).join("")+`</tbody>`;
-      if(isLastPage){
-        body+=invFooterHtml+`</table>`+invQrHtml;
-      } else {
-        body+=`</table><div style="text-align:right;font-size:9px;color:#666;margin-top:4px">${pageNo}/${totalInvPages}ページ</div>`;
-      }
-      body+=`</div>`;
-    });
+        </tfoot>
+      </table>
+    </div>`;
   } else {
     // 納品書HTML（各案件 → 納品書1ページ + 控え1ページ）
     g.items.forEach((r, idx) => {
       const no = genDeliveryNo(r, idx);
-      const lines = (r.lines && r.lines.length) ? r.lines.map(ln=>({...ln,unitPrice:Number(ln.unitPrice)||0,quantity:Number(ln.quantity)||1})) : [{equipmentName:r.equipmentName,equipNo:r.equipNo,unitPrice:Number(r.unitPrice)||0,quantity:Number(r.quantity)||1,lineNote:r.lineNote||"",subItems:r.subItems||[]}];
+      const lines = (r.lines && r.lines.length) ? r.lines : [{equipmentName:r.equipmentName,equipNo:r.equipNo,unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[]}];
       const projText = r.projectName || g.projectName || "";
-      const projDisplay = projText ? `${projText}${r.projectDetail ? `　${r.projectDetail}` : ""}` : "";
       const orderer = r.ordererName || g.customer?.contact || "";
       const honorific = orderer ? "　様" : "";
       const staff = r.ourStaff || "―";
 
-      const olqBlock = `<div class="olq" style="position:relative"><div style="font-weight:bold;font-size:12px">オルク株式会社</div>
-        <div>担当　${staff}</div><div>〒105-0004</div>
+      const olqBlock = `<div class="olq"><div style="font-weight:bold;font-size:12px">オルク株式会社</div>
+        <div>担当　<strong>${staff}</strong></div><div>〒105-0004</div>
         <div>東京都港区新橋6-10-2</div><div>第二新洋ビル 1F</div>
-        <div>TEL: 03-5777-1100</div><div>MAIL: rental@olq.co.jp</div>
-        </div>`;
-
-      // 納品書控（社内用）
-      { // ページ分割スコープ
-        const ROWS_PER_PAGE_C = 32; // 1ページ目
-        const ROWS_PER_PAGE_C_REST = 40; // 2ページ目以降
-        const allRowsC = [];
-        lines.forEach(ln => {
-          allRowsC.push({type:'main', ln});
-          (ln.expandRows?(ln.subItems||[]):[]).forEach(si => allRowsC.push({type:'sub', ln, si}));
-        });
-        if((r.insuranceAmount||0)>0) allRowsC.push({type:'insurance'});
-        const pagesC = [];
-        { let remaining = [...allRowsC]; let isFirst = true;
-          while(remaining.length > 0){ const limit = isFirst ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST; pagesC.push(remaining.slice(0,limit)); remaining = remaining.slice(limit); isFirst = false; }
-          if(pagesC.length===0) pagesC.push([]);
-        }
-        const totalPagesC = pagesC.length;
-        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
-        pagesC.forEach((pageRows, pageIdx) => {
-          const isFirstPage = pageIdx === 0;
-          const pageNo = pageIdx + 1;
-          const topPad = isFirstPage ? '5px' : '20px';
-          body += `<div class="pb" style="padding:${topPad} 19px 30px 56px;position:relative;width:794px;box-sizing:border-box">`;
-          if(isFirstPage){
-            body += `<div style="position:relative">
-              <div class="title" style="letter-spacing:4px">納品書控</div>
-              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
-            </div>
-            <div class="hdr"><div>
-              <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
-              ${projDisplay?`<div style="margin-top:4px"><strong>『${projDisplay}』</strong></div>`:""}
-              ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
-              ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
-              <div style="display:flex;gap:14px;margin-top:12px">
-                <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">納品確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
-                <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">返却確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
-              </div>
-            </div>${olqBlock}</div>`;
-          } else {
-            body += `<div style="position:relative;margin-bottom:14px">
-              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center;margin-bottom:10px">納品書控　${pageNo}/${totalPagesC}</div>
-              <div style="text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
-            </div>`;
-          }
-          body += `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:339px"><col style="width:36px"><col style="width:56px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col></colgroup><thead><tr><th>機材名</th><th>No</th><th>単価</th><th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
-          let rowNumC = pagesC.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
-          pageRows.forEach(row => {
-            rowNumC++;
-            if(row.type==='main'){
-              const ln=row.ln;
-              body += `<tr><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:9px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
-            } else if(row.type==='sub'){
-              const ln=row.ln; const si=row.si;
-              body += `<tr class="sub-row"><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px;padding-left:5px">${si.note||""}</td></tr>`;
-            } else if(row.type==='insurance'){
-              body += `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
-            }
-          });
-          const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
-          const emptyCountC = pageLimitC - pageRows.length;
-          for(let i=0; i<emptyCountC; i++) body += `<tr class="empty">${emptyColsC}</tr>`;
-          body += `</tbody></table>`;
-          if(pageNo===totalPagesC){
-            body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>`;
-          }
-          if(!isFirstPage){
-            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPagesC}</div>`;
-          }
-          body += `</div>`;
-        });
-      }
+        <div>TEL: 03-5777-1100</div><div>FAX: 03-5777-1101</div></div>`;
 
       // 納品書（お客様用）
       const showDPrice = !!g.customer?.showDeliveryPrice;
-      { // ページ分割スコープ
-        const ROWS_PER_PAGE = 32; // 1ページ目
-        const ROWS_PER_PAGE_REST = 40; // 2ページ目以降
-        const allRows = [];
-        lines.forEach(ln => {
-          allRows.push({type:'main', ln});
-          (ln.expandRows?(ln.subItems||[]):[]).forEach(si => allRows.push({type:'sub', ln, si}));
+      body += `<div class="pb" style="padding:30px 34px">
+        <div style="display:flex;justify-content:space-between"><div class="title">納 品 書</div>
+          <div class="olq"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div></div>
+        <div class="hdr"><div>
+          <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
+          ${projText?`<div style="margin-top:4px">『${projText}』</div>`:""}
+          ${orderer?`${orderer?`<div style="margin-top:3px">${orderer}　様</div>`:""}`:""}
+          ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
+        </div>${olqBlock}</div>
+        <div style="font-size:10px;color:#444;margin-bottom:10px">毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>
+        <table><thead><tr><th style="width:30px">No.</th><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}
+          <th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
+      let rowN = 0;
+      lines.forEach(ln => { rowN++;
+        body += `<tr><td class="c">${rowN}</td><td>${ln.equipmentName||""}</td>${showDPrice?`<td class="r">${fm(ln.unitPrice||0)}</td>`:""}<td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+        (ln.subItems||[]).forEach(si => { rowN++;
+          body += `<tr class="sub-row"><td></td><td style="padding-left:16px">└ No.${si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
         });
-        if((r.insuranceAmount||0)>0) allRows.push({type:'insurance'});
-        const pages = [];
-        { let remaining = [...allRows]; let isFirst = true;
-          while(remaining.length > 0){ const limit = isFirst ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST; pages.push(remaining.slice(0,limit)); remaining = remaining.slice(limit); isFirst = false; }
-          if(pages.length===0) pages.push([]);
-        }
-        const totalPages = pages.length;
-        const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
-        pages.forEach((pageRows, pageIdx) => {
-          const isFirstPage = pageIdx === 0;
-          const pageNo = pageIdx + 1;
-          body += `<div class="pb" style="padding:30px 34px;position:relative">`;
-          if(isFirstPage){
-            body += `<div style="position:relative">
-              <div class="title">納 品 書</div>
-              ${r.isExtension?`<div style="font-size:11px;color:#2563eb;font-weight:700;text-align:center;margin-top:2px">${r.extendedFromNo?"元伝票No."+r.extendedFromNo+" ":""}ご延長分</div>`:""}
-              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
-            </div>
-            <div class="hdr"><div>
-              <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
-              ${projDisplay?`<div style="margin-top:4px"><strong>『${projDisplay}』</strong></div>`:""}
-              ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
-              ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
-            </div>${olqBlock}</div>
-            <div style="font-size:10px;color:#444;margin-bottom:10px">毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>`;
-          } else {
-            body += `<div style="position:relative;margin-bottom:10px">
-              <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納 品 書　${pageNo}/${totalPages}</div>
-              <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
-            </div>`;
-          }
-          body += `<table><thead><tr><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}<th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
-          let rowNum = pages.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
-          pageRows.forEach(row => {
-            rowNum++;
-            if(row.type==='main'){
-              const ln=row.ln;
-              body += `<tr><td>${ln.equipmentName||""}</td>${showDPrice?`<td class="r">${fm(ln.unitPrice||0)}</td>`:""}<td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:9px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
-            } else if(row.type==='sub'){
-              body += `<tr class="sub-row"><td style="padding-left:16px">└ No.${row.si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px;padding-left:5px">${row.si.note||""}</td></tr>`;
-            } else if(row.type==='insurance'){
-              body += showDPrice
-                ? `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td></tr>`
-                : `<tr><td>補償料</td><td></td><td></td><td></td><td></td></tr>`;
-            }
-          });
-          const pageLimit = isFirstPage ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST;
-          const emptyCount = pageLimit - pageRows.length;
-          for(let i=0; i<emptyCount; i++) body += `<tr class="empty">${emptyCols}</tr>`;
-          body += `</tbody></table>`;
-          if(pageNo===totalPages){
-            body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
-              <div class="note"><div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div></div>
-              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://rental.olq.co.jp&ecc=H&color=444444&qzone=2" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>`;
-          }
-          if(!isFirstPage){
-            body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPages}</div>`;
-          }
-          body += `</div>`;
+      });
+      const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
+      for (let i = rowN; i < 20; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${i+1}</td>${emptyCols}</tr>`;
+      body += `</tbody></table>
+        <table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
+        <div class="note">
+          <div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div>
+        </div></div>`;
+
+      // 納品書控（社内用）
+      body += `<div class="pb" style="padding:30px 34px">
+        <div style="display:flex;justify-content:space-between"><div class="title" style="letter-spacing:4px">納品書控</div>
+          <div class="olq"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.startDate)}</div></div></div>
+        <div class="hdr"><div>
+          <div class="cust-name">${g.customer?.invoiceName||g.customerName}　${orderer?"御中":"様"}</div>
+          ${projText?`<div style="margin-top:4px">『${projText}』</div>`:""}
+          ${orderer?`<div style="margin-top:3px">${orderer}　様</div>`:""}
+          ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
+          <div style="display:flex;gap:14px;margin-top:12px">
+            <div class="sign-box"><div class="sign-label">納品確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:32px"></div></div>
+            <div class="sign-box"><div class="sign-label">返却確認</div><div class="sign-date">Date　　　　／</div><div style="min-height:32px"></div></div>
+          </div>
+        </div>${olqBlock}</div>
+        <table style="margin-top:10px"><thead><tr><th style="width:30px">No.</th><th>機材名</th><th style="width:36px">No</th><th style="width:54px">単価</th><th style="width:36px">数量</th><th style="width:72px">開始日</th><th style="width:72px">終了日</th><th>備考</th></tr></thead><tbody>`;
+      rowN = 0;
+      lines.forEach(ln => { rowN++;
+        body += `<tr><td class="c">${rowN}</td><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:10px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+        (ln.subItems||[]).forEach(si => { rowN++;
+          body += `<tr class="sub-row"><td></td><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px">${si.note||""}</td></tr>`;
         });
-      }
+      });
+      for (let i = rowN; i < 20; i++) body += `<tr class="empty"><td class="c" style="color:#ccc">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+      body += `</tbody></table>
+        <table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table></div>`;
 
       // 領収証ページ（delivery-receipt かつ issueReceipt=true の案件のみ）
       if (type === "delivery-receipt" && r.issueReceipt) {
         const rIdx = g.items.indexOf(r);
         const receiptNo = genDeliveryNo(r, rIdx);
-        const receiptDateStr = r.receiptDate || fd(r.startDate);
-        const payLabel = r.paymentMethod === "cash" ? "現金" : r.paymentMethod === "square" ? "スクエア クレジット" : "ECクレジット";
-        const receiptName = r.receiptNameCustom && r.receiptNameOverride ? r.receiptNameOverride : (g.customer?.invoiceName || g.customerName);
-        const honorific = r.receiptNameCustom && r.receiptNameOverride ? (r.receiptHonorific || '様') : ((receiptName.includes('株式会社') || receiptName.includes('有限会社') || receiptName.includes('合同会社')) ? '御中' : '様');
-        const equipAmt = r.amount || 0;
-        const insurAmt = r.insuranceAmount || 0;
-        const subTot = equipAmt + insurAmt;
-        const tax = Math.round(subTot * 0.1);
-        const grandTot = subTot + tax;
+        const receiptDateStr = r.receiptDate ? new Date(r.receiptDate).toLocaleDateString("ja-JP") : fd(r.startDate);
+        const payLabel = r.paymentMethod === "cash" ? "現金" : "クレジット　スクエア";
+        const receiptName = r.ordererName || g.customer?.contact || g.customer?.invoiceName || g.customerName;
+        const subTot = Math.round(r.amount / 1.1);
+        const tax = r.amount - subTot;
 
-        body += `<div class="pb" style="padding:80px 34px 48px 34px">
-          <div style="position:relative">
+        body += `<div class="pb" style="padding:36px 40px;font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#111">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
             <div class="title" style="letter-spacing:8px">領 収 証</div>
-            <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>領収証No.　<strong>${receiptNo}</strong></div><div>登録番号　T5-0104-0109-2630</div><div>領収日　${receiptDateStr}</div></div>
+            <div style="text-align:right;font-size:10px;line-height:2">
+              <div>領収証No.　<strong style="font-size:12px">${receiptNo}</strong></div>
+              <div>登録番号　T5-0104-0109-2630</div>
+              <div>領収日　${receiptDateStr}</div>
+              <div style="font-weight:700;font-size:11px;margin-top:4px">オルク株式会社</div>
+              <div style="position:relative;display:inline-block;text-align:right">
+                <div>〒105-0004</div>
+                <div>東京都港区新橋6-10-2</div>
+                <div>第二新洋ビル 1F</div>
+                <div>TEL：03-5777-1100</div>
+                <div>FAX：03-5777-1101</div>
+                <img src="data:image/png;base64,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" style="position:absolute;top:-8px;right:-6px;width:62px;height:62px;opacity:.9;pointer-events:none"/>
+              </div>
+            </div>
           </div>
-          <div class="hdr" style="position:relative"><div>
-            <div class="cust-name">${receiptName}　${honorific}</div>
-          </div>${olqBlock}<img src="data:image/png;base64,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" style="position:absolute;top:-8px;right:-6px;width:62px;height:62px;opacity:.9;pointer-events:none"/></div>
-          <div style="margin-bottom:6px;font-size:11px">
+          <div style="font-size:18px;font-weight:700;border-bottom:2px solid #111;padding-bottom:4px;display:inline-block;min-width:240px;margin-bottom:16px">${receiptName}　様</div>
+          <div style="margin-bottom:8px;font-size:13px">
             <span style="margin-right:16px">合計金額</span>
-            <span style="font-size:20px;font-weight:900;border-bottom:2px solid #111;padding:0 14px">${fm(grandTot)}</span>
-            <span style="font-size:11px;margin-left:8px">（税込）</span>
+            <span style="font-size:28px;font-weight:900;border-bottom:2px solid #111;padding:0 20px">${fm(r.amount)}</span>
+            <span style="font-size:13px;margin-left:8px">（税込）</span>
           </div>
-          <div style="margin-bottom:6px;font-size:11px">上記、正に領収いたしました。</div>
-          <div style="font-size:11px;margin-bottom:8px;border:1px solid #ddd;border-radius:4px;padding:6px 10px;background:#f9f9f9">
-            但書き　${r.receiptNote || `機材レンタル代として　［${payLabel}］`}
+          <div style="margin-bottom:12px;font-size:12px">上記、正に領収いたしました。</div>
+          <div style="font-size:11px;margin-bottom:16px;border:1px solid #ddd;border-radius:4px;padding:8px 12px;background:#f9f9f9">
+            但書き　機材レンタル代として　［${payLabel}］
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0">
             <thead>
@@ -4617,9 +2541,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
                   <td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(lineAmt)}</td>
                 </tr>`;
               }).join("")}
-              ${(r.insuranceAmount||0)>0?`<tr>
-                <td colspan="5" style="border:1px solid #aaa;padding:4px 8px;text-align:right">補償料</td>
-                <td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fm(r.insuranceAmount)}</td>
+              ${(r.insuranceAmount||0)>0?`<tr style="background:#fff7ed">
+                <td colspan="5" style="border:1px solid #aaa;padding:4px 8px;text-align:right;color:#92400e;font-weight:700">補償料（機材合計の10%）</td>
+                <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;color:#92400e;font-weight:700">${fm(r.insuranceAmount)}</td>
               </tr>`:""}
             </tbody>
             <tfoot>
@@ -4631,13 +2555,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
                 <td colspan="5" style="border:1px solid #aaa;padding:4px 8px;text-align:right">消費税 [10%]</td>
                 <td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fm(tax)}</td>
               </tr>
-              <tr style="background:#f0f0f0">
-                <td colspan="5" style="border:1px solid #aaa;padding:4px 8px;text-align:right;font-weight:900;font-size:11px">税込合計</td>
-                <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:900;font-size:11px">${fm(grandTot)}</td>
+              <tr style="background:#fff7e6">
+                <td colspan="5" style="border:1px solid #aaa;padding:4px 8px;text-align:right;font-weight:900;font-size:12px">税込合計</td>
+                <td style="border:1px solid #aaa;padding:4px 6px;text-align:right;font-weight:900;font-size:12px">${fm(r.amount)}</td>
               </tr>
             </tfoot>
           </table>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://rental.olq.co.jp&ecc=H&color=444444&qzone=2" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>
 
         </div>`;
       }
@@ -4654,52 +2577,38 @@ ${css}
   <button onclick="window.close()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer">✕ 閉じる</button>
 </div>
 <div style="margin-top:52px">${body}</div>
-<script>
-${type==="invoice"?``:""}
-</script>
 </body></html>`;
-  const newTab = window.open('', '_blank');
-  newTab.document.write(fullHTML);
-  newTab.document.close();
+  // アーティファクト環境ではwindow.openがブロックされるため、aタグDLで対応
+  const blob = new Blob([fullHTML], {type:"text/html;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${title}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 // =========================================================
 // DeliveryTab（納品書タブ）
 // =========================================================
-function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, autoOpenRecord, onClearAutoOpen}){
-  const [fil, setFil] = useState({q:"", cid:"", month:new Date().toISOString().slice(0,7)});
-  const [extModal, setExtModal] = useState(null);
-  const [expandedDates, setExpandedDates] = useState({});
-  const prevDay = dateStr => {
-    if (!dateStr) return "";
-    const d = new Date(dateStr + 'T00:00:00');
-    d.setDate(d.getDate() - 1);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  };
-
-  useEffect(()=>{
-    if(autoOpenRecord){
-      const r=records.find(x=>x.id===autoOpenRecord);
-      if(r){ const g=makeGroup(r); downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g); }
-      onClearAutoOpen&&onClearAutoOpen();
-    }
-  },[autoOpenRecord]);
+function DeliveryTab({records, customers, groups, showToast, globalQ}){
+  const [fil, setFil] = useState({q:"", cid:"", month:""});
+  const [preview, setPreview] = useState(null); // {type, g}
 
   const mnths=[...new Set(records.map(r=>r.startDate?.slice(0,7)))].filter(Boolean).sort().reverse();
 
   // 案件ごとに単独グループを作成してdownloadに渡す
   const makeGroup = (r) => {
     const c = customers.find(x=>x.id===r.customerId);
-    const lns = (r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName||"",unitPrice:r.unitPrice,quantity:r.quantity,subItems:r.subItems||[]}];
-    const equipName = lns.map(ln=>ln.equipmentName).filter(Boolean).join("、");
-    const rWithEquip = {...r, equipmentName: r.equipmentName||equipName};
     return {
       customerId: r.customerId,
       customer: c||null,
       customerName: c?.name||"不明",
       projectName: r.projectName||"",
       month: r.startDate?.slice(0,7)||"",
-      items: [rWithEquip],
+      items: [r],
       split: true,
       consolidate: false,
     };
@@ -4714,6 +2623,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
     return matchQ&&matchGQ&&(!fil.cid||r.customerId===fil.cid)&&(!fil.month||r.startDate?.startsWith(fil.month));
   });
 
+  const previewG = preview ? makeGroup(preview.r) : null;
 
   return(
     <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
@@ -4723,7 +2633,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
           <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
             <div style={{flex:1,minWidth:180,position:"relative"}}>
               <div style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",opacity:.4}}><Ico d={I.search} size={13}/></div>
-              <input value={fil.q} onChange={e=>setFil(f=>({...f,q:e.target.value}))} placeholder="会社・製品・案件名・納品書No.で検索..." style={{...S.inp,paddingLeft:28}}/>
+              <input value={fil.q} onChange={e=>setFil(f=>({...f,q:e.target.value}))} placeholder="会社・製品・案件名で検索..." style={{...S.inp,paddingLeft:28}}/>
             </div>
             <select value={fil.cid} onChange={e=>setFil(f=>({...f,cid:e.target.value}))} style={{...S.inp,width:170}}>
               <option value="">全顧客</option>
@@ -4734,157 +2644,61 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
               {mnths.map(m=><option key={m}>{m}</option>)}
             </select>
           </div>
-          <div>
-            {filtered.length===0
-              ?<div style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません</div>
-              :(()=>{
-                const dateGroups={};
-                filtered.forEach(r=>{const key=prevDay(r.startDate);if(!dateGroups[key])dateGroups[key]=[];dateGroups[key].push(r);});
-                const sortedDates=Object.keys(dateGroups).sort().reverse();
-                return sortedDates.map(dateKey=>{
-                  const recs=dateGroups[dateKey];
-                  const isOpen=!!expandedDates[dateKey];
-                  const dayTotal=recs.reduce((s,r)=>s+(r.amount||0),0);
-                  const [,dm,dd]=dateKey.split("-");
-                  const dateLabel=`${Number(dm)}/${Number(dd)}`;
-                  return(
-                    <div key={dateKey} style={{borderBottom:"1px solid #e2e8f0"}}>
-                      <div onClick={()=>setExpandedDates(p=>({...p,[dateKey]:!p[dateKey]}))}
-                        style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",cursor:"pointer",background:isOpen?"#f0fdf4":"#f8fafc",userSelect:"none"}}>
-                        <span style={{fontSize:13,fontWeight:700,color:"#0f172a",minWidth:48}}>{isOpen?"▼":"▶"} {dateLabel}</span>
-                        <span style={{fontSize:11,color:"#64748b"}}>{recs.length}件</span>
-                        <span style={{fontSize:12,fontWeight:700,color:"#16a34a",marginLeft:"auto"}}>{fmt(dayTotal)}</span>
-                      </div>
-                      {isOpen&&(
-                        <div style={{overflowX:"auto"}}>
-                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
-                            <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
-                              {["No.","顧客","案件名","機材","利用期間","金額(税抜)",""].map(h=>(
-                                <th key={h} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#475569",whiteSpace:"nowrap"}}>{h}</th>
-                              ))}
-                            </tr></thead>
-                            <tbody>
-                              {recs.map((r,i)=>{
-                                const c=customers.find(x=>x.id===r.customerId);
-                                const g=makeGroup(r);
-                                return(
-                                  <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:i%2?"#fcfcfc":"#fff",cursor:"pointer"}}
-                                    onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)}>
-                                    <td style={{padding:"8px 12px",fontSize:11,color:"#94a3b8",whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
-                                    <td style={{padding:"8px 12px",fontWeight:600}}>{c?.name||"―"}</td>
-                                    <td style={{padding:"8px 12px",fontSize:11,color:"#64748b"}}>
-                                      {r.projectName||"―"}
-                                      {r.ecOrderNo&&<span style={{marginLeft:6,fontSize:10,color:"#0369a1"}}>EC:{r.ecOrderNo}</span>}
-                                    </td>
-                                    <td style={{padding:"8px 12px",fontSize:11}}>{r.equipmentName}</td>
-                                    <td style={{padding:"8px 12px",fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
-                                    <td style={{padding:"8px 12px",fontWeight:700,color:"#16a34a"}}>{fmt(r.amount)}</td>
-                                    <td style={{padding:"8px 12px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
-                                      {!r.isExtension&&!(records||[]).some(x=>x.extendedFromNo===r.deliveryNo&&r.deliveryNo)&&(
-                                      <button onClick={()=>{
-                                        const rLns=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
-                                        const units=[];
-                                        rLns.forEach((ln,lineIdx)=>{
-                                          const qty=Number(ln.quantity)||1;
-                                          if(ln.subItems&&ln.subItems.length>0){
-                                            ln.subItems.forEach((si,siIdx)=>units.push({lineIdx,siIdx,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:si.no,note:si.note||"",originalLine:ln}));
-                                          } else {
-                                            for(let i=0;i<qty;i++) units.push({lineIdx,siIdx:i,equipmentName:ln.equipmentName,unitPrice:ln.unitPrice,no:i+1,note:"",originalLine:ln});
-                                          }
-                                        });
-                                        setExtModal({record:r,units,selected:Object.fromEntries(units.map((_,i)=>[i,true]))});
-                                      }} style={{...S.ib("#0369a1"),fontSize:11,marginRight:4}}>🔄 延長</button>
-                                      )}
-                                      <button onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)} style={{...S.ib("#16a34a"),fontSize:11}}>
-                                        <Ico d={I.file} size={11}/>{r.issueReceipt?"納品書・領収証":"納品書"}
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  );
-                });
-              })()
-            }
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
+              <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
+                {["顧客","案件名","機材","利用期間","金額(税抜)",""].map(h=>(
+                  <th key={h} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#475569",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {filtered.length===0
+                  ?<tr><td colSpan={6} style={{padding:48,textAlign:"center",color:"#94a3b8"}}>案件がありません</td></tr>
+                  :filtered.map((r,i)=>{
+                    const c=customers.find(x=>x.id===r.customerId);
+                    const isActive=preview?.r?.id===r.id;
+                    const g=makeGroup(r);
+                    return(
+                      <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:isActive?"#f0fdf4":i%2?"#fcfcfc":"#fff",cursor:"pointer"}}
+                        onClick={()=>setPreview(prev=>prev?.r?.id===r.id?null:{r, type:r.issueReceipt?"delivery-receipt":"delivery"})}>
+                        <td style={{padding:"8px 12px",fontWeight:600}}>{c?.name||"―"}</td>
+                        <td style={{padding:"8px 12px",fontSize:11,color:"#64748b"}}>
+                          {r.projectName||"―"}
+                          {r.ecOrderNo&&<span style={{marginLeft:6,fontSize:10,color:"#0369a1"}}>EC:{r.ecOrderNo}</span>}
+                        </td>
+                        <td style={{padding:"8px 12px",fontSize:11}}>{r.equipmentName}</td>
+                        <td style={{padding:"8px 12px",fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
+                        <td style={{padding:"8px 12px",fontWeight:700,color:"#16a34a"}}>{fmt(r.amount)}</td>
+                        <td style={{padding:"8px 12px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
+                          <button onClick={()=>downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery", g)} style={{...S.ib("#16a34a"),fontSize:11}}>
+                            <Ico d={I.file} size={11}/>{r.issueReceipt?"納品書・領収証":"納品書"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                }
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      {/* 延長モーダル */}
-      {extModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-            <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>🔄 延長する製品を選択</h3>
-            <div style={{marginBottom:16,fontSize:12,color:"#64748b"}}>延長する製品にチェックを入れてください。</div>
-            <div style={{overflowY:"auto",flex:1,marginBottom:16}}>
-            {(extModal.units||[]).map((u,i)=>(
-              <label key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,cursor:"pointer",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,background:extModal.selected[i]?"#eff6ff":"#fff"}}>
-                <input type="checkbox" checked={!!extModal.selected[i]} onChange={e=>setExtModal(m=>({...m,selected:{...m.selected,[i]:e.target.checked}}))}/>
-                <div>
-                  <div style={{fontWeight:600,fontSize:13}}>{u.equipmentName}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>No.{u.no}　¥{Number(u.unitPrice).toLocaleString()}/日　{u.note}</div>
-                </div>
-              </label>
-            ))}
+      {preview&&previewG&&(
+        <div style={{flex:1,minWidth:0,position:"sticky",top:70}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#475569",display:"flex",alignItems:"center",gap:6}}>
+              <Ico d={I.file} size={14} color="#16a34a"/>
+              {preview.type==="delivery-receipt"?"納品書・領収証":"納品書"} プレビュー
             </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={async()=>{
-                const r=extModal.record;
-                const selectedUnits=extModal.units.filter((_,i)=>extModal.selected[i]);
-                if(selectedUnits.length===0){alert("製品を1つ以上選択してください");return;}
-                const lineMap={};
-                selectedUnits.forEach(u=>{
-                  if(!lineMap[u.lineIdx]) lineMap[u.lineIdx]={...u.originalLine,subItems:[],quantity:0};
-                  lineMap[u.lineIdx].subItems.push({no:u.no,note:u.note});
-                  lineMap[u.lineIdx].quantity=lineMap[u.lineIdx].subItems.length;
-                });
-                const selectedLines=Object.values(lineMap);
-                const nextDay=r.endDate?new Date(new Date(r.endDate).getTime()+86400000).toISOString().slice(0,10):new Date().toISOString().slice(0,10);
-                const baseNo=r.deliveryNo||"";
-                const eMatch=baseNo.match(/E(\d+)$/);
-                const delivNo=baseNo?(baseNo.replace(/E\d+$/,"")+"E"+(eMatch?parseInt(eMatch[1])+1:1)):await nextDeliveryNo();
-                const newRec={
-                  id:uid(),
-                  customerId:r.customerId,
-                  projectName:r.projectName||"",
-                  projectDetail:r.projectDetail||"",
-                  ordererName:r.ordererName||"",
-                  ecOrderNo:r.ecOrderNo||"",
-                  ourStaff:r.ourStaff||"",
-                  billingType:"daily",
-                  months:"1",
-                  startDate:nextDay,
-                  endDate:nextDay,
-                  endDateOpen:true,
-                  isExtension:true,
-                  extendedFrom:r.id,
-                  extendedFromNo:r.deliveryNo||"",
-                  deliveryNo:delivNo,
-                  lines:selectedLines.map(ln=>({...ln})),
-                  receiptNote:r.receiptNote||"機材レンタル代として　[クレジット スクエア]",
-                  paymentMethod:r.paymentMethod||"credit",
-                  includeInsurance:false,
-                  issueReceipt:false,
-                  noProjectName:false,
-                  notes:"",
-                  createdAt:new Date().toISOString(),
-                };
-                try {
-                  await onSave([...records,newRec],null,[newRec]);
-                  setExtModal(null);
-                  showToast("延長案件を作成しました");
-                } catch(e) {
-                  showToast("保存に失敗しました。もう一度お試しください。",false);
-                  console.error("extModal2 save error",e);
-                }
-              }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
-              <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>downloadPrintHTML(preview.type,previewG)} style={{...S.btn("#16a34a",true),fontSize:11}}>🖨 印刷・PDF</button>
+              <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
             </div>
+          </div>
+          <div style={{fontSize:10,color:"#94a3b8",marginBottom:6}}>💡 「印刷・PDF」でHTMLファイルをダウンロードします</div>
+          <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bbf7d0"}}>
+            <InvoicePreview type={preview.type} g={previewG}/>
           </div>
         </div>
       )}
@@ -4895,7 +2709,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
 // =========================================================
 // InvoiceTab（請求書タブ） — 月選択・ステータス管理・調整行
 // =========================================================
-function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records, onSaveRec, incidents}){
+function InvoiceTab({groups, customers, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records}){
   const months = [...new Set(groups.map(g=>g.month).filter(Boolean))].sort().reverse();
   const currentMonth = today().slice(0,7);
   const [selMonth, setSelMonth] = useState(months.includes(currentMonth)?currentMonth:(months[0]||""));
@@ -4905,12 +2719,10 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
       setSelMonth(months.includes(currentMonth)?currentMonth:months[0]);
     }
   },[months.length]);
+  const [preview, setPreview] = useState(null);
   const [expanded, setExpanded] = useState({}); // {key: bool}
   const [statusFilter, setStatusFilter] = useState("all"); // "all"|"open"|"locked"
   const [showPwSetting, setShowPwSetting] = useState(false);
-  const [crossMonthSplits, setCrossMonthSplits] = useState(()=>{try{const s=localStorage.getItem('olqCrossMonthSplits');return s?JSON.parse(s):{};}catch{return {};}}); // {recordId: {type:'full'|'split', targetMonth?:string, splits?:[{startDate,endDate}]}}
-  React.useEffect(()=>{try{localStorage.setItem('olqCrossMonthSplits',JSON.stringify(crossMonthSplits));}catch{} supabase.from('settings').upsert({key:'crossMonthSplits',value:JSON.stringify(crossMonthSplits)},{onConflict:'key'}).then(({error})=>{if(error)console.error('crossMonthSplits save error',error);});}, [crossMonthSplits]);
-  React.useEffect(()=>{supabase.from('settings').select('value').eq('key','crossMonthSplits').single().then(({data,error})=>{if(!error&&data?.value){try{const parsed=JSON.parse(data.value);setCrossMonthSplits(parsed);localStorage.setItem('olqCrossMonthSplits',data.value);}catch{}}});},[]);
   const [newPw, setNewPw] = useState("");
   const [custQ, setCustQ] = useState("");
 
@@ -4958,178 +2770,23 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   };
   const toggleExpand = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
 
-  // 領収済案件の判定ヘルパー
-  const isReceiptItem = r => !!r.issueReceipt;
-
-  // 領収済案件と振込案件が混在するグループを2分割
-  const splitGroups = [];
-  groups.forEach(g => {
-    const receiptItems = (g.items||[]).filter(isReceiptItem);
-    const transferItems = (g.items||[]).filter(r => !isReceiptItem(r));
-    if (receiptItems.length > 0 && transferItems.length > 0) {
-      splitGroups.push({...g, items: transferItems, _isReceiptGroup: false});
-      splitGroups.push({...g, items: receiptItems, _isReceiptGroup: true});
-    } else if (receiptItems.length > 0) {
-      splitGroups.push({...g, items: receiptItems, _isReceiptGroup: true});
-    } else {
-      splitGroups.push({...g, items: transferItems, _isReceiptGroup: false});
-    }
-  });
-
-  const filtered = splitGroups
+  const filtered = groups
     .filter(g=>!selMonth||g.month===selMonth)
     .filter(g=>(!custQ||g.customerName.toLowerCase().includes(custQ.toLowerCase()))&&(!globalQ||g.customerName.toLowerCase().includes(globalQ.toLowerCase())||g.projectName?.toLowerCase().includes(globalQ.toLowerCase())))
     .filter(g=>{
-      if(statusFilter==="receipt") return g._isReceiptGroup;
       if(statusFilter==="all") return true;
-      if(g._isReceiptGroup) return false;
       const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`);
       return statusFilter==="locked"?d.status==="locked":d.status!=="locked";
     })
     .sort((a,b)=>a.customerName.localeCompare(b.customerName,"ja")||a.projectName.localeCompare(b.projectName,"ja"));
 
-  // 月またぎ分割反映済みグループを生成
-  const crossAdjustedFiltered = React.useMemo(()=>{
-    if(!selMonth||Object.keys(crossMonthSplits).length===0) return filtered;
-    const [sy,sm]=selMonth.split("-").map(Number);
-    const lastDayNum=new Date(sy,sm,0).getDate();
-    const monthEnd=`${sy}-${String(sm).padStart(2,'0')}-${String(lastDayNum).padStart(2,'0')}`;
-    let result=filtered.map(g=>({...g,items:[...g.items]}));
-    const crossRecs=(records||[]).filter(r=>{
-      if(!r.startDate||!r.endDate||r.billingType==="monthly") return false;
-      const rs=r.startDate.slice(0,7),re=r.endDate.slice(0,7);
-      if(rs===re||!(rs===selMonth||re===selMonth||(rs<selMonth&&re>selMonth))) return false;
-      if(statusFilter==="receipt"&&!r.issueReceipt) return false;
-      if((statusFilter==="open"||statusFilter==="locked")&&r.issueReceipt) return false;
-      return true;
-    });
-    crossRecs.forEach(r=>{
-      const sp=crossMonthSplits[r.id];
-      if(!sp) return;
-      const c=customers.find(x=>x.id===r.customerId);
-      const recIsReceipt=!!r.issueReceipt;
-      if(sp.type==='full'){
-        const monthAmt=sp.targetMonth===selMonth?(r.amount||0):0;
-        if(monthAmt<=0) return;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
-        if(existingGroup){
-          result=result.map(g=>(g===existingGroup?{...g,items:g.items.map(item=>item.id===r.id?{...item,amount:monthAmt}:item)}:g));
-        } else {
-          const custSplit=c?.splitInvoice!==false;
-          const synthProjName=custSplit?(r.projectName||""):"";
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
-          if(existingSame){
-            result=result.map(g=>g===existingSame?{...g,items:[...g.items,{...r,amount:monthAmt}]}:g);
-          } else {
-            result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:synthProjName,month:selMonth,items:[{...r,amount:monthAmt}],split:custSplit,consolidate:false,_synthetic:true,_isReceiptGroup:recIsReceipt});
-          }
-        }
-        return;
-      }
-      if(sp.type==='split'&&sp.splits){
-        const idx=sp.splits.findIndex(spItem=>spItem.startDate&&spItem.endDate&&spItem.startDate.slice(0,7)<=selMonth&&spItem.endDate.slice(0,7)>=selMonth);
-        if(idx<0) return;
-        const isLast=idx===sp.splits.length-1;
-        const spItem=sp.splits[idx];
-        const splitDays=calcDays(spItem.startDate,spItem.endDate);
-        const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1,productId:r.productId||"",equipmentName:r.equipmentName||"",lineNote:r.lineNote||"",noBillingDiscount:!!r.noBillingDiscount}];
-        const rebuiltLines=rLines.map(ln=>{
-          const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
-          const lineBD=noDisc?splitDays:(chainBillingDays({...r,startDate:spItem.startDate},records,spItem.endDate)||calcBillingDays(splitDays));
-          const lineAmt=Math.round((ln.unitPrice||0)*(ln.quantity||1)*lineBD);
-          let clampedReturnDate=ln.returnDate;
-          if(clampedReturnDate&&(clampedReturnDate<spItem.startDate||clampedReturnDate>spItem.endDate)){
-            clampedReturnDate=undefined;
-          }
-          return {...ln,billingDays:lineBD,amount:lineAmt,returnDate:clampedReturnDate};
-        });
-        const firstLn=rLines[0]||{};
-        const firstNoDisc=firstLn.noBillingDiscount||(products||[]).find(p=>p.id===firstLn.productId)?.noBillingDiscount;
-        const splitBillingDays=firstNoDisc?splitDays:(chainBillingDays({...r,startDate:spItem.startDate},records,spItem.endDate)||calcBillingDays(splitDays));
-        const monthAmt=rebuiltLines.reduce((s,ln)=>s+(ln.amount||0),0);
-        if(monthAmt<=0) return;
-        let autoAdj=null;
-        if(isLast){
-          const origTotal=r.amount||0;
-          const allSplitsTotal=sp.splits.reduce((s,sp2)=>{
-            if(!sp2.startDate||!sp2.endDate) return s;
-            const d2=calcDays(sp2.startDate,sp2.endDate);
-            return s+rLines.reduce((s2,ln)=>{
-              const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
-              const bd=noDisc?d2:(chainBillingDays({...r,startDate:sp2.startDate},records,sp2.endDate)||calcBillingDays(d2));
-              return s2+Math.round((ln.unitPrice||0)*(ln.quantity||1)*bd);
-            },0);
-          },0);
-          const diff=origTotal-allSplitsTotal;
-          if(diff!==0) autoAdj={id:`auto_adj_${r.id}`,label:'日数値引き調整',amount:diff,_auto:true};
-        }
-        const splitItem={...r,startDate:spItem.startDate,endDate:spItem.endDate,days:splitDays,billingDays:splitBillingDays,amount:monthAmt,lines:rebuiltLines};
-        const injectAutoAdj=g=>autoAdj?{...g,_autoAdjustments:[...(g._autoAdjustments||[]).filter(a=>a.id!==autoAdj.id),autoAdj]}:g;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
-        if(existingGroup){
-          result=result.map(g=>{
-            if(g!==existingGroup) return g;
-            return injectAutoAdj({...g,items:g.items.map(item=>item.id===r.id?splitItem:item)});
-          });
-        } else {
-          const custSplit=c?.splitInvoice!==false;
-          const synthProjName=custSplit?(r.projectName||""):"";
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
-          if(existingSame){
-            result=result.map(g=>g!==existingSame?g:injectAutoAdj({...g,items:[...g.items,splitItem]}));
-          } else {
-            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:synthProjName,month:selMonth,items:[splitItem],split:custSplit,consolidate:false,_synthetic:true,_isReceiptGroup:recIsReceipt}));
-          }
-        }
-      }
-    });
-    // 最終保険：itemsの中身に応じて _isReceiptGroup を強制再分割
-    const finalResult=[];
-    result.forEach(g=>{
-      const receiptItems=(g.items||[]).filter(isReceiptItem);
-      const transferItems=(g.items||[]).filter(r=>!isReceiptItem(r));
-      if(receiptItems.length>0&&transferItems.length>0){
-        finalResult.push({...g,items:transferItems,_isReceiptGroup:false});
-        finalResult.push({...g,items:receiptItems,_isReceiptGroup:true});
-      } else if(receiptItems.length>0){
-        finalResult.push({...g,_isReceiptGroup:true});
-      } else {
-        finalResult.push({...g,_isReceiptGroup:false});
-      }
-    });
-    // 後段防御：statusFilter を再適用
-    const reFiltered=finalResult.filter(g=>{
-      if(statusFilter==="receipt") return g._isReceiptGroup;
-      if(statusFilter==="all") return true;
-      if(g._isReceiptGroup) return false;
-      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`);
-      return statusFilter==="locked"?d.status==="locked":d.status!=="locked";
-    });
-    return reFiltered;
-  },[filtered,crossMonthSplits,selMonth,records,customers,products,statusFilter]);
-
-  const monthTotal = crossAdjustedFiltered.reduce((s,g)=>{
+  const monthTotal = filtered.reduce((s,g)=>{
     const key=`${g.customerId}||${g.projectName}||${g.month}`;
     const d=getInvData(key,g.month);
     const base=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
     const adj=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-    const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
-    const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
-    return s+base+adj+autoAdj+inc;
+    return s+base+adj;
   },0);
-  // 各案件の税込を積み上げた正確な合計（顧客への請求総額）
-  const monthTotalInc = crossAdjustedFiltered.reduce((s,g)=>{
-    const key=`${g.customerId}||${g.projectName}||${g.month}`;
-    const d=getInvData(key,g.month);
-    const base=g.items.reduce((s2,r)=>s2+(r.amount||0)+(r.insuranceAmount||0),0);
-    const adj=d.adjustments.reduce((s2,a)=>s2+(Number(a.amount)||0),0);
-    const autoAdj=(g._autoAdjustments||[]).reduce((s2,a)=>s2+(Number(a.amount)||0),0);
-    const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
-    const gt=base+adj+autoAdj+inc;
-    return s+gt+Math.round(gt*0.1);
-  },0);
-  const simpleInc = monthTotal+Math.round(monthTotal*0.1);
-  const incDiff = monthTotalInc - simpleInc;
 
   return(
     <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
@@ -5140,7 +2797,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           <h2 style={{fontSize:16,fontWeight:700,margin:0}}>請求書</h2>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             {/* 月選択 */}
-            <select value={selMonth} onChange={e=>{setSelMonth(e.target.value);setExpanded({});}}
+            <select value={selMonth} onChange={e=>{setSelMonth(e.target.value);setExpanded({});setPreview(null);}}
               style={{...S.inp,width:125,fontWeight:700,fontSize:13}}>
               <option value="">全期間</option>
               {months.map(m=><option key={m} value={m}>{m}</option>)}
@@ -5153,7 +2810,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             </div>
             {/* ステータスフィルター */}
             <div style={{display:"flex",gap:2,background:"#e2e8f0",borderRadius:6,padding:2}}>
-              {[{k:"all",l:"全て"},{k:"open",l:"未締め"},{k:"locked",l:"締め済み"},{k:"receipt",l:"領収済"}].map(t=>(
+              {[{k:"all",l:"全て"},{k:"open",l:"未締め"},{k:"locked",l:"締め済み"}].map(t=>(
                 <button key={t.k} onClick={()=>setStatusFilter(t.k)} style={{
                   background:statusFilter===t.k?"#fff":"transparent",border:"none",borderRadius:5,
                   padding:"4px 10px",fontSize:11,fontWeight:statusFilter===t.k?700:500,
@@ -5164,120 +2821,6 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             </div>
           </div>
         </div>
-
-        {/* 月末暫定締めの警告バー */}
-        {selMonth && (() => {
-          const pendingProvisional = (records||[]).filter(r =>
-            r.endDateOpen === true
-            && r.isExtension === true
-            && !r.returnDate
-            && r.startDate
-            && r.startDate.slice(0,7) < selMonth
-          );
-          if (pendingProvisional.length === 0) return null;
-          const [sy, sm] = selMonth.split("-").map(Number);
-          const prevMonthEnd = new Date(sy, sm - 1, 0);
-          const prevMonthEndStr = `${prevMonthEnd.getFullYear()}-${String(prevMonthEnd.getMonth()+1).padStart(2,'0')}-${String(prevMonthEnd.getDate()).padStart(2,'0')}`;
-          return (
-            <div style={{padding:"12px 16px",marginBottom:14,background:"#fef3c7",border:"1px solid #fbbf24",borderRadius:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                <span style={{fontSize:14}}>⚠️</span>
-                <div style={{flex:1,minWidth:200}}>
-                  <div style={{fontSize:12,fontWeight:700,color:"#78350f",marginBottom:2}}>
-                    {selMonth.replace("-","年")+"月"}に未処理の延長中案件があります（{pendingProvisional.length}件）
-                  </div>
-                  <div style={{fontSize:11,color:"#92400e"}}>
-                    前月末（{prevMonthEndStr}）で暫定的に締めて、当月分の請求書を発行できます。
-                  </div>
-                </div>
-                <button onClick={async () => {
-                  const currentMonthFirstStr = `${sy}-${String(sm).padStart(2,'0')}-01`;
-                  const _now = new Date();
-                  const _pad = n => String(n).padStart(2, "0");
-                  const createdAtStr = _now.getFullYear()+"-"+_pad(_now.getMonth()+1)+"-"+_pad(_now.getDate())+"T"+_pad(_now.getHours())+":"+_pad(_now.getMinutes())+":"+_pad(_now.getSeconds());
-                  let allRecords = [...(records||[])];
-                  const updatesById = {};
-                  const newRecords = [];
-                  pendingProvisional.forEach(r => {
-                    const newDays = calcDays(r.startDate, prevMonthEndStr);
-                    const newBillingDays = chainBillingDays(r, allRecords, prevMonthEndStr);
-                    const rLines = getLines(r);
-                    const newAmount = rLines.reduce((s, ln) => {
-                      const noDisc = ln.noBillingDiscount;
-                      const qty = noDisc ? newDays : newBillingDays;
-                      return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * qty;
-                    }, 0);
-                    updatesById[r.id] = {
-                      ...r,
-                      endDate: prevMonthEndStr,
-                      endDateOpen: false,
-                      returnDate: prevMonthEndStr,
-                      isProvisionalClose: true,
-                      days: newDays,
-                      billingDays: newBillingDays,
-                      amount: newAmount,
-                      insuranceAmount: r.includeInsurance ? Math.round(newAmount * 0.1) : 0,
-                    };
-                    const baseNo = (r.deliveryNo || "").replace(/E\d+$/, "");
-                    let maxE = 0;
-                    allRecords.forEach(x => {
-                      const dn = x.deliveryNo || "";
-                      if (!baseNo || !dn.startsWith(baseNo + "E")) return;
-                      const suffix = dn.slice(baseNo.length + 1);
-                      if (/^\d+$/.test(suffix)) { const n = parseInt(suffix); if (n > maxE) maxE = n; }
-                    });
-                    const newDeliveryNo = baseNo ? (baseNo + "E" + (maxE + 1)) : r.deliveryNo;
-                    const continuingRec = {
-                      ...r,
-                      id: uid(),
-                      deliveryNo: newDeliveryNo,
-                      startDate: currentMonthFirstStr,
-                      endDate: currentMonthFirstStr,
-                      endDateOpen: true,
-                      isExtension: true,
-                      isProvisionalClose: false,
-                      extendedFrom: r.extendedFrom || r.id,
-                      extendedFromNo: r.extendedFromNo || r.deliveryNo || "",
-                      returnDate: undefined,
-                      actualReturnDate: undefined,
-                      amount: 0,
-                      insuranceAmount: 0,
-                      days: undefined,
-                      billingDays: undefined,
-                      lines: rLines.map(ln => ({...ln, returnDate: undefined, actualReturnDate: undefined})),
-                      createdAt: createdAtStr,
-                    };
-                    newRecords.push(continuingRec);
-                    allRecords.push(continuingRec);
-                  });
-                  const finalRecords = [
-                    ...(records||[]).map(x => updatesById[x.id] || x),
-                    ...newRecords
-                  ];
-                  await onSaveRec(finalRecords,null,[...Object.values(updatesById),...newRecords]);
-                  showToast(`${pendingProvisional.length}件を前月末で暫定締めしました`);
-                }} style={{...S.btn("#d97706",true),fontSize:11,whiteSpace:"nowrap"}}>
-                  📅 前月末で暫定締め
-                </button>
-              </div>
-              <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #fcd34d",fontSize:11,color:"#78350f"}}>
-                {pendingProvisional.slice(0,5).map(r => {
-                  const c = customers.find(x=>x.id===r.customerId);
-                  return (
-                    <div key={r.id} style={{padding:"2px 0"}}>
-                      ・{r.deliveryNo||""} {c?.name||""} {r.projectName||""}（{r.startDate}〜継続中）
-                    </div>
-                  );
-                })}
-                {pendingProvisional.length > 5 && (
-                  <div style={{padding:"2px 0",fontStyle:"italic"}}>
-                    ・他 {pendingProvisional.length - 5} 件
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
 
         {/* 月合計バー */}
         {/* 統計カード */}
@@ -5305,198 +2848,29 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
           <div style={{background:"#eff6ff",borderRadius:8,padding:"8px 16px",marginBottom:10,display:"flex",gap:20,fontSize:12,alignItems:"center"}}>
             <span style={{color:"#64748b"}}>{selMonth}　{filtered.length}件</span>
             <span><span style={{color:"#64748b"}}>税抜合計: </span><strong style={{color:"#16a34a",fontSize:15}}>{fmt(monthTotal)}</strong></span>
-            <span><strong style={{color:"#9333ea",fontSize:15}}>{fmt(monthTotalInc)}</strong><span style={{color:"#64748b"}}>（税込・請求総額）</span></span>
-            {incDiff===0
-              ? <span style={{fontSize:11,color:"#16a34a",fontWeight:700}}>✅ 端数整合</span>
-              : <span style={{fontSize:11,color:"#dc2626",fontWeight:700}}>⚠️ 端数差異 {incDiff>0?"+":""}{incDiff.toLocaleString()}円</span>}
+            <span><span style={{color:"#64748b"}}>消費税: </span>{fmt(Math.round(monthTotal*0.1))}</span>
+            <span><strong style={{color:"#9333ea",fontSize:15}}>{fmt(monthTotal+Math.round(monthTotal*0.1))}</strong><span style={{color:"#64748b"}}>（税込）</span></span>
             <button onClick={()=>setShowPwSetting(p=>!p)} style={{...S.btn("#f59e0b",true),fontSize:11}}>🔑 PW設定</button>
             <button onClick={()=>{
               // freee 取引インポートCSV出力
               const [y,m] = selMonth.split("-").map(Number);
               const lastDay = new Date(y, m, 0).getDate();
               const dateStr = `${y}/${String(m).padStart(2,"0")}/${String(lastDay).padStart(2,"0")}`;
-              const parsePaymentDue = (cycle, sm) => {
-                const [cy, cm] = sm.split("-").map(Number);
-                if (/翌々月末日/.test(cycle)) {
-                  const nm = cm >= 11 ? cm - 10 : cm + 2;
-                  const ny = cm >= 11 ? cy + 1 : cy;
-                  return `${ny}年${nm}月${new Date(ny, nm, 0).getDate()}日`;
-                }
-                if (/翌月末日/.test(cycle)) {
-                  const nm = cm === 12 ? 1 : cm + 1;
-                  const ny = cm === 12 ? cy + 1 : cy;
-                  return `${ny}年${nm}月${new Date(ny, nm, 0).getDate()}日`;
-                }
-                const m2 = cycle.match(/翌々月(\d+)日/);
-                if (m2) {
-                  const nm = cm >= 11 ? cm - 10 : cm + 2;
-                  const ny = cm >= 11 ? cy + 1 : cy;
-                  return `${ny}年${nm}月${m2[1]}日`;
-                }
-                const m1 = cycle.match(/翌月(\d+)日/);
-                if (m1) {
-                  const nm = cm === 12 ? 1 : cm + 1;
-                  const ny = cm === 12 ? cy + 1 : cy;
-                  return `${ny}年${nm}月${m1[1]}日`;
-                }
-                return "";
-              };
-              const bom = "\uFEFF";
-              const csvCell = v => `"${String(v??'').replace(/"/g,'""')}"`;
-              const header = bom+[csvCell("発生日"),csvCell("金額"),csvCell("取引先"),csvCell("案件名"),csvCell("支払情報"),csvCell("摘要")].join(",");
-              const transferRows = [];
-              const receiptRows = [];
-              crossAdjustedFiltered.forEach(g=>{
-                const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0)+(Number(r.insuranceAmount)||0),0);
-                const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
-                const key=`${g.customerId}||${g.projectName}||${g.month}`;
-                const manualAdj=getInvData(key,g.month).adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-                const incTotCsv=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
-                const grandBase = base + autoAdj + manualAdj + incTotCsv;
-                const total = grandBase + Math.round(grandBase*0.1);
-                const projectName = g.projectName || "";
-                if (g._isReceiptGroup) {
-                  const ri = g.items.find(r=>r.issueReceipt&&r.receiptDate);
-                  const rd = ri ? new Date(ri.receiptDate+"T00:00:00") : null;
-                  const pm = ri?.paymentMethod==="cash"?"現金":ri?.paymentMethod==="square"?"スクエア クレジット":"ECクレジット";
-                  const paymentInfo = rd ? `${rd.getFullYear()}年${rd.getMonth()+1}月${rd.getDate()}日 ${pm}領収済` : "";
-                  receiptRows.push([csvCell(dateStr),csvCell(total),csvCell(g.customerName),csvCell(projectName),csvCell(paymentInfo),csvCell(pm)].join(","));
-                } else {
-                  const cycle = g.customer?.paymentCycle || customers.find(c=>c.id===g.customerId)?.paymentCycle || "";
-                  const paymentInfo = parsePaymentDue(cycle, selMonth);
-                  transferRows.push([csvCell(dateStr),csvCell(total),csvCell(g.customerName),csvCell(projectName),csvCell(paymentInfo),csvCell(cycle)].join(","));
-                }
+              const bom = "\uFEFF"; const rows = [bom+"発生日,金額,取引先,勘定科目,税区分,摘要"];
+              filtered.forEach(g=>{
+                const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0),0);
+                const tax = Math.round(base*0.1);
+                const total = base + tax;
+                const memo = [g.customerName, g.projectName].filter(Boolean).join(" / ");
+                rows.push([dateStr, total, g.customerName, "売上高", "課税売上10%", memo].join(","));
               });
-              const allRows = [header, ...transferRows];
-              if (receiptRows.length > 0) { allRows.push(""); allRows.push(...receiptRows); }
-              const blob = new Blob([allRows.join("\r\n")], {type:"text/csv;charset=utf-8"});
+              const blob = new Blob([rows.join("\r\n")], {type:"text/csv;charset=utf-8"});
               const a = document.createElement("a");
               a.href = URL.createObjectURL(blob); a.download = `freee_取引_${selMonth}.csv`;
               a.click();
             }} style={{...S.btn("#0ea5e9",true),fontSize:11,marginLeft:"auto"}}>📤 freee CSV</button>
-            <button onClick={async()=>{
-              if(!window.confirm("領収済以外の請求書発行履歴（printCount）をリセットしますか？")) return;
-              const next={...invoiceData};
-              Object.keys(next).forEach(key=>{
-                const [cid,,month]=key.split("||");
-                const grpRecords=records.filter(r=>r.customerId===cid&&(r.startDate||"").startsWith(month));
-                const hasReceipt=grpRecords.some(r=>r.issueReceipt);
-                if(!hasReceipt) next[key]={...next[key],printCount:0,invNo:"",lastPrintDate:""};
-              });
-              await onSaveInv(next);
-              showToast("リセット完了しました",true);
-            }} style={{...S.btn("#dc2626",true),fontSize:11}}>🗑 発行履歴リセット</button>
           </div>
         )}
-
-        {/* 月またぎ案件セクション */}
-        {(()=>{
-          if(!selMonth) return null;
-          const [sy,sm]=selMonth.split("-").map(Number);
-          const lastDayNum=new Date(sy,sm,0).getDate();
-          const monthEnd=`${sy}-${String(sm).padStart(2,'0')}-${String(lastDayNum).padStart(2,'0')}`;
-          const crossRecords=(records||[]).filter(r=>{
-            if(!r.startDate||!r.endDate||r.billingType==="monthly") return false;
-            const rs=r.startDate.slice(0,7),re=r.endDate.slice(0,7);
-            return rs!==re&&(rs===selMonth||re===selMonth||(rs<selMonth&&re>selMonth));
-          });
-          if(crossRecords.length===0) return null;
-          const getStatus=r=>{const sp=crossMonthSplits[r.id];if(!sp)return'pending';if(sp.type==='full')return'done';return'splitting';};
-          const getMonths=r=>{const ms=[];let m=r.startDate.slice(0,7);const end=r.endDate.slice(0,7);while(m<=end){ms.push(m);const [y,mo]=m.split('-').map(Number);m=mo===12?`${y+1}-01`:`${y}-${String(mo+1).padStart(2,'0')}`;}return ms;};
-          const computeSplitAmt=(r,spItem)=>{if(!spItem.startDate||!spItem.endDate)return 0;const d=calcDays(spItem.startDate,spItem.endDate);const rLines=(r.lines&&r.lines.length)?r.lines:[{unitPrice:r.unitPrice,quantity:r.quantity||1,productId:r.productId}];return rLines.reduce((s,ln)=>{const prod=(products||[]).find(p=>p.id===ln.productId);const billDays=prod?.noBillingDiscount?d:calcBillingDays(d);return s+Math.round((ln.unitPrice||0)*(ln.quantity||1)*billDays);},0);};
-          const addDay=dateStr=>{const d=new Date(dateStr);d.setDate(d.getDate()+1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
-          const pendingCount=crossRecords.filter(r=>getStatus(r)==='pending').length;
-          const doneCount=crossRecords.filter(r=>getStatus(r)!=='pending').length;
-          return(
-            <div style={{background:"#fff",border:"1.5px solid #f59e0b",borderRadius:10,padding:"12px 16px",marginBottom:12}}>
-              <div style={{display:"flex",alignItems:"center",marginBottom:10}}>
-                <span style={{fontSize:13,fontWeight:700,color:"#92400e"}}>⚠ 月またぎ案件（{crossRecords.length}件）</span>
-                <span style={{fontSize:11,color:"#92400e",marginLeft:"auto"}}>未処理 {pendingCount}件　処理済 {doneCount}件</span>
-              </div>
-              {crossRecords.map(r=>{
-                const c=customers.find(x=>x.id===r.customerId);
-                const status=getStatus(r);
-                const sp=crossMonthSplits[r.id];
-                const totalAmt=r.amount||0;
-                const months=getMonths(r);
-                const cardStyle=status==='done'?{background:"#dcfce7",border:"1px solid #86efac"}:status==='splitting'?{background:"#dbeafe",border:"1px solid #93c5fd"}:{background:"#fffbeb",border:"1px solid #fde68a"};
-                const badge=status==='done'?{label:"処理済",bg:"#16a34a"}:status==='splitting'?{label:"分割中",bg:"#2563eb"}:{label:"未処理",bg:"#f59e0b"};
-                const splits=sp?.splits||[{startDate:r.startDate,endDate:monthEnd}];
-                const usedAmt=splits.slice(0,-1).reduce((s,spItem)=>s+computeSplitAmt(r,spItem),0);
-                const lastAmt=totalAmt-usedAmt;
-                return(
-                  <div key={r.id} style={{borderRadius:8,padding:"10px 12px",marginBottom:8,...cardStyle}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <span style={{fontSize:10,padding:"2px 6px",borderRadius:3,background:badge.bg,color:"#fff"}}>{badge.label}</span>
-                      <span style={{fontWeight:600,fontSize:12}}>{c?.name||"不明"}</span>
-                      <span style={{fontSize:11,color:"#64748b"}}>{r.projectName||""}</span>
-                      <span style={{fontSize:11,color:"#64748b"}}>{r.startDate}〜{r.endDate}</span>
-                      <span style={{fontSize:12,fontWeight:700,marginLeft:"auto"}}>合計 {fmt(totalAmt)}</span>
-                    </div>
-                    {(()=>{
-                      const rLines=(r.lines&&r.lines.length)?r.lines:(r.equipmentName?[{equipmentName:r.equipmentName,quantity:r.quantity||1,amount:r.amount}]:[]);
-                      return rLines.length>0&&(
-                        <div style={{background:"rgba(255,255,255,0.7)",borderRadius:4,padding:"6px 8px",marginBottom:8,fontSize:11}}>
-                          {rLines.map((ln,i)=>(
-                            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",borderBottom:i<rLines.length-1?"1px solid rgba(0,0,0,0.06)":"none"}}>
-                              <span>{ln.equipmentName||"―"}{(ln.quantity||1)>1?` ×${ln.quantity}`:""}</span>
-                              <span style={{color:"#64748b"}}>{ln.amount?fmt(ln.amount):""}</span>
-                            </div>
-                          ))}
-                          <div style={{marginTop:6,paddingTop:4,borderTop:"1px solid rgba(0,0,0,0.06)"}}>
-                            <button onClick={()=>{const g={customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:r.projectName||"",month:r.startDate?.slice(0,7)||"",items:[r],split:true,consolidate:false};downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery",g);}} style={{background:"none",border:"none",color:"#2563eb",fontSize:11,cursor:"pointer",padding:0,textDecoration:"underline"}}>→ 納品書を開く</button>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                    {status==='done'&&<div style={{fontSize:11,color:"#15803d",fontWeight:500,marginBottom:6}}>✓ {sp.targetMonth?.slice(5)}月に全額計上</div>}
-                    {status==='splitting'&&(
-                      <div style={{marginBottom:6}}>
-                        {splits.map((spItem,si)=>{
-                          const isLast=si===splits.length-1;
-                          const d=spItem.startDate&&spItem.endDate?calcDays(spItem.startDate,spItem.endDate):0;
-                          const spAmt=isLast?lastAmt:computeSplitAmt(r,spItem);
-                          const isSet=!!(spItem.startDate&&spItem.endDate);
-                          return(
-                            <div key={si} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:11}}>
-                              <span style={{minWidth:44,fontWeight:500,color:"#475569"}}>{spItem.startDate?spItem.startDate.slice(0,7).slice(5)+"月":""}</span>
-                              <input type="date" value={spItem.startDate||""} disabled={si===0} onChange={e=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],startDate:e.target.value};return {...prev,[r.id]:ns};})} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
-                              <span>〜</span>
-                              <input type="date" value={spItem.endDate||""} disabled={isLast} onChange={e=>{const nd=addDay(e.target.value);setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],endDate:e.target.value};if(ns.splits[si+1])ns.splits[si+1]={...ns.splits[si+1],startDate:nd};const newUsed=ns.splits.slice(0,-1).reduce((s,sp2)=>s+computeSplitAmt(r,{...sp2,endDate:sp2.endDate||""}),0);if(newUsed>=(r.amount||0)){alert('非最終月の合計が案件登録金額を超えています。期間を短くしてください。');return prev;}return {...prev,[r.id]:ns};});}} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
-                              <span style={{minWidth:64,textAlign:"right"}}>{fmt(spAmt)}</span>
-                              <span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:isSet?"#dcfce7":"#fee2e2",color:isSet?"#15803d":"#dc2626"}}>{(()=>{if(!isSet)return"未設定";const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId}];const hasNoBilling=rLines.some(ln=>(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);return hasNoBilling?`${d}日間請求`:`${d}日→${calcBillingDays(d)}請求日`;})()}</span>
-                              {isLast&&<span style={{fontSize:10,color:"#94a3b8"}}>（帳尻）</span>}
-                              {!isLast&&si>0&&<button onClick={()=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits.splice(si,1);return {...prev,[r.id]:ns};})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12}}>✕</button>}
-                            </div>
-                          );
-                        })}
-                        <div style={{fontSize:11,marginTop:4,color:Math.abs(usedAmt+lastAmt-totalAmt)<1?"#15803d":"#dc2626"}}>
-                          合計チェック：{fmt(totalAmt)} {Math.abs(usedAmt+lastAmt-totalAmt)<1?"✓ 納品書と一致":"✗ 不一致"}
-                        </div>
-                      </div>
-                    )}
-                    <div style={{display:"flex",gap:8,alignItems:"center",marginTop:6,flexWrap:"wrap"}}>
-                      {status==='pending'&&<>
-                        {months.map(m=>(
-                          <button key={m} onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:{type:'full',targetMonth:m}}))}
-                            style={{fontSize:11,background:m===selMonth?"#16a34a":"#4f46e5",color:"#fff",border:"none",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>
-                            ✓ {m.slice(5)}月に全額計上
-                          </button>
-                        ))}
-                        <button onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:{type:'split',splits:[{startDate:r.startDate,endDate:monthEnd},{startDate:addDay(monthEnd),endDate:r.endDate}]}}))}
-                          style={{fontSize:11,background:"#e0f2fe",color:"#0369a1",border:"1px solid #7dd3fc",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>
-                          期間を分割して計上
-                        </button>
-                      </>}
-                      {status==='splitting'&&<button onClick={()=>{const s=[...splits];const prev2=s[s.length-2];const nextStart=prev2?.endDate?addDay(prev2.endDate):"";s.splice(s.length-1,0,{startDate:nextStart,endDate:""});setCrossMonthSplits(prev=>({...prev,[r.id]:{...prev[r.id],splits:s}}));}} style={{fontSize:11,color:"#0369a1",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>+ 分割を追加</button>}
-                      {status!=='pending'&&<button onClick={()=>setCrossMonthSplits(prev=>{const p={...prev};delete p[r.id];return p;})} style={{fontSize:11,color:"#64748b",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>リセット</button>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
 
         {/* テーブル */}
         <div style={S.card}>
@@ -5518,518 +2892,363 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                 </tr>
               </thead>
               <tbody>
-                {(()=>{
-                  const custGroups={};
-                  crossAdjustedFiltered.forEach(g=>{
-                    if(!custGroups[g.customerId]) custGroups[g.customerId]={customerName:g.customerName,customerId:g.customerId,groups:[]};
-                    custGroups[g.customerId].groups.push(g);
-                  });
-                  const custList=Object.values(custGroups).sort((a,b)=>a.customerName.localeCompare(b.customerName,"ja"));
-                  return custList.map(cust=>{
-                    const custKey=`cust_${cust.customerId}`;
-                    const custOpen=!!expanded[custKey];
-                    const custTotEx=cust.groups.reduce((s,g)=>{
-                      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);
-                      const base=g.items.reduce((t,r)=>t+(r.amount||0)+(r.insuranceAmount||0),0);
-                      const adj=d.adjustments.reduce((t,a)=>t+(Number(a.amount)||0),0);
-                      const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
-                      return s+base+adj+inc;
-                    },0);
-                    const custTotInc=cust.groups.reduce((s,g)=>{
-                      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);
-                      const base=g.items.reduce((t,r)=>t+(r.amount||0)+(r.insuranceAmount||0),0);
-                      const adj=d.adjustments.reduce((t,a)=>t+(Number(a.amount)||0),0);
-                      const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
-                      const gt=base+adj+inc;
-                      return s+gt+Math.round(gt*0.1);
-                    },0);
-                    const custTax=Math.round(custTotEx*0.1);
-                    return(
-                      <React.Fragment key={cust.customerId}>
-                        {/* 層1: 顧客行 */}
-                        <tr onClick={()=>toggleExpand(custKey)} style={{background:"#f1f5f9",cursor:"pointer",borderBottom:"1px solid #e2e8f0"}}>
-                          <td style={{padding:"8px 12px",textAlign:"center",color:"#94a3b8",fontSize:11}}>{custOpen?"▼":"▶"}</td>
-                          <td colSpan={2} style={{padding:"8px 12px",fontWeight:700,fontSize:13}}>{cust.customerName}</td>
-                          <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{cust.groups.length}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(custTotEx)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(custTotInc)}</td>
-                          <td colSpan={2} style={{padding:"8px 12px",textAlign:"center"}}>
-                            {(()=>{
-                              const total=cust.groups.length;
-                              const issued=cust.groups.filter(g=>{const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);return (d.printCount||0)>0||g.items.some(r=>r.issueReceipt);}).length;
-                              if(issued===0) return null;
-                              if(issued===total) return <span style={{fontSize:10,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>✅ 全件発行済</span>;
-                              return <span style={{fontSize:10,color:"#0369a1",fontWeight:700,whiteSpace:"nowrap"}}>{total}件中{issued}件発行済 残{total-issued}件</span>;
-                            })()}
+                {filtered.map((g,i)=>{
+                  const key=`${g.customerId}||${g.projectName}||${g.month}`;
+                  const d=getInvData(key,g.month);
+                  const locked=d.status==="locked";
+                  const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
+                  const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
+                  const grandTot=baseTot+adjSum;
+                  const tax=Math.round(grandTot*0.1);
+                  const isOpen=!!expanded[key];
+                  const isActive=preview?.key===key;
+
+                  return(
+                    <React.Fragment key={key}>
+                      {/* サマリー行 */}
+                      <tr onClick={()=>toggleExpand(key)} style={{
+                        borderBottom:isOpen?"none":"1px solid #f1f5f9",
+                        background:locked?"#f0fdf4":isActive?"#eff6ff":i%2?"#fcfcfc":"#fff",
+                        cursor:"pointer",transition:"background .15s"
+                      }}
+                        onMouseEnter={e=>e.currentTarget.style.background=locked?"#dcfce7":"#e8f4ff"}
+                        onMouseLeave={e=>e.currentTarget.style.background=locked?"#f0fdf4":isActive?"#eff6ff":i%2?"#fcfcfc":"#fff"}
+                      >
+                        <td style={{padding:"8px 12px",textAlign:"center",color:"#94a3b8",fontSize:11}}>
+                          {isOpen?"▼":"▶"}
+                        </td>
+                        <td style={{padding:"8px 12px",fontWeight:600}}>{g.customerName}</td>
+                        <td style={{padding:"8px 12px",color:"#64748b",fontSize:11}}>
+                          {g.projectName
+                            ?<span style={{background:"#eff6ff",color:"#1d4ed8",borderRadius:4,padding:"1px 6px",fontSize:11,fontWeight:600}}>{g.projectName}</span>
+                            :<span style={{color:"#cbd5e1"}}>―</span>
+                          }
+                          {d.adjustments.length>0&&<span style={{marginLeft:6,fontSize:10,color:"#92400e"}}>調整あり</span>}
+                        </td>
+                        <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{g.items.length}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(grandTot)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(grandTot+tax)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"center"}} onClick={e=>toggleLock(key,e)}>
+                          <span style={{
+                            background:locked?"#dcfce7":"#f1f5f9",
+                            color:locked?"#15803d":"#64748b",
+                            border:`1px solid ${locked?"#86efac":"#e2e8f0"}`,
+                            borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,
+                            cursor:"pointer",whiteSpace:"nowrap"
+                          }}>{locked?"✅ 締め済み":"未締め"}</span>
+                        </td>
+                        <td style={{padding:"8px 8px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
+                          <button onClick={()=>setPreview(p=>p?.key===key?null:{key,g})}
+                            style={{...S.ib(isActive?"#1d4ed8":"#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
+                            <Ico d={I.print} size={10}/>確認
+                          </button>
+                          <button onClick={async()=>{
+                            // 最新のinvoiceDataから取得
+                            const cur = getInvData(key);
+                            let baseNo = cur.invNo;
+                            let count;
+                            if(!baseNo){
+                              // 初回発行: 番号を採番
+                              baseNo = await nextInvoiceNo(g.month);
+                              count = 1;
+                            } else {
+                              // 再発行: カウントを増やす
+                              count = (cur.printCount||1) + 1;
+                            }
+                            await updateInvData(key, {invNo:baseNo, printCount:count});
+                            const invNo = count <= 1 ? baseNo : `${baseNo}-${count}`;
+                            downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
+                          }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
+                            🖨
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* 展開行 */}
+                      {isOpen&&(
+                        <tr>
+                          <td colSpan={8} style={{padding:0,borderBottom:"1px solid #e2e8f0"}}>
+                            <div style={{background:"#f8fafc",padding:"12px 16px 12px 48px"}}>
+                              {/* 発行日 */}
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                                <span style={{fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>発行日：</span>
+                                <input type="date" value={d.issueDate||""} onChange={e=>updateInvData(key,{issueDate:e.target.value})}
+                                  style={{...S.inp,width:140,fontSize:11,padding:"3px 8px"}} disabled={locked}/>
+                                <span style={{fontSize:10,color:"#94a3b8"}}>（デフォルト: 月末日）</span>
+                              </div>
+                              {/* 案件リスト */}
+                              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:8}}>
+                                <thead>
+                                  <tr style={{color:"#94a3b8",borderBottom:"1px solid #e2e8f0"}}>
+                                    <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>機材</th>
+                                    <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>利用期間</th>
+                                    <th style={{padding:"3px 8px",textAlign:"center",fontWeight:600,width:50}}>日数</th>
+                                    <th style={{padding:"3px 8px",textAlign:"right",fontWeight:600,width:80}}>金額（税抜）</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {g.items.map(r=>(
+                                    <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
+                                      <td style={{padding:"4px 8px",color:"#475569"}}>
+                                        {r.equipmentName}
+                                        {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
+                                        {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
+                                      </td>
+                                      <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
+                                      <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
+                                        {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)}
+                                      </td>
+                                      <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(r.amount)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+
+                              {/* 調整行 */}
+                              <div style={{background:"#fefce8",border:"1px solid #fde68a",borderRadius:6,padding:"8px 12px"}}>
+                                <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                  <span>調整行</span>
+                                  {!locked&&<button onClick={()=>addAdj(key)} style={{...S.ib("#92400e"),fontSize:10,padding:"2px 8px"}}>
+                                    <Ico d={I.plus} size={11}/>追加
+                                  </button>}
+                                </div>
+                                {d.adjustments.length===0&&<div style={{fontSize:11,color:"#94a3b8"}}>調整行なし</div>}
+                                {d.adjustments.map(a=>(
+                                  <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
+                                    <input value={a.label} onChange={e=>updateAdj(key,a.id,{label:e.target.value})}
+                                      placeholder="内容（例: 値引き）" style={{...S.inp,flex:1,fontSize:11,padding:"4px 8px"}} disabled={locked}/>
+                                    <input type="number" value={a.amount} onChange={e=>updateAdj(key,a.id,{amount:Number(e.target.value)})}
+                                      style={{...S.inp,width:110,fontSize:11,padding:"4px 8px",textAlign:"right"}} disabled={locked}/>
+                                    <span style={{fontSize:11,color:Number(a.amount)<0?"#dc2626":"#16a34a",minWidth:64,textAlign:"right"}}>{fmt(Number(a.amount)||0)}</span>
+                                    {!locked&&<button onClick={()=>removeAdj(key,a.id)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={12} color="#ef4444"/></button>}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* 合計 */}
+                              <div style={{display:"flex",justifyContent:"flex-end",gap:16,fontSize:12,marginTop:8,paddingTop:8,borderTop:"1px solid #e2e8f0"}}>
+                                <span><span style={{color:"#64748b"}}>機材: </span>{fmt(baseTot)}</span>
+                                {adjSum!==0&&<span style={{color:adjSum<0?"#dc2626":"#16a34a"}}><span style={{color:"#64748b"}}>調整: </span>{fmt(adjSum)}</span>}
+                                <span><span style={{color:"#64748b"}}>税抜: </span><strong>{fmt(grandTot)}</strong></span>
+                                <span><span style={{color:"#64748b"}}>消費税: </span>{fmt(tax)}</span>
+                                <strong style={{color:"#9333ea"}}>税込: {fmt(grandTot+tax)}</strong>
+                              </div>
+                            </div>
                           </td>
                         </tr>
-                        {/* 層2: 案件行 */}
-                        {custOpen&&cust.groups.map(g=>{
-                          const key=`${g.customerId}||${g.projectName}||${g.month}`;
-                          const d=getInvData(key,g.month);
-                          const locked=d.status==="locked";
-                          const gInc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
-                          const incTot=gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
-                          const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
-                          const autoAdjTot=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
-                          const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-                          const grandTot=baseTot+autoAdjTot+adjSum;
-                          const tax=Math.round(grandTot*0.1);
-                          const isOpen=!!expanded[key];
-                          const checkIssues = g.items.filter(r => {
-                            if (!r.lines || !r.lines.length) return false;
-                            const expected = calcExpectedAmount(r, records);
-                            if (expected === null) return false;
-                            return Math.abs(expected - (r.amount||0)) > 10;
-                          });
-                          return(
-                            <React.Fragment key={key}>
-                              <tr onClick={()=>toggleExpand(key)} style={{
-                                borderBottom:isOpen?"none":"1px solid #f1f5f9",
-                                background:locked?"#f0fdf4":"#f8fafc",
-                                cursor:"pointer",transition:"background .15s"
-                              }}
-                                onMouseEnter={e=>e.currentTarget.style.background=locked?"#dcfce7":"#e8f4ff"}
-                                onMouseLeave={e=>e.currentTarget.style.background=locked?"#f0fdf4":"#f8fafc"}
-                              >
-                                <td style={{padding:"8px 12px",textAlign:"center",color:"#94a3b8",fontSize:11,paddingLeft:28}}>{isOpen?"▼":"▶"}</td>
-                                <td style={{padding:"8px 12px",paddingLeft:28,color:"#64748b",fontSize:11}}>
-                                  {g.projectName
-                                    ?<span style={{background:"#eff6ff",color:"#1d4ed8",borderRadius:4,padding:"1px 6px",fontSize:11,fontWeight:600}}>{g.projectName}</span>
-                                    :<span style={{color:"#cbd5e1"}}>案件名なし</span>
-                                  }
-                                  {d.adjustments.length>0&&<span style={{marginLeft:6,fontSize:10,color:"#92400e"}}>調整あり</span>}
-                                  {checkIssues.length > 0 && (
-                                    <span style={{marginLeft:6,fontSize:10,background:"#fef2f2",color:"#dc2626",border:"1px solid #fca5a5",borderRadius:3,padding:"1px 5px",fontWeight:700}}>⚠️ {checkIssues.length}件要確認</span>
-                                  )}
-                                </td>
-                                <td></td>
-                                <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{g.items.length}</td>
-                                <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(grandTot)}</td>
-                                <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(grandTot+tax)}</td>
-                                <td style={{padding:"8px 12px",textAlign:"center"}} onClick={e=>toggleLock(key,e)}>
-                                  <span style={{
-                                    background:locked?"#dcfce7":"#f1f5f9",
-                                    color:locked?"#15803d":"#64748b",
-                                    border:`1px solid ${locked?"#86efac":"#e2e8f0"}`,
-                                    borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,
-                                    cursor:"pointer",whiteSpace:"nowrap"
-                                  }}>{locked?"✅ 締め済み":"未締め"}</span>
-                                {(()=>{const ri=g.items.find(r=>r.issueReceipt&&r.receiptDate);if(!ri)return null;const rd=new Date(ri.receiptDate+"T00:00:00");return <span style={{display:"block",fontSize:10,color:"#0369a1",fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>{(rd.getMonth()+1)}月{rd.getDate()}日 領収済　{ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット"}</span>;})()}
-                                {(()=>{
-                                  const pc=getInvData(key)?.printCount||0;
-                                  const pi=getInvData(key)?.lastPrintDate||"";
-                                  if(!pc||!pi) return null;
-                                  const d=new Date(pi);
-                                  const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-                                  return <span style={{fontSize:9,color:"#16a34a",marginLeft:4,whiteSpace:"nowrap"}}>{ds} {pc}回目発行済</span>;
-                                })()}
-                              </td>
-                                <td style={{padding:"8px 8px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
-                                  <button onClick={async()=>{
-                                    const cur=getInvData(key);
-                                    const invNo=cur.invNo||(g.month?`${g.month}-???`:"");
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
-                                  }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
-                                    <Ico d={I.print} size={10}/>確認
-                                  </button>
-                                  <button onClick={async()=>{
-                                    const cur=getInvData(key);
-                                    let baseNo=cur.invNo;
-                                    let count;
-                                    if(!baseNo){
-                                      baseNo=await nextInvoiceNo(g.month);
-                                      count=1;
-                                    } else {
-                                      count=(cur.printCount||1)+1;
-                                    }
-                                    await updateInvData(key,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
-                                    const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
-                                  }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
-                                    🖨
-                                  </button>
-                                </td>
-                              </tr>
-                              {/* 層3: 詳細行 */}
-                              {isOpen&&(
-                                <tr>
-                                  <td colSpan={8} style={{padding:0,borderBottom:"1px solid #e2e8f0"}}>
-                                    <div style={{background:"#f8fafc",padding:"12px 16px 12px 48px"}}>
-                                      {/* 発行日 */}
-                                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                                        <span style={{fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>発行日：</span>
-                                        <input type="date" value={d.issueDate||""} onChange={e=>updateInvData(key,{issueDate:e.target.value})}
-                                          style={{...S.inp,width:140,fontSize:11,padding:"3px 8px"}} disabled={locked}/>
-                                        <span style={{fontSize:10,color:"#94a3b8"}}>（デフォルト: 月末日）</span>
-                                      </div>
-                                      {/* 案件リスト */}
-                                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:8}}>
-                                        <thead>
-                                          <tr style={{color:"#94a3b8",borderBottom:"1px solid #e2e8f0"}}>
-                                            <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600,width:90}}>伝票No.</th>
-                                            <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>機材</th>
-                                            <th style={{padding:"3px 8px",textAlign:"left",fontWeight:600}}>利用期間</th>
-                                            <th style={{padding:"3px 8px",textAlign:"center",fontWeight:600,width:50}}>日数</th>
-                                            <th style={{padding:"3px 8px",textAlign:"right",fontWeight:600,width:80}}>金額（税抜）</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {(()=>{const _bNo=dn=>(dn||"").replace(/E\d+.*$/,"");const chainEndMap={};g.items.forEach(r=>{const bk=_bNo(r.deliveryNo);if(!bk)return;const re=r.returnDate||r.endDate||"";if(!chainEndMap[bk]||re>chainEndMap[bk])chainEndMap[bk]=re;});const gKey=r=>{const bk=_bNo(r.deliveryNo);return(bk&&chainEndMap[bk])||(r.returnDate||r.endDate||"");};const sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const lastMIdx=sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const hasBoth=lastMIdx>=0&&sorted.some(r=>r.billingType!=="monthly");return buildChainBlocks(sorted).map((block, bi) => {
-                                            if (block.type === "chain") {
-                                              const { header: h, segments } = block;
-                                              return (
-                                                <React.Fragment key={"chain-"+bi}>
-                                                  <tr style={{borderBottom:"1px solid #e2e8f0",background:"#f0f7ff"}}>
-                                                    <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{(segments[0].deliveryNo||"").replace(/E\d+.*$/,"")}</td>
-                                                    <td style={{padding:"4px 8px",color:"#1e40af",fontWeight:600}}>{h.equipNames.join("、")}</td>
-                                                    <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>
-                                                      {fmtD(h.chainStart)}〜{fmtD(h.chainEnd)}<span style={{color:"#94a3b8",fontSize:10,marginLeft:4}}>（暦{h.chainCalDays}日 → 請求{h.chainBillDays}日）</span>
-                                                    </td>
-                                                    <td style={{padding:"4px 8px",textAlign:"center",color:"#94a3b8",fontSize:10}}>―</td>
-                                                    <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(h.chainAmount)}</td>
-                                                  </tr>
-                                                  {segments.map(r => (
-                                                    <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
-                                                      <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
-                                                      <td style={{padding:"2px 8px 2px 20px",color:"#475569"}}>
-                                                        <span style={{color:"#94a3b8",marginRight:4,fontSize:10}}>└</span>
-                                                        <span style={{color:r.isExtension?"#2563eb":"#475569"}}>{r.isExtension?"延長分":"初回分"}</span>
-                                                        {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
-                                                        {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
-                                                      </td>
-                                                      <td style={{padding:"2px 8px 2px 16px",color:"#64748b",whiteSpace:"nowrap"}}>
-                                                        {fmtD(r.startDate)}〜{fmtD(r.endDate)}<span style={{color:"#94a3b8",fontSize:10,marginLeft:4}}>（{r.days||0}日）</span>
-                                                      </td>
-                                                      <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b",fontSize:10}}>{r.days||0}</td>
-                                                      <td style={{padding:"4px 8px",textAlign:"right",color:"#64748b"}}>{fmt((r.amount||0)+(r.insuranceAmount||0))}</td>
-                                                    </tr>
-                                                  ))}
-                                                </React.Fragment>
-                                              );
-                                            }
-                                            const r = block.record;
-                                            const idx = sorted.indexOf(r);
-                                            return (
-                                              <React.Fragment key={r.id}>
-                                                <tr style={{borderBottom:"1px solid #f1f5f9"}}>
-                                                  <td style={{padding:"4px 8px",color:"#94a3b8",fontSize:10,whiteSpace:"nowrap"}}>{r.deliveryNo||"―"}</td>
-                                                  <td style={{padding:"4px 8px",color:"#475569"}}>
-                                                    {r.isExtension
-                                                      ?<span style={{color:"#2563eb"}}>
-                                                          {r.equipmentName||(r.lines||[]).map(l=>l.equipmentName).filter(Boolean).join("、")||""}
-                                                          {<span style={{fontSize:10,marginLeft:2}}>（延長分）</span>}
-                                                          {r.extendedFromNo&&<span style={{fontSize:10,color:"#94a3b8",marginLeft:4}}>（元No.{r.extendedFromNo}）</span>}
-                                                        </span>
-                                                      :r.equipmentName}
-                                                    {r.projectDetail&&<span style={{color:"#94a3b8",marginLeft:4}}>({r.projectDetail})</span>}
-                                                    {r.ecOrderNo&&<span style={{color:"#0369a1",marginLeft:4,fontSize:10}}>EC:{r.ecOrderNo}</span>}
-                                                  </td>
-                                                  <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}〜{fmtD(r.endDate)}</td>
-                                                  <td style={{padding:"4px 8px",textAlign:"center",color:"#64748b"}}>
-                                                    {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.days||0)}
-                                                  </td>
-                                                  <td style={{padding:"4px 8px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt((r.amount||0)+(r.insuranceAmount||0))}</td>
-                                                </tr>
-                                                {hasBoth&&idx===lastMIdx&&<tr key="spacer"><td colSpan={5} style={{padding:"6px 0",borderBottom:"2px solid #e2e8f0",background:"#f8fafc"}}></td></tr>}
-                                              </React.Fragment>
-                                            );
-                                          });})()}
-                                        </tbody>
-                                      </table>
-                                      {/* 修理/紛失行 */}
-                                      {gInc.length>0&&(
-                                        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,padding:"8px 12px",marginBottom:8}}>
-                                          <div style={{fontSize:11,fontWeight:700,color:"#dc2626",marginBottom:6}}>修理/紛失</div>
-                                          {gInc.map(inc=>(
-                                            <div key={inc.id} style={{display:"flex",gap:8,marginBottom:4,alignItems:"center",fontSize:11}}>
-                                              <span style={{background:inc.type==="loss"?"#fef2f2":"#fffbeb",color:inc.type==="loss"?"#dc2626":"#d97706",padding:"1px 6px",borderRadius:4,fontWeight:600,minWidth:60,textAlign:"center"}}>{inc.type==="loss"?"紛失":"修理/破損"}</span>
-                                              <span style={{flex:1,color:"#374151"}}>{inc.item_name}</span>
-                                              <span style={{fontWeight:600,color:"#16a34a"}}>{fmt(inc.charge_amount)}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                      {/* 調整行 */}
-                                      <div style={{background:"#fefce8",border:"1px solid #fde68a",borderRadius:6,padding:"8px 12px"}}>
-                                        <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                          <span>調整行</span>
-                                          {!locked&&<button onClick={()=>addAdj(key)} style={{...S.ib("#92400e"),fontSize:10,padding:"2px 8px"}}>
-                                            <Ico d={I.plus} size={11}/>追加
-                                          </button>}
-                                        </div>
-                                        {d.adjustments.length===0&&(g._autoAdjustments||[]).length===0&&<div style={{fontSize:11,color:"#94a3b8"}}>調整行なし</div>}
-                                        {(g._autoAdjustments||[]).map(a=>(
-                                          <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
-                                            <span style={{flex:1,fontSize:11,padding:"4px 8px",color:"#64748b",background:"#f1f5f9",borderRadius:4}}>🔒 {a.label}</span>
-                                            <span style={{width:110,fontSize:11,padding:"4px 8px",textAlign:"right",color:Number(a.amount)<0?"#dc2626":"#16a34a",fontWeight:600}}>{fmt(Number(a.amount)||0)}</span>
-                                            <span style={{width:64}}/>
-                                          </div>
-                                        ))}
-                                        {d.adjustments.map(a=>(
-                                          <div key={a.id} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
-                                            <input value={a.label} onChange={e=>updateAdj(key,a.id,{label:e.target.value})}
-                                              placeholder="内容（例: 値引き）" style={{...S.inp,flex:1,fontSize:11,padding:"4px 8px"}} disabled={locked}/>
-                                            <AdjAmountInput
-                                              value={a.amount}
-                                              onChange={num=>updateAdj(key,a.id,{amount:num})}
-                                              disabled={locked}
-                                              style={{...S.inp,width:110,fontSize:11,padding:"4px 8px",textAlign:"right"}}
-                                            />
-                                            <span style={{fontSize:11,color:"#374151",minWidth:64,textAlign:"right"}}>{fmt(Number(a.amount)||0)}</span>
-                                            {!locked&&<button onClick={()=>removeAdj(key,a.id)} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={12} color="#ef4444"/></button>}
-                                          </div>
-                                        ))}
-                                      </div>
-                                      {/* 合計 */}
-                                      <div style={{display:"flex",justifyContent:"flex-end",gap:16,fontSize:12,marginTop:8,paddingTop:8,borderTop:"1px solid #e2e8f0"}}>
-                                        <span><span style={{color:"#64748b"}}>機材: </span>{fmt(baseTot)}</span>
-                                        {adjSum!==0&&<span style={{color:adjSum<0?"#dc2626":"#16a34a"}}><span style={{color:"#64748b"}}>調整: </span>{fmt(adjSum)}</span>}
-                                        <span><span style={{color:"#64748b"}}>税抜: </span><strong>{fmt(grandTot)}</strong></span>
-                                        <span><span style={{color:"#64748b"}}>消費税: </span>{fmt(tax)}</span>
-                                        <strong style={{color:"#9333ea"}}>税込: {fmt(grandTot+tax)}</strong>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
-                      </React.Fragment>
-                    );
-                  });
-                })()}
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           }
         </div>
       </div>
 
+      {/* プレビュー */}
+      {preview&&(
+        <div style={{width:480,flexShrink:0,position:"sticky",top:70}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#475569",display:"flex",alignItems:"center",gap:6}}>
+              <Ico d={I.print} size={14} color="#1d4ed8"/>請求書 プレビュー
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={async()=>{
+  const cur=getInvData(preview.key,preview.g.month);
+  let baseNo=cur.invNo, count;
+  if(!baseNo){baseNo=await nextInvoiceNo(preview.g.month);count=1;}
+  else{count=(cur.printCount||1)+1;}
+  await updateInvData(preview.key,{invNo:baseNo,printCount:count});
+  const invNo=count<=1?baseNo:`${baseNo}-${count}`;
+  downloadPrintHTML("invoice",{...preview.g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""});
+}} style={{...S.btn("#1d4ed8",true),fontSize:11}}>🖨 PDF</button>
+              <button onClick={()=>setPreview(null)} style={{background:"none",border:"none",cursor:"pointer",padding:4}}><Ico d={I.x} size={16} color="#94a3b8"/></button>
+            </div>
+          </div>
+          <div style={{...S.card,maxHeight:"calc(100vh - 160px)",overflowY:"auto",border:"2px solid #bfdbfe"}}>
+            <InvoicePreview type="invoice" g={{...preview.g,adjustments:getInvData(preview.key).adjustments}}/>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 
-function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
-  const [detailOpen, setDetailOpen] = useState({tree:false,equip:false,suggest:false,memo:false});
-  const [salesNote, setSalesNote] = useState(()=>{ try{return localStorage.getItem(`olq_snote_${c.id}`)||"";}catch{return "";} });
-  const [noteSaved, setNoteSaved] = useState(false);
-  const [treeOpen, setTreeOpen] = useState({});
-  const [yearOpen, setYearOpen] = useState({});
-  const [monthOpen, setMonthOpen] = useState({});
-  const [histExpanded, setHistExpanded] = useState(false);
-  const currentYear = String(new Date().getFullYear());
-  const yIsOpen = y => yearOpen[y]!==undefined ? yearOpen[y] : y===currentYear;
-  const ymIsOpen = ym => monthOpen[ym]!==undefined ? monthOpen[ym] : ym.startsWith(currentYear);
-  const fmtD2 = d => d ? new Date(d).toLocaleDateString("ja-JP",{month:"2-digit",day:"2-digit"}) : "―";
-  const toggleDetail = key => setDetailOpen(d=>({...d,[key]:!d[key]}));
-  const saveNote = () => { try{localStorage.setItem(`olq_snote_${c.id}`,salesNote);}catch{} setNoteSaved(true); setTimeout(()=>setNoteSaved(false),2000); };
+function CustomerAnalysis({c, custRecords, products}){
+  const [period, setPeriod] = useState("month"); // "month"|"quarter"
+  const [chartView, setChartView] = useState("total"); // "total"|"project"
 
-  const totalSales = custRecords.reduce((s,r)=>s+(r.amount||0),0);
-  const sortedRecs = [...custRecords].sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
-  const lastDate = sortedRecs[0]?.startDate;
-  const daysSince = lastDate ? Math.floor((Date.now()-new Date(lastDate).getTime())/(1000*60*60*24)) : 999;
-  const health = daysSince<90
-    ? {label:"今が熱い",sub:"積極的にアプローチ",color:"#16a34a",bg:"#dcfce7",icon:"🟢"}
-    : daysSince<180
-    ? {label:"そろそろ連絡を",sub:`${daysSince}日連絡なし`,color:"#d97706",bg:"#fef3c7",icon:"🟡"}
-    : {label:"しばらく来ていない",sub:`${daysSince}日連絡なし`,color:"#dc2626",bg:"#fee2e2",icon:"🔴"};
+  // =========================================================
+  // 売上推移データ（全体）
+  // =========================================================
+  const salesByPeriod = {};
+  custRecords.forEach(r=>{
+    if(!r.startDate) return;
+    const d = new Date(r.startDate);
+    const key = period==="month"
+      ? r.startDate.slice(0,7)
+      : `${d.getFullYear()}Q${Math.ceil((d.getMonth()+1)/3)}`;
+    salesByPeriod[key] = (salesByPeriod[key]||0) + (r.amount||0);
+  });
+  const periodKeys = Object.keys(salesByPeriod).sort();
+  const maxSales = Math.max(...Object.values(salesByPeriod), 1);
+  const totalSales = custRecords.reduce((s,r)=>s+(r.amount||0), 0);
 
-  const now = new Date(); const cy=now.getFullYear(),cm=now.getMonth()+1;
-  const salesByYM={};
-  custRecords.forEach(r=>{ if(!r.startDate)return; const d=new Date(r.startDate); const k=`${d.getFullYear()}-${d.getMonth()+1}`; salesByYM[k]=(salesByYM[k]||0)+(r.amount||0); });
-  const curYearTotal=Object.entries(salesByYM).filter(([k])=>k.startsWith(`${cy}-`)).reduce((s,[,v])=>s+v,0);
-  const prevYearTotal=Object.entries(salesByYM).filter(([k])=>k.startsWith(`${cy-1}-`)).reduce((s,[,v])=>s+v,0);
-  const yearGrowth=prevYearTotal>0?Math.round((curYearTotal-prevYearTotal)/prevYearTotal*100):null;
-  const curMonthSales=salesByYM[`${cy}-${cm}`]||0;
-  const prevMonthSales=salesByYM[`${cy-1}-${cm}`]||0;
-  const monthGrowth=prevMonthSales>0?Math.round((curMonthSales-prevMonthSales)/prevMonthSales*100):null;
+  // =========================================================
+  // 案件別売上推移データ
+  // =========================================================
+  const projectNames = [...new Set(custRecords.map(r=>r.projectName||"案件名なし").filter(Boolean))];
+  const COLORS = ["#2563eb","#16a34a","#9333ea","#ea580c","#0891b2","#65a30d","#dc2626","#7c3aed"];
+  const salesByProject = {}; // {projectName: {period: amount}}
+  custRecords.forEach(r=>{
+    if(!r.startDate) return;
+    const d = new Date(r.startDate);
+    const pKey = period==="month" ? r.startDate.slice(0,7) : `${d.getFullYear()}Q${Math.ceil((d.getMonth()+1)/3)}`;
+    const proj = r.projectName||"案件名なし";
+    if(!salesByProject[proj]) salesByProject[proj] = {};
+    salesByProject[proj][pKey] = (salesByProject[proj][pKey]||0) + (r.amount||0);
+  });
+  const allPeriodKeys = [...new Set(Object.values(salesByProject).flatMap(v=>Object.keys(v)))].sort();
 
-  const last3Avg=sortedRecs.slice(0,3).length?Math.round(sortedRecs.slice(0,3).reduce((s,r)=>s+(r.amount||0),0)/Math.min(3,sortedRecs.length)):0;
-  const allAvg=custRecords.length?Math.round(totalSales/custRecords.length):0;
-  const priceTrend=last3Avg>allAvg*1.1
-    ? {label:"↑上がっています",sub:`直近3件の平均が+${Math.round((last3Avg/allAvg-1)*100)}%`,color:"#16a34a"}
-    : last3Avg<allAvg*0.9
-    ? {label:"↓下がっています",sub:`直近3件の平均が-${Math.round((1-last3Avg/allAvg)*100)}%`,color:"#dc2626"}
-    : {label:"横ばいです",sub:"大きな変化なし",color:"#64748b"};
+  // =========================================================
+  // よく使う製品ランキング
+  // =========================================================
+  const prodCount = {};
+  const prodAmount = {};
+  custRecords.forEach(r=>{
+    const name = r.equipmentName||"不明";
+    prodCount[name] = (prodCount[name]||0) + 1;
+    prodAmount[name] = (prodAmount[name]||0) + (r.amount||0);
+  });
+  const topProds = Object.entries(prodCount)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0, 8);
 
-  const monthFreq=Array(12).fill(0);
-  custRecords.forEach(r=>{ if(r.startDate) monthFreq[new Date(r.startDate).getMonth()]++; });
-  const monthNames=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-  const topMonths=monthFreq.map((cnt,i)=>({m:i,cnt})).sort((a,b)=>b.cnt-a.cnt).filter(x=>x.cnt>0).slice(0,3);
-
-  let nextAction="";
-  if(custRecords.length===0){ nextAction="まだ利用履歴がありません。初回アプローチをしましょう。"; }
-  else if(daysSince>180){ nextAction="長期間連絡がありません。今すぐ連絡してください。"; }
-  else if(topMonths.length>0){
-    const busyMonths=topMonths.map(x=>x.m+1);
-    const nextBusy=busyMonths.find(m=>m>cm)||busyMonths[0];
-    const monthsUntil=nextBusy>cm?nextBusy-cm:12-cm+nextBusy;
-    const contactMonth=nextBusy>1?nextBusy-1:12;
-    if(monthsUntil<=2){ nextAction=`今すぐ連絡してください。${nextBusy}月の案件に向けて${contactMonth}月中がベストです。`; }
-    else{ nextAction=`${contactMonth}月中に連絡してください。毎年${busyMonths.slice(0,2).join("・")}月に利用が集中しています。`; }
-  } else if(sortedRecs.length>=2){
-    const intervals=sortedRecs.slice(0,-1).map((r,i)=>(new Date(r.startDate)-new Date(sortedRecs[i+1].startDate))/(1000*60*60*24));
-    const avgInterval=Math.round(intervals.reduce((s,v)=>s+v,0)/intervals.length);
-    const nextDate=new Date(new Date(lastDate).getTime()+avgInterval*1000*60*60*24);
-    nextAction=`${nextDate.getMonth()+1}月頃に連絡してください。平均して${avgInterval}日ごとに利用があります。`;
-  } else { nextAction=daysSince<30?"先日ご利用いただいたばかりです。次回の提案を準備しましょう。":`${Math.round(daysSince/30)}ヶ月経過しています。フォローの連絡をしましょう。`; }
-
-  const prodCount={},prodAmount={};
-  custRecords.forEach(r=>{ const lines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName}]; lines.forEach(ln=>{ const name=ln.equipmentName||r.equipmentName||""; if(name){prodCount[name]=(prodCount[name]||0)+1;prodAmount[name]=(prodAmount[name]||0)+(r.amount||0);} }); });
-  const topProds=Object.entries(prodCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const usedNames=new Set(Object.keys(prodCount));
-
-  const allProdCount={};
-  allRecords.forEach(r=>{ if(r.customerId===c.id)return; const lines=(r.lines&&r.lines.length)?r.lines:[{equipmentName:r.equipmentName}]; lines.forEach(ln=>{ const name=ln.equipmentName||r.equipmentName||""; if(name) allProdCount[name]=(allProdCount[name]||0)+1; }); });
-  const suggestions=Object.entries(allProdCount).filter(([n])=>!usedNames.has(n)&&n).sort((a,b)=>b[1]-a[1]).slice(0,5);
-
-  const tree={};
-  custRecords.forEach(r=>{ if(!r.startDate)return; const y=r.startDate.slice(0,4),m=r.startDate.slice(0,7); if(!tree[y])tree[y]={}; if(!tree[y][m])tree[y][m]=[]; tree[y][m].push(r); });
-  const treeYears=Object.keys(tree).sort().reverse();
+  // =========================================================
+  // 利用履歴（新しい順、最大20件）
+  // =========================================================
+  const history = [...custRecords]
+    .sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""))
+    .slice(0, 20);
 
   return(
-    <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"16px 20px 20px 62px",display:"flex",flexDirection:"column"}}>
+    <div style={{background:"#f8fafc",borderTop:"1px solid #e2e8f0",padding:"16px 16px 16px 62px"}}>
+      {/* サマリー */}
+      <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+        {[
+          {l:"累計売上（税抜）", v:fmt(totalSales), c:"#16a34a"},
+          {l:"案件数", v:`${custRecords.length}件`, c:"#2563eb"},
+          {l:"平均単価", v:custRecords.length?fmt(Math.round(totalSales/custRecords.length)):"―", c:"#9333ea"},
+          {l:"最終利用", v:history[0]?.startDate?.slice(0,7)||"―", c:"#64748b"},
+        ].map(s=>(
+          <div key={s.l} style={{background:"#fff",borderRadius:8,padding:"8px 14px",border:"1px solid #e2e8f0",minWidth:110}}>
+            <div style={{fontSize:9,color:"#94a3b8",marginBottom:2}}>{s.l}</div>
+            <div style={{fontSize:15,fontWeight:800,color:s.c}}>{s.v}</div>
+          </div>
+        ))}
+      </div>
 
-      {/* LAYER1: ステータス＋アクション */}
-      <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:10,marginBottom:10,order:1}}>
-        <div style={{background:health.bg,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between",border:`1px solid ${health.color}33`}}>
-          <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:8}}>
-            <span style={{fontSize:15}}>{health.icon}</span>
-            <span style={{fontSize:12,fontWeight:800,color:health.color}}>{health.label}</span>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        {/* 売上推移グラフ */}
+        <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:4}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#475569"}}>📈 売上推移</div>
+            <div style={{display:"flex",gap:4}}>
+              <div style={{display:"flex",gap:2,background:"#f1f5f9",borderRadius:5,padding:2}}>
+                {[{k:"total",l:"全体"},{k:"project",l:"案件別"}].map(t=>(
+                  <button key={t.k} onClick={()=>setChartView(t.k)} style={{
+                    background:chartView===t.k?"#fff":"transparent",border:"none",borderRadius:4,
+                    padding:"2px 8px",fontSize:10,fontWeight:chartView===t.k?700:500,
+                    color:chartView===t.k?"#0f172a":"#94a3b8",cursor:"pointer"
+                  }}>{t.l}</button>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:2,background:"#f1f5f9",borderRadius:5,padding:2}}>
+                {[{k:"month",l:"月別"},{k:"quarter",l:"四半期"}].map(t=>(
+                  <button key={t.k} onClick={()=>setPeriod(t.k)} style={{
+                    background:period===t.k?"#fff":"transparent",border:"none",borderRadius:4,
+                    padding:"2px 8px",fontSize:10,fontWeight:period===t.k?700:500,
+                    color:period===t.k?"#0f172a":"#94a3b8",cursor:"pointer"
+                  }}>{t.l}</button>
+                ))}
+              </div>
+            </div>
           </div>
-          <div>
-            <div style={{fontSize:8,color:health.color,opacity:0.8,marginBottom:2,fontWeight:600}}>累計売上 LTV</div>
-            <div style={{fontSize:17,fontWeight:800,color:health.color,lineHeight:1}}>{fmt(totalSales)}</div>
-            <div style={{fontSize:8,color:health.color,opacity:0.7,marginTop:3}}>{custRecords.length}件　平均{fmt(allAvg)}/件</div>
-          </div>
-        </div>
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
-            <span style={{fontSize:11}}>⚡</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#475569",letterSpacing:0.5}}>ネクストアクション</span>
-            <span style={{marginLeft:"auto",fontSize:9,color:"#94a3b8",background:"#f1f5f9",padding:"1px 6px",borderRadius:3}}>{daysSince<999?`最終利用 ${daysSince}日前`:"利用履歴なし"}</span>
-          </div>
-          <div style={{fontSize:13,fontWeight:700,color:"#0f172a",lineHeight:1.7,marginBottom:8}}>{nextAction}</div>
-          <button onClick={()=>toggleDetail("memo")} style={{background:detailOpen.memo?"#f1f5f9":"#0f172a",color:detailOpen.memo?"#475569":"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>
-            📝 {detailOpen.memo?"メモを閉じる":"営業メモを書く"}
-          </button>
-          {detailOpen.memo&&(
-            <div style={{marginTop:8}}>
-              <textarea value={salesNote} onChange={e=>setSalesNote(e.target.value)} placeholder="次回コンタクト予定、提案内容、担当者メモなど..."
-                style={{width:"100%",height:72,padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit",outline:"none"}}/>
-              <button onClick={saveNote} style={{background:noteSaved?"#16a34a":"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",marginTop:4}}>
-                {noteSaved?"✅ 保存済み":"保存する"}
-              </button>
+
+          {/* 全体グラフ */}
+          {chartView==="total"&&(periodKeys.length===0
+            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"20px 0"}}>データなし</div>
+            :<div style={{display:"flex",alignItems:"flex-end",gap:4,height:80,overflowX:"auto"}}>
+              {periodKeys.map(k=>{
+                const h = Math.max(4, Math.round((salesByPeriod[k]/maxSales)*80));
+                return(
+                  <div key={k} style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0,minWidth:period==="month"?28:44}}>
+                    <div style={{fontSize:8,color:"#94a3b8",marginBottom:2}}>{fmt(salesByPeriod[k]).replace("¥","")}</div>
+                    <div style={{width:"100%",height:h,background:"#2563eb",borderRadius:"3px 3px 0 0",opacity:0.8}} title={`${k}: ${fmt(salesByPeriod[k])}`}/>
+                    <div style={{fontSize:8,color:"#64748b",marginTop:2,transform:"rotate(-30deg)",whiteSpace:"nowrap"}}>{period==="month"?k.slice(2):k}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 案件別グラフ */}
+          {chartView==="project"&&(allPeriodKeys.length===0
+            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"20px 0"}}>データなし</div>
+            :<div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:4,height:80,overflowX:"auto"}}>
+                {allPeriodKeys.map(k=>{
+                  const maxV = Math.max(...allPeriodKeys.map(pk=>projectNames.reduce((s,pj)=>s+(salesByProject[pj]?.[pk]||0),0)),1);
+                  const total = projectNames.reduce((s,pj)=>s+(salesByProject[pj]?.[k]||0),0);
+                  const h = Math.max(4, Math.round((total/maxV)*80));
+                  let cumH = 0;
+                  return(
+                    <div key={k} style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0,minWidth:period==="month"?28:44}}>
+                      <div style={{width:"100%",height:h,position:"relative",display:"flex",flexDirection:"column-reverse"}}>
+                        {projectNames.map((pj,pi)=>{
+                          const v = salesByProject[pj]?.[k]||0;
+                          if(!v) return null;
+                          const ph = Math.round((v/maxV)*80);
+                          return <div key={pj} style={{width:"100%",height:ph,background:COLORS[pi%COLORS.length],opacity:0.85}} title={`${pj}: ${fmt(v)}`}/>;
+                        })}
+                      </div>
+                      <div style={{fontSize:8,color:"#64748b",marginTop:2,transform:"rotate(-30deg)",whiteSpace:"nowrap"}}>{period==="month"?k.slice(2):k}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* 凡例 */}
+              <div style={{display:"flex",flexWrap:"wrap",gap:"4px 10px",marginTop:8}}>
+                {projectNames.map((pj,pi)=>(
+                  <span key={pj} style={{fontSize:9,display:"flex",alignItems:"center",gap:3}}>
+                    <span style={{width:8,height:8,borderRadius:2,background:COLORS[pi%COLORS.length],display:"inline-block"}}/>
+                    {pj}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
-      </div>
 
-      {/* LAYER2: 4KPIカード */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10,order:2}}>
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
-          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>前年比売上</div>
-          <div style={{marginBottom:4}}>
-            <div style={{fontSize:8,color:"#64748b",marginBottom:1}}>今年累計</div>
-            <div style={{fontSize:17,fontWeight:800,color:yearGrowth===null?"#94a3b8":yearGrowth>=0?"#16a34a":"#dc2626",lineHeight:1}}>
-              {yearGrowth===null?"―":yearGrowth>=0?`+${yearGrowth}%`:`${yearGrowth}%`}
-            </div>
-          </div>
-          <div>
-            <div style={{fontSize:8,color:"#64748b",marginBottom:1}}>今月</div>
-            <div style={{fontSize:13,fontWeight:700,color:monthGrowth===null?"#94a3b8":monthGrowth>=0?"#16a34a":"#dc2626"}}>
-              {monthGrowth===null?"―":monthGrowth>=0?`+${monthGrowth}%`:`${monthGrowth}%`}
-            </div>
-          </div>
-          <div style={{fontSize:8,color:"#cbd5e1",marginTop:5}}>対前年同期比</div>
-        </div>
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
-          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>受注単価トレンド</div>
-          <div style={{fontSize:13,fontWeight:800,color:priceTrend.color,marginBottom:4}}>{priceTrend.label}</div>
-          <div style={{fontSize:8,color:"#94a3b8",marginBottom:6}}>{priceTrend.sub}</div>
-          <div style={{display:"flex",justifyContent:"space-between"}}>
-            <div><div style={{fontSize:8,color:"#94a3b8"}}>直近3件</div><div style={{fontSize:11,fontWeight:700,color:"#334155"}}>{fmt(last3Avg)}</div></div>
-            <div style={{textAlign:"right"}}><div style={{fontSize:8,color:"#94a3b8"}}>全体平均</div><div style={{fontSize:11,fontWeight:700,color:"#334155"}}>{fmt(allAvg)}</div></div>
-          </div>
-        </div>
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
-          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>来店ペース</div>
-          {sortedRecs.length>=2?(()=>{
-            const intervals=sortedRecs.slice(0,-1).map((r,i)=>(new Date(r.startDate)-new Date(sortedRecs[i+1].startDate))/(1000*60*60*24));
-            const avgInt=Math.round(intervals.reduce((s,v)=>s+v,0)/intervals.length);
-            return(<>
-              <div style={{fontSize:17,fontWeight:800,color:"#2563eb",lineHeight:1,marginBottom:2}}>{avgInt}<span style={{fontSize:10,fontWeight:400,color:"#64748b"}}>日周期</span></div>
-              <div style={{fontSize:8,color:"#94a3b8",marginBottom:4}}>平均利用間隔</div>
-              <div style={{fontSize:9,color:"#64748b"}}>最終：{fmtD2(lastDate)}</div>
-            </>);
-          })():(<>
-            <div style={{fontSize:17,fontWeight:800,color:"#94a3b8",marginBottom:2}}>―</div>
-            <div style={{fontSize:9,color:"#94a3b8"}}>{custRecords.length===0?"履歴なし":"データ不足"}</div>
-          </>)}
-        </div>
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"10px 12px"}}>
-          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:6,letterSpacing:0.5}}>繁忙月</div>
-          {topMonths.length===0
-            ?<div style={{fontSize:11,color:"#94a3b8"}}>データなし</div>
-            :<>
-              <div style={{fontSize:17,fontWeight:800,color:"#7c3aed",lineHeight:1,marginBottom:2}}>{monthNames[topMonths[0].m]}</div>
-              <div style={{fontSize:8,color:"#94a3b8",marginBottom:4}}>{topMonths[0].cnt}件（最多）</div>
-              {topMonths.slice(1,3).map(x=>(
-                <div key={x.m} style={{fontSize:10,color:"#64748b"}}>{monthNames[x.m]} <span style={{color:"#94a3b8",fontSize:9}}>{x.cnt}件</span></div>
-              ))}
-            </>
-          }
-        </div>
-      </div>
-
-      {/* LAYER3: 常時表示 */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8,order:3}}>
-
-        {/* 提案できる機材 */}
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
-            <span style={{fontSize:13}}>💡</span>
-            <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>提案できる機材</span>
-            <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{suggestions.length}件</span>
-          </div>
-          {suggestions.length===0
-            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"16px 0"}}>データなし</div>
-            :suggestions.map(([name,cnt])=>(
-              <div key={name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,padding:"7px 10px",background:"#f0fdf4",borderRadius:6,border:"1px solid #bbf7d0"}}>
-                <span style={{fontSize:12}}>📦</span>
-                <div style={{flex:1,overflow:"hidden"}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#166534",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
-                  <div style={{fontSize:9,color:"#16a34a"}}>{cnt}社が使用中</div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-
-        {/* よく使う機材 */}
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
-            <span style={{fontSize:13}}>🏆</span>
-            <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>よく使う機材</span>
-            <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{topProds.length}件</span>
-          </div>
+        {/* よく使う製品ランキング */}
+        <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:10}}>🏆 よく使う製品</div>
           {topProds.length===0
-            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"16px 0"}}>データなし</div>
-            :topProds.map(([name,cnt],idx)=>{
-              const bar=Math.round((cnt/topProds[0][1])*100);
-              const barColor=idx===0?"#f59e0b":idx===1?"#94a3b8":idx===2?"#b45309":"#2563eb";
+            ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"20px 0"}}>データなし</div>
+            :topProds.map(([name, cnt], idx)=>{
+              const bar = Math.round((cnt/topProds[0][1])*100);
               return(
-                <div key={name} style={{marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
+                <div key={name} style={{marginBottom:6}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
                     <span style={{color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      <span style={{color:barColor,fontWeight:800,marginRight:4}}>#{idx+1}</span>{name}
+                      <span style={{color:"#94a3b8",fontWeight:700,marginRight:4}}>#{idx+1}</span>{name}
                     </span>
-                    <span style={{color:"#64748b",marginLeft:8,whiteSpace:"nowrap",fontWeight:600}}>{cnt}回</span>
+                    <span style={{color:"#64748b",marginLeft:8,whiteSpace:"nowrap"}}>{cnt}回　{fmt(prodAmount[name])}</span>
                   </div>
-                  <div style={{height:5,background:"#f1f5f9",borderRadius:3}}>
-                    <div style={{height:5,width:`${bar}%`,background:barColor,borderRadius:3}}/>
+                  <div style={{height:4,background:"#f1f5f9",borderRadius:2}}>
+                    <div style={{height:4,width:`${bar}%`,background:idx===0?"#f59e0b":idx===1?"#94a3b8":idx===2?"#b45309":"#2563eb",borderRadius:2}}/>
                   </div>
                 </div>
               );
@@ -6038,116 +3257,41 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
         </div>
       </div>
 
-      {/* 案件履歴 */}
-      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8,order:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
-          <span style={{fontSize:13}}>📋</span>
-          <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>案件履歴</span>
-          <span style={{marginLeft:"auto",fontSize:9,background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px"}}>{custRecords.length}件</span>
-          <button onClick={()=>setHistExpanded(e=>!e)} style={{marginLeft:6,fontSize:9,background:histExpanded?"#1e293b":"#f1f5f9",color:histExpanded?"#fff":"#64748b",border:"none",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>
-            {histExpanded?"折りたたむ":"すべて表示"}
-          </button>
-        </div>
-        {treeYears.length===0
-          ?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"12px 0"}}>データなし</div>
-          :<div style={histExpanded?{}:{maxHeight:700,overflowY:"auto"}}>
-            {treeYears.map(y=>(
-              <div key={y} style={{marginBottom:6}}>
-                <div onClick={()=>setYearOpen(o=>({...o,[y]:!yIsOpen(y)}))}
-                  style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:4,cursor:"pointer",background:"#f1f5f9",marginBottom:4,userSelect:"none"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:"#475569"}}>{yIsOpen(y)?"▾":"▶"} {y}年</span>
-                  <span style={{fontSize:9,color:"#94a3b8",marginLeft:"auto"}}>{Object.values(tree[y]).flat().length}件</span>
-                </div>
-                {yIsOpen(y)&&Object.keys(tree[y]).sort().reverse().map(ym=>(
-                  <div key={ym} style={{marginBottom:4,paddingLeft:8}}>
-                    <div onClick={()=>setMonthOpen(o=>({...o,[ym]:!ymIsOpen(ym)}))}
-                      style={{display:"flex",alignItems:"center",gap:4,padding:"3px 6px",cursor:"pointer",marginBottom:3,userSelect:"none"}}>
-                      <span style={{fontSize:10,color:"#64748b",fontWeight:600}}>{ymIsOpen(ym)?"▾":"▶"} {ym.slice(5)}月</span>
-                      <span style={{fontSize:9,color:"#94a3b8",marginLeft:4}}>（{tree[y][ym].length}件）</span>
-                    </div>
-                    {ymIsOpen(ym)&&tree[y][ym].map(r=>{
-                      const isExp = treeOpen[r.id];
-                      const rawLines = (r.lines&&r.lines.length)?r.lines:(r.equipmentName?[{equipmentName:r.equipmentName,quantity:r.quantity||1}]:[]);
-                      const rLines = rawLines.filter(ln=>(ln.equipmentName||"").trim()!==""||ln.isManual);
-                      const shown = rLines.slice(0,3).map(ln=>{const n=ln.equipmentName||"";return n.length>10?n.slice(0,10)+"…":n;}).filter(Boolean);
-                      const summary = shown.length>0?(shown.join("・")+(rLines.length>3?` ほか${rLines.length-3}点`:"")):"";
-                      const bTag = r.billingType==="monthly"?{label:"月極",bg:"#dbeafe",col:"#1d4ed8"}:{label:"日極",bg:"#dcfce7",col:"#166534"};
-                      return(
-                        <div key={r.id} style={{background:"#fff",borderRadius:6,marginBottom:4,border:"1px solid #e2e8f0",overflow:"hidden"}}>
-                          <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"7px 10px",cursor:"pointer",textAlign:"left"}} onClick={()=>setTreeOpen(o=>({...o,[r.id]:!o[r.id]}))}>
-                            <div style={{flex:1,minWidth:0,textAlign:"left"}}>
-                              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,flexWrap:"nowrap"}}>
-                                <span style={{fontSize:9,background:bTag.bg,color:bTag.col,borderRadius:3,padding:"1px 5px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{bTag.label}</span>
-                                <span style={{fontSize:11,color:"#1e293b",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName||"（案件名なし）"}</span>
-                              </div>
-                              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:summary&&!isExp?3:0}}>
-                                <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"nowrap"}}>{fmtD2(r.startDate)}</span>
-                                {r.deliveryNo&&<span style={{fontSize:10,background:"#f1f5f9",color:"#64748b",borderRadius:3,padding:"1px 6px",fontFamily:"monospace",whiteSpace:"nowrap"}}>No.{r.deliveryNo}</span>}
-                              </div>
-                              {!isExp&&summary&&<div style={{fontSize:10,color:"#475569",textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{summary}</div>}
-                            </div>
-                            <div style={{textAlign:"right",flexShrink:0,minWidth:60}}>
-                              <div style={{fontSize:11,fontWeight:700,color:"#334155",whiteSpace:"nowrap"}}>{fmt(r.amount||0)}</div>
-                              <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{isExp?"▴ 閉じる":"▾ 詳細"}</div>
-                            </div>
-                          </div>
-                          {isExp&&(
-                            <div style={{borderTop:"1px solid #f1f5f9",padding:"6px 10px",background:"#f8fafc"}}>
-                              {rLines.length===0
-                                ?<div style={{fontSize:10,color:"#94a3b8",textAlign:"left"}}>機材情報なし</div>
-                                :rLines.map((ln,i)=>(
-                                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,color:"#334155",padding:"3px 0",borderBottom:i<rLines.length-1?"1px solid #e2e8f0":"none",textAlign:"left"}}>
-                                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{ln.equipmentName||"―"}{(ln.quantity||1)>1?` ×${ln.quantity}`:""}</span>
-                                    <span style={{color:"#94a3b8",marginLeft:8,whiteSpace:"nowrap",flexShrink:0,fontSize:10}}>{ln.amount?fmt(ln.amount):""}</span>
-                                  </div>
-                                ))
-                              }
-                              <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid #e2e8f0",textAlign:"left"}}>
-                                <button onClick={()=>{
-                                  const g={customerId:r.customerId,customer:c,customerName:c.name,projectName:r.projectName||"",month:r.startDate?r.startDate.slice(0,7):"",items:[r],split:true,consolidate:false};
-                                  downloadPrintHTML(r.issueReceipt?"delivery-receipt":"delivery",g);
-                                }} style={{background:"none",border:"none",color:"#2563eb",fontSize:11,cursor:"pointer",padding:0,textDecoration:"underline"}}>
-                                  → 納品書を開く
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
+      {/* 利用履歴 */}
+      <div style={{background:"#fff",borderRadius:8,border:"1px solid #e2e8f0",padding:"12px 14px",marginTop:14}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>📋 利用履歴（直近20件）</div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead>
+            <tr style={{background:"#f8fafc",color:"#94a3b8"}}>
+              {["開始日","案件名","機材","日数","金額（税抜）"].map(h=>(
+                <th key={h} style={{padding:"4px 8px",textAlign:"left",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((r,i)=>(
+              <tr key={r.id} style={{borderBottom:"1px solid #f8fafc",background:i%2?"#fcfcfc":"#fff"}}>
+                <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(r.startDate)}</td>
+                <td style={{padding:"4px 8px",color:"#64748b",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {r.projectName||"―"}
+                  {r.ecOrderNo&&<span style={{marginLeft:4,fontSize:9,color:"#0369a1"}}>EC:{r.ecOrderNo}</span>}
+                </td>
+                <td style={{padding:"4px 8px",color:"#475569",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.equipmentName||"―"}</td>
+                <td style={{padding:"4px 8px",color:"#64748b",whiteSpace:"nowrap",textAlign:"center"}}>
+                  {r.billingType==="monthly"?(r.months||1)+"ヶ月":(r.billingDays||r.days||0)}
+                </td>
+                <td style={{padding:"4px 8px",fontWeight:600,color:"#16a34a",textAlign:"right"}}>{fmt(r.amount)}</td>
+              </tr>
             ))}
-          </div>
-        }
+          </tbody>
+        </table>
       </div>
-
-      {/* 特別価格 */}
-      <div style={{order:4}}>
-      {syncSPs(c.specialPrices,products).length>0&&(
-        <div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",padding:"12px 14px",order:1}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-            <span style={{fontSize:13}}>⭐</span>
-            <span style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>特別価格</span>
-            <span style={{marginLeft:"auto",fontSize:9,background:"#fef9c3",color:"#92400e",borderRadius:4,padding:"1px 6px"}}>{syncSPs(c.specialPrices,products).length}件</span>
-          </div>
-          {c.specialPrices.map((sp,j)=>(
-            <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,marginBottom:3,padding:"4px 6px",background:"#fefce8",borderRadius:4}}>
-              <span style={{flex:1,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{spName(sp,products)}</span>
-              <span style={{color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>{fmt(sp.price)}/日（税抜）</span>
-            </div>
-          ))}
-        </div>
-      )}
-      </div>
-
     </div>
   );
 }
 
-function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActivity,showToast,presetCustomers,openCustomerId,onOpenHandled}){
-  const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false,showDiscountLine:false};
+function CustomersTab({customers,products,records,onSave,showToast,presetCustomers,openCustomerId,onOpenHandled}){
+  const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
@@ -6159,8 +3303,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
   const [custQ,setCustQ]=useState("");
   const [sortKey,setSortKey]=useState("name"); // "name" | "sales"
   const [projInput,setProjInput]=useState("");
-  const [editProjModal,setEditProjModal]=useState(null); // {index, name, useCount}
-  const [editProjName,setEditProjName]=useState("");
   const xlsxInputRef=useRef(null);
   const importFromXlsx=async(file)=>{
     try{
@@ -6211,9 +3353,8 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     if(!openCustomerId) return;
     const c = customers.find(x=>x.id===openCustomerId);
     if(!c) return;
-    setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,showDiscountLine:!!c.showDiscountLine});
+    setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});
     setEditId(c.id);
-    setDetailId(c.id);
     setOpen(true);
     onOpenHandled&&onOpenHandled();
     // 該当顧客が見えるようにスクロール
@@ -6238,27 +3379,18 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     if(!updatedForm.name){showToast("顧客名は必須",false);return;}
     const synced=syncSPs(updatedForm.specialPrices,products);
     const c={...updatedForm,specialPrices:synced,id:editId||uid(),discountRate:Number(updatedForm.discountRate)||0,staff:updatedForm.staff||"",updatedAt:Date.now(),createdAt:editId?customers.find(x=>x.id===editId)?.createdAt:Date.now()};
-    try {
-      await onSave(editId?customers.map(x=>x.id===editId?c:x):[...customers,c],{action:editId?"更新":"作成",name:c.name});
-      showToast("更新しました");
-    } catch(e) {
-      showToast("保存に失敗しました。もう一度お試しください。",false);
-      console.error("saveCustomer error",e);
-    }
+    await onSave(editId?customers.map(x=>x.id===editId?c:x):[...customers,c]);
+    showToast("更新しました");
   };
 
   const addProj=async()=>{
     const v=projInput.trim();
     if(!v)return;
     if((form.projects||[]).includes(v)){setProjInput("");return;}
-    const updatedProjects=[...(form.projects||[]),v];
-    const updatedForm={...form,projects:updatedProjects};
-    setForm(updatedForm);
+    const updated={...form,projects:[...(form.projects||[]),v]};
+    setForm(updated);
     setProjInput("");
-    const synced=syncSPs(updatedForm.specialPrices,products);
-    const c={...updatedForm,specialPrices:synced,id:editId||uid(),discountRate:Number(updatedForm.discountRate)||0,staff:updatedForm.staff||"",updatedAt:Date.now(),createdAt:editId?customers.find(x=>x.id===editId)?.createdAt:Date.now()};
-    await onSave(editId?customers.map(x=>x.id===editId?c:x):[...customers,c]);
-    await onLogActivity("案件名追加","customer",form.name,`「${v}」を追加`);
+    await saveCustomer(updated);
   };
   const removeProj=(i)=>setForm(f=>({...f,projects:(f.projects||[]).filter((_,j)=>j!==i)}));
 
@@ -6269,7 +3401,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     setForm(updated);
     setSpProd("");setSpPrice("");setSpQ("");
     await saveCustomer(updated);
-    await onLogActivity("特別価格追加","customer",form.name,`${p?.fullName||""}：¥${spPrice}/日`);
   };
 
   const submit=async()=>{
@@ -6281,39 +3412,12 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
   const filteredSpProds = spQ.length>=1
     ? products.filter(p=>p.fullName.toLowerCase().includes(spQ.toLowerCase()))
     : [];
-  if(open && !detailId){
-    return(
-      <div>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-          <button onClick={()=>{setOpen(false);setForm(E);}} style={{...S.ib("#64748b"),fontSize:12}}>← 一覧に戻る</button>
-          <div style={{flex:1,fontSize:16,fontWeight:800}}>新規顧客を追加</div>
-        </div>
-        <div style={{...S.card,padding:24,marginBottom:16}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 20px"}}>
-            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>顧客名 * （社内管理用）</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={S.inp} placeholder="株式会社〇〇"/></div>
-            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>請求書宛名（空欄の場合は顧客名を使用）</label><input value={form.invoiceName} onChange={e=>setForm(f=>({...f,invoiceName:e.target.value}))} style={S.inp} placeholder="例: 株式会社〇〇 制作部 ご担当者様"/></div>
-            <div><label style={S.lbl}>郵便番号</label><input value={form.zipCode} onChange={e=>setForm(f=>({...f,zipCode:e.target.value}))} style={S.inp} placeholder="000-0000"/></div>
-            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>住所</label><textarea value={form.address||""} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={{...S.inp,height:66,resize:"vertical",lineHeight:1.6}} placeholder={"東京都港区新橋6-10-2\n第二新洋ビル 1F"}/></div>
-            <div><label style={S.lbl}>担当者名</label><input value={form.contact} onChange={e=>setForm(f=>({...f,contact:e.target.value}))} style={S.inp}/></div>
-            <div><label style={S.lbl}>電話</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={S.inp}/></div>
-            <div><label style={S.lbl}>メール</label><input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} style={S.inp}/></div>
-            <div><label style={S.lbl}>支払サイクル</label><input value={form.paymentCycle} onChange={e=>setForm(f=>({...f,paymentCycle:e.target.value}))} style={S.inp}/></div>
-            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>備考</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.inp}/></div>
-          </div>
-          <div style={{display:"flex",gap:10,marginTop:16}}>
-            <button onClick={submit} style={S.btn("#0f172a")}>登録</button>
-            <button onClick={()=>{setOpen(false);setForm(E);}} style={S.btn("#94a3b8")}>キャンセル</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
   if(detailId){
     const c=customers.find(x=>x.id===detailId);
     if(c){
       const custRecords=(records||[]).filter(r=>r.customerId===c.id);
       const openEdit=()=>{
-        setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,showDiscountLine:!!c.showDiscountLine});
+        setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});
         setEditId(c.id); setOpen(true);
       };
       return(
@@ -6322,7 +3426,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
             <button onClick={()=>{setDetailId(null);setOpen(false);setEditId(null);setForm(E);}} style={{...S.ib("#64748b"),fontSize:12}}>← 一覧に戻る</button>
             <div style={{flex:1,fontSize:16,fontWeight:800}}>{c.name}</div>
             <button onClick={openEdit} style={{...S.btn("#92400e",true),fontSize:12}}><Ico d={I.edit} size={13}/>内容を編集</button>
-            <button onClick={()=>setEditProjModal({type:"deleteCust",id:c.id,name:c.name})} style={{...S.ib("#991b1b"),fontSize:12}}><Ico d={I.trash} size={13}/>削除</button>
+            <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(customers.filter(x=>x.id!==c.id));setDetailId(null);showToast("削除しました");}} style={{...S.ib("#991b1b"),fontSize:12}}><Ico d={I.trash} size={13}/>削除</button>
           </div>
           {open&&editId===c.id&&(
             <div style={{...S.card,padding:24,marginBottom:16}}>
@@ -6355,7 +3459,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                     <option value="月末締め 翌々月5日">月末締め 翌々月5日</option>
                     <option value="月末締め 翌々月10日">月末締め 翌々月10日</option>
                     <option value="月末締め 翌々月25日">月末締め 翌々月25日</option>
-                    <option value="月末締め 翌々月15日">月末締め 翌々月15日</option>
                     <option value="スクエア">スクエア（都度払い）</option>
                     <option value="その他">その他</option>
                   </select>
@@ -6381,11 +3484,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                     納品書に金額（単価）を記載する
                   </label>
                   <span style={{fontSize:10,color:"#64748b"}}>{form.showDeliveryPrice?"納品書（お客様用）に単価・機材Noを表示します":"デフォルト：納品書には金額を記載しません"}</span>
-                  <label style={{fontSize:12,fontWeight:700,color:"#0369a1",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,cursor:"pointer",marginTop:8}}>
-                    <input type="checkbox" checked={!!form.showDiscountLine} onChange={e=>setForm(f=>({...f,showDiscountLine:e.target.checked}))} style={{cursor:"pointer"}}/>
-                    請求書を定価＋お値引き行で表示する
-                  </label>
-                  <span style={{fontSize:10,color:"#64748b"}}>{form.showDiscountLine?"機材は定価表示・合計にお値引き行を追加":"デフォルト：値引き後の金額を各機材に反映"}</span>
                 </div>
                 <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>請求書 担当者名</label><input value={form.staff||""} onChange={e=>setForm(f=>({...f,staff:e.target.value}))} style={S.inp} placeholder="例: 井上 雄太（請求書PDFに表示）"/></div>
                 <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>備考</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.inp}/></div>
@@ -6399,16 +3497,12 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                 <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10,minHeight:32}}>
                   {(form.projects||[]).length===0
                     ?<span style={{fontSize:12,color:"#94a3b8"}}>案件名がありません</span>
-                    :(form.projects||[]).map((p,i)=>{
-                      const useCount=(records||[]).filter(r=>r.customerId===editId&&r.projectName===p).length;
-                      return(
-                        <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
-                          {p}
-                          {useCount>0&&<span style={{fontSize:10,color:"#dc2626",fontWeight:700,marginLeft:2}}>🔒{useCount}件</span>}
-                          <button type="button" onClick={e=>{e.stopPropagation();setEditProjModal({index:i,name:p,useCount});setEditProjName(p);}} style={{background:"none",border:"none",cursor:"pointer",padding:"0 2px",display:"flex",alignItems:"center",color:"#64748b"}}><Ico d={I.edit} size={11}/></button>
-                        </span>
-                      );
-                    })
+                    :(form.projects||[]).map((p,i)=>(
+                      <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
+                        {p}
+                        <button onClick={()=>removeProj(i)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",color:"#3b82f6"}}><Ico d={I.x} size={12}/></button>
+                      </span>
+                    ))
                   }
                 </div>
                 <div style={{display:"flex",gap:8}}>
@@ -6428,11 +3522,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                       <span style={{flex:1,fontWeight:600}}>{spName(sp,products)}</span>
                       <span style={{color:"#16a34a",fontWeight:700}}>{fmt(sp.price)}/日（税抜）</span>
                       {!exists&&<span style={{fontSize:9,color:"#ef4444",fontWeight:700}}>製品削除済</span>}
-                      <button onClick={()=>{
-                        const spn=spName(sp,products);
-                        onLogActivity("特別価格削除","customer",form.name,`${spn}を削除`);
-                        setForm(f=>({...f,specialPrices:f.specialPrices.filter((_,j)=>j!==i)}));
-                      }} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
+                      <button onClick={()=>setForm(f=>({...f,specialPrices:f.specialPrices.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
                     </div>
                   );
                 })}
@@ -6470,7 +3560,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                   ["支払サイクル", c.paymentCycle||"―"],
                   ["掛け率", Number(c.discountRate)>0&&Number(c.discountRate)<10?`${c.discountRate}掛`:"定価"],
                   ["請求まとめ", c.splitInvoice===false?"まとめ請求":"案件別"],
-                  ["請求書値引き表示", c.showDiscountLine?"定価＋お値引き行":"値引き後単価"],
                 ].map(([l,v])=>(
                   <div key={l} style={{display:"flex",gap:8,borderBottom:"1px solid #f1f5f9",paddingBottom:4}}>
                     <span style={{color:"#94a3b8",minWidth:80,flexShrink:0}}>{l}</span>
@@ -6479,72 +3568,19 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                 ))}
               </div>
               {c.notes&&<div style={{marginTop:8,fontSize:11,color:"#64748b",background:"#f8fafc",borderRadius:4,padding:"6px 10px"}}>{c.notes}</div>}
+              {syncSPs(c.specialPrices,products).length>0&&(
+                <div style={{marginTop:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#f59e0b",marginBottom:4}}>★ 特別価格</div>
+                  {c.specialPrices.map((sp,j)=>(
+                    <div key={j} style={{fontSize:12,color:"#555",marginBottom:3}}>
+                      {spName(sp,products)} → <strong style={{color:"#16a34a"}}>{fmt(sp.price)}/日(税抜)</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          {!open&&<CustomerAnalysis c={c} custRecords={custRecords} products={products} allRecords={records}/>}
-          {editProjModal&&(
-            <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
-              onClick={()=>setEditProjModal(null)}>
-              <div style={{background:"#fff",borderRadius:12,padding:28,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-                {editProjModal.type==="deleteCust"
-                  ?<>
-                    <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>顧客を削除</div>
-                    <div style={{marginBottom:20,fontSize:13,color:"#374151"}}>「{editProjModal.name}」を削除しますか？この操作は取り消せません。</div>
-                    {(()=>{const custCaseCount=(records||[]).filter(r=>r.customerId===editProjModal.id).length;return custCaseCount>0
-                      ?<div style={{color:"#dc2626",fontSize:12,marginBottom:16}}>この顧客には{custCaseCount}件の案件があります。先に案件を削除してから顧客を削除してください。</div>
-                      :null;})()}
-                    <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-                      <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
-                      {(records||[]).filter(r=>r.customerId===editProjModal.id).length===0&&(
-                        <button type="button" onClick={async()=>{
-                          await onDeleteCust(editProjModal.id,editProjModal.name);
-                          if(detailId===editProjModal.id)setDetailId(null);
-                          setEditProjModal(null);
-                          showToast("削除しました");
-                        }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
-                      )}
-                    </div>
-                  </>
-                  :<>
-                    <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>案件名を編集</div>
-                    {editProjModal.useCount>0&&(
-                      <div style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#713f12"}}>
-                        ⚠️ {editProjModal.useCount}件の案件で使用中です
-                      </div>
-                    )}
-                    <input value={editProjName} onChange={e=>setEditProjName(e.target.value)} style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}/>
-                    <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
-                      <button type="button" onClick={async()=>{
-                        if(editProjModal.useCount>0){showToast("使用中の案件名は削除できません",false);return;}
-                        const deletedName=editProjModal.name;
-                        const updatedProjects=(form.projects||[]).filter((_,j)=>j!==editProjModal.index);
-                        const updatedForm={...form,projects:updatedProjects};
-                        setForm(updatedForm);
-                        await saveCustomer(updatedForm);
-                        await onLogActivity("案件名削除","customer",form.name,`「${deletedName}」を削除`);
-                        setEditProjModal(null);
-                      }} style={{background:"none",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12}}>削除</button>
-                      <div style={{display:"flex",gap:8}}>
-                        <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
-                        <button type="button" onClick={async()=>{
-                          const trimmed=editProjName.trim();
-                          if(!trimmed)return;
-                          const oldName=editProjModal.name;
-                          const useCount=editProjModal.useCount;
-                          const updatedProjects=(form.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p);
-                          const updatedForm={...form,projects:updatedProjects};
-                          setForm(updatedForm);
-                          await saveCustomer(updatedForm);
-                          await onLogActivity("案件名変更","customer",form.name,`「${oldName}」→「${trimmed}」${useCount>0?`（${useCount}件の案件を更新）`:""}`);
-                          setEditProjModal(null);
-                        }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>変更する</button>
-                      </div>
-                    </div>
-                  </>
-                }
-              </div>
-            </div>
-          )}
+          <CustomerAnalysis c={c} custRecords={custRecords} products={products}/>
         </div>
       );
     }
@@ -6584,7 +3620,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                 <option value="月末締め 翌々月5日">月末締め 翌々月5日</option>
                 <option value="月末締め 翌々月10日">月末締め 翌々月10日</option>
                 <option value="月末締め 翌々月25日">月末締め 翌々月25日</option>
-                <option value="月末締め 翌々月15日">月末締め 翌々月15日</option>
                 <option value="スクエア">スクエア（都度払い）</option>
                 <option value="その他">その他</option>
               </select>
@@ -6605,7 +3640,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
               <span style={{fontSize:10,color:"#64748b"}}>{form.consolidateMonth?"月またぎ案件は実日数が多い月にまとめて請求":"月末で切り分けて各月に請求（デフォルト）"}</span>
             </div>
             <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>請求書 担当者名</label><input value={form.staff||""} onChange={e=>setForm(f=>({...f,staff:e.target.value}))} style={S.inp} placeholder="例: 井上 雄太（請求書PDFに表示）"/></div>
-            <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>業種タグ（複数選択可）</label><IndustryTagSelector value={form.industryTags||[]} onChange={v=>setForm(f=>({...f,industryTags:v}))}/></div>
             <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>備考</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.inp}/></div>
           </div>
           {/* 案件名リスト */}
@@ -6617,16 +3651,14 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10,minHeight:32}}>
               {(form.projects||[]).length===0
                 ?<span style={{fontSize:12,color:"#94a3b8"}}>案件名がありません</span>
-                :(form.projects||[]).map((p,i)=>{
-                  const useCount=(records||[]).filter(r=>r.customerId===editId&&r.projectName===p).length;
-                  return(
-                    <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
-                      {p}
-                      {useCount>0&&<span style={{fontSize:10,color:"#dc2626",fontWeight:700,marginLeft:2}}>🔒{useCount}件</span>}
-                      <button type="button" onClick={e=>{e.stopPropagation();setEditProjModal({index:i,name:p,useCount});setEditProjName(p);}} style={{background:"none",border:"none",cursor:"pointer",padding:"0 2px",display:"flex",alignItems:"center",color:"#64748b"}}><Ico d={I.edit} size={11}/></button>
-                    </span>
-                  );
-                })
+                :(form.projects||[]).map((p,i)=>(
+                  <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#dbeafe",color:"#1d4ed8",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:600}}>
+                    {p}
+                    <button onClick={()=>removeProj(i)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",color:"#3b82f6"}}>
+                      <Ico d={I.x} size={12}/>
+                    </button>
+                  </span>
+                ))
               }
             </div>
             <div style={{display:"flex",gap:8}}>
@@ -6689,7 +3721,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
               <div style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",opacity:.4}}><Ico d={I.search} size={13}/></div>
               <input value={custQ} onChange={e=>setCustQ(e.target.value)} placeholder="顧客名で検索..." style={{...S.inp,paddingLeft:28,width:180}}/>
             </div>
-            <button onClick={()=>{setForm(E);setEditId(null);setDetailId(null);setOpen(true);}} style={S.btn("#0f172a")}><Ico d={I.plus} size={15}/>顧客を追加</button>
+            <button onClick={()=>{setForm(E);setEditId(null);setOpen(true);}} style={S.btn("#0f172a")}><Ico d={I.plus} size={15}/>顧客を追加</button>
             <button onClick={()=>xlsxInputRef.current?.click()} style={S.btn("#0369a1",true)}>📥 Excelから読み込み</button>
             <input ref={xlsxInputRef} type="file" accept=".xlsx" style={{display:"none"}} onChange={e=>{if(e.target.files[0]){importFromXlsx(e.target.files[0]);e.target.value="";}}}/>
             <button onClick={resetToPreset} style={S.btn("#64748b",true)}>↺ リセット</button>
@@ -6734,8 +3766,8 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
 
                 <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
                   {syncSPs(c.specialPrices,products).length>0&&<button onClick={()=>setExp(isSpOpen?null:c.id)} style={S.ib("#64748b")}><Ico d={I.star} size={12}/></button>}
-                  <button onClick={()=>{setDetailId(c.id);setTimeout(()=>{setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice,showDiscountLine:!!c.showDiscountLine});setEditId(c.id);setOpen(true);},0);}} style={S.ib("#92400e")}><Ico d={I.edit} size={12}/>編集</button>
-                  <button onClick={()=>setEditProjModal({type:"deleteCust",id:c.id,name:c.name})} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
+                  <button onClick={()=>{setDetailId(c.id);setTimeout(()=>{setForm({name:c.name,invoiceName:c.invoiceName||"",zipCode:c.zipCode||"",address:c.address||"",contact:c.contact||"",email:c.email||"",phone:c.phone||"",discountRate:String(c.discountRate||0),paymentCycle:c.paymentCycle||"月末締め 翌々月末日",splitInvoice:c.splitInvoice!==false,consolidateMonth:!!c.consolidateMonth,notes:c.notes||"",staff:c.staff||"",specialPrices:c.specialPrices||[],projects:c.projects||[],showDeliveryPrice:!!c.showDeliveryPrice});setEditId(c.id);setOpen(true);},0);}} style={S.ib("#92400e")}><Ico d={I.edit} size={12}/>編集</button>
+                  <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(customers.filter(x=>x.id!==c.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                 </div>
               </div>
 
@@ -6743,9 +3775,8 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
               {isSpOpen&&(c.specialPrices||[]).length>0&&(
                 <div style={{padding:"0 16px 12px 62px"}}>
                   {c.specialPrices.map((sp,j)=>(
-                    <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,marginBottom:3}}>
-                      <span style={{flex:1,fontWeight:600}}>{spName(sp,products)}</span>
-                      <span style={{color:"#16a34a",fontWeight:700}}>{fmt(sp.price)}/日（税抜）</span>
+                    <div key={j} style={{fontSize:12,color:"#555",marginBottom:3}}>
+                      {spName(sp,products)} → <strong style={{color:"#16a34a"}}>{fmt(sp.price)}/日(税抜)</strong>
                     </div>
                   ))}
                 </div>
@@ -6758,133 +3789,48 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
 
         })()}
       </div>
-      {editProjModal&&(
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
-          onClick={()=>setEditProjModal(null)}>
-          <div style={{background:"#fff",borderRadius:12,padding:28,width:360,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-            {editProjModal.type==="deleteCust"
-              ?<>
-                <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>顧客を削除</div>
-                <div style={{marginBottom:20,fontSize:13,color:"#374151"}}>「{editProjModal.name}」を削除しますか？この操作は取り消せません。</div>
-                {(()=>{const custCaseCount=(records||[]).filter(r=>r.customerId===editProjModal.id).length;return custCaseCount>0
-                  ?<div style={{color:"#dc2626",fontSize:12,marginBottom:16}}>この顧客には{custCaseCount}件の案件があります。先に案件を削除してから顧客を削除してください。</div>
-                  :null;})()}
-                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-                  <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
-                  {(records||[]).filter(r=>r.customerId===editProjModal.id).length===0&&(
-                    <button type="button" onClick={async()=>{
-                      await onSave(customers.filter(x=>x.id!==editProjModal.id));
-                      if(detailId===editProjModal.id)setDetailId(null);
-                      await onLogActivity("削除","customer",editProjModal.name,"顧客を削除しました");
-                      setEditProjModal(null);
-                      showToast("削除しました");
-                    }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
-                  )}
-                </div>
-              </>
-              :<>
-                <div style={{fontSize:14,fontWeight:700,marginBottom:16,color:"#1e293b"}}>案件名を編集</div>
-                {editProjModal.useCount>0&&(
-                  <div style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#713f12"}}>
-                    ⚠️ {editProjModal.useCount}件の案件で使用中です
-                  </div>
-                )}
-                <input value={editProjName} onChange={e=>setEditProjName(e.target.value)} style={{width:"100%",boxSizing:"border-box",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:16,outline:"none"}}/>
-                <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
-                  <button type="button" onClick={async()=>{
-                    if(editProjModal.useCount>0){showToast("使用中の案件名は削除できません",false);return;}
-                    const deletedName=editProjModal.name;
-                    const updatedProjects=(form.projects||[]).filter((_,j)=>j!==editProjModal.index);
-                    const updatedForm={...form,projects:updatedProjects};
-                    setForm(updatedForm);
-                    await saveCustomer(updatedForm);
-                    await onLogActivity("案件名削除","customer",form.name,`「${deletedName}」を削除`);
-                    setEditProjModal(null);
-                  }} style={{background:"none",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12}}>削除</button>
-                  <div style={{display:"flex",gap:8}}>
-                    <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
-                    <button type="button" onClick={async()=>{
-                      const trimmed=editProjName.trim();
-                      if(!trimmed)return;
-                      const oldName=editProjModal.name;
-                      const useCount=editProjModal.useCount;
-                      const updatedProjects=(form.projects||[]).map((p,j)=>j===editProjModal.index?trimmed:p);
-                      const updatedForm={...form,projects:updatedProjects};
-                      setForm(updatedForm);
-                      await saveCustomer(updatedForm);
-                      await onLogActivity("案件名変更","customer",form.name,`「${oldName}」→「${trimmed}」${useCount>0?`（${useCount}件の案件を更新）`:""}`);
-                      setEditProjModal(null);
-                    }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>変更する</button>
-                  </div>
-                </div>
-              </>
-            }
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts}){
-  const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false,usageMemo:"",cautions:"",combinations:[],faqs:[],photos:[],batteryLife:"",ec_url:""};
+function ProductsTab({products,customers,onSave,showToast,allProducts}){
+  const E={brand:"",name:"",priceIn:""};
   const [form,setForm]=useState(E);
-  const [profileTab,setProfileTab]=useState("basic");
-  const [comboSearch,setComboSearch]=useState("");
-  const [faqForm,setFaqForm]=useState({question:"",answer:""});
-
-  const resizeImage=(file)=>new Promise(resolve=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
-      const img=new Image();
-      img.onload=()=>{
-        const maxW=1200;
-        const scale=Math.min(1,maxW/img.width);
-        const canvas=document.createElement('canvas');
-        canvas.width=img.width*scale;canvas.height=img.height*scale;
-        canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-        resolve(canvas.toDataURL('image/jpeg',0.8));
-      };
-      img.src=e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
-
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
-  const formRef=useRef(null);
-  const [spList,setSpList]=useState([]);
-  const [spCid,setSpCid]=useState("");
-  const [spPrice,setSpPrice]=useState("");
-  const [prodSpQ,setProdSpQ]=useState("");
-  const filteredProdCusts=prodSpQ.length>=1?customers.filter(c=>c.name.includes(prodSpQ)):[];
   const [q,setQ]=useState("");
-  const [syncing,setSyncing]=useState(false);
-  const [prodKnowledge, setProdKnowledge] = useState([]);
-  const [prodKnowledgeLoading, setProdKnowledgeLoading] = useState(false);
-  const [knowledgeInputMode, setKnowledgeInputMode] = useState(null);
-  const [inlineQ, setInlineQ] = useState("");
-  const [inlineA, setInlineA] = useState("");
-  const [inlineSaving, setInlineSaving] = useState(false);
-  const [syncLog,setSyncLog]=useState(null);
-  const [logOpen,setLogOpen]=useState(false);
+  const [showImport,setShowImport]=useState(false);
+  const [importText,setImportText]=useState("");
 
-  const fetchSyncLog=async()=>{
-    const {data}=await supabase.from('settings').select('value').eq('key','sync_log').maybeSingle();
-    try{setSyncLog(JSON.parse(data?.value||'[]'));}catch{setSyncLog([]);}
+  // ブックマークレット本体（rental.olq.co.jpで実行→全製品JSONをクリップボードへ）
+  const BOOKMARKLET = `javascript:(async()=>{const r=[];const seen=new Set();let page=1;let empty=0;while(empty<2){const url=page===1?'https://rental.olq.co.jp/?actmode=ItemList':'https://rental.olq.co.jp/?pageno='+page+'&actmode=ItemList';try{const h=await fetch(url).then(r=>r.text());const parts=h.split(/(?=<a[^>]*actmode=ItemDetail)/i);let found=0;for(const p of parts){const im=p.match(/iid=(\d+)/);if(!im)continue;const pm=p.match(/¥([\d,]+)\/日/);if(!pm)continue;const txt=p.replace(/<[^>]+>/g,'\n').replace(/\n{2,}/g,'\n');const priceIdx=txt.indexOf('¥');const lines=txt.slice(0,priceIdx).split('\n').map(l=>l.trim()).filter(l=>l&&!l.includes('.jpg')&&!l.startsWith('http'));if(lines.length<2)continue;const iid=im[1];if(seen.has(iid))continue;seen.add(iid);r.push({id:iid,brand:lines[lines.length-2],name:lines[lines.length-1],priceIn:parseInt(pm[1].replace(/,/g,''),10)});found++;}if(!found){empty++;}else{empty=0;}page++;}catch(e){break;}}await navigator.clipboard.writeText(JSON.stringify(r));alert('✅ '+r.length+'件をクリップボードにコピーしました。OLQアプリで「JSONを貼り付けて同期」してください。');})();`;
+
+  const copyBookmarklet = () => {
+    navigator.clipboard.writeText(BOOKMARKLET)
+      .then(() => showToast("ブックマークレットをコピーしました。ブックマークバーに追加してください。"))
+      .catch(() => showToast("コピー失敗", false));
   };
 
-  const manualSync = async () => {
-    if (syncing) return;
-    setSyncing(true);
+  const importFromJson = async () => {
     try {
-      const res = await fetch("https://olq-sync-worker.y-inoue-567.workers.dev/");
-      const msg = await res.text();
-      alert(msg);
+      const parsed = JSON.parse(importText.trim());
+      const arr = Array.isArray(parsed) ? parsed : [];
+      if (!arr.length) throw new Error("製品が見つかりません");
+      const siteProds = arr.map(p => ({
+        id: String(p.id||""),
+        brand: String(p.brand||""),
+        name: String(p.name||""),
+        priceIn: Number(p.priceIn)||0,
+        priceEx: Math.round((Number(p.priceIn)||0)/1.1),
+        fullName: `${p.brand||""} ${p.name||""}`.trim()
+      })).filter(p=>p.id&&p.name);
+      const merged = mergeProducts(siteProds, products);
+      const added = merged.length - products.length;
+      await onSave(merged);
+      setImportText(""); setShowImport(false);
+      showToast(`同期完了（計${merged.length}件）${added>0?" — 新製品+"+added+"件":""}`);
     } catch(e) {
-      alert("同期に失敗しました: " + (e.message || "不明なエラー"));
-    } finally {
-      setSyncing(false);
+      showToast("JSONの形式が正しくありません: "+e.message, false);
     }
   };
 
@@ -6895,60 +3841,10 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     if(!form.brand||!form.name||!form.priceIn){showToast("ブランド・製品名・定価(税込)は必須",false);return;}
     const priceIn=Number(form.priceIn);
     const priceEx=taxEx(priceIn);
-    const pid=editId||uid();
-    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:pid,memo:form.memo||"",noBillingDiscount:!!form.noBillingDiscount,usageMemo:form.usageMemo||"",cautions:form.cautions||"",combinations:form.combinations||[],faqs:form.faqs||[],photos:form.photos||[],batteryLife:form.batteryLife||"",ec_url:form.ec_url||""};
+    const p={brand:form.brand,name:form.name,priceIn,priceEx,id:editId||uid()};
     p.fullName=`${p.brand} ${p.name}`;
-    try {
-      await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
-      if(spList.length>0&&saveCust){
-        const updatedCustomers=customers.map(c=>{
-          const sp=spList.find(s=>s.cid===c.id);
-          if(!sp)return c;
-          const existing=(c.specialPrices||[]).filter(s=>s.productId!==pid);
-          return {...c,specialPrices:[...existing,{productId:pid,price:sp.price}]};
-        });
-        await saveCust(updatedCustomers);
-      }
-      showToast(editId?"更新しました":"追加しました"); setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setForm(E); setEditId(null); setOpen(false); setProdKnowledge([]);setKnowledgeInputMode(null);setInlineQ("");setInlineA(""); setSpList([]); setSpCid(""); setSpPrice(""); setProdSpQ("");
-    } catch(e) {
-      showToast("保存に失敗しました。もう一度お試しください。",false);
-      console.error("saveProd error",e);
-    }
-  };
-
-  const fetchProdKnowledge = async (pid) => {
-    if(!pid) return;
-    setProdKnowledgeLoading(true);
-    const {data,error} = await supabase
-      .from('knowledge')
-      .select('*')
-      .contains('related_product_ids', [String(pid)])
-      .eq('status','approved')
-      .order('created_at', {ascending: false});
-    setProdKnowledgeLoading(false);
-    if(error){console.error('fetchProdKnowledge error',error);return;}
-    setProdKnowledge(data||[]);
-  };
-
-  const saveInlineKnowledge = async (pid, productName) => {
-    if(!inlineQ.trim()) return;
-    setInlineSaving(true);
-    const isQOnly = knowledgeInputMode === 'q_only';
-    const row = {
-      question_text: inlineQ.trim(),
-      answer_text: isQOnly ? null : (inlineA.trim() || null),
-      status: 'pending',
-      related_product_ids: [String(pid)],
-      scenario_tags: [],
-      created_by: (await supabase.auth.getUser()).data?.user?.email || "",
-    };
-    const {error} = await supabase.from('knowledge').insert([row]);
-    setInlineSaving(false);
-    if(error){alert('保存に失敗しました: '+error.message);return;}
-    setInlineQ("");
-    setInlineA("");
-    setKnowledgeInputMode(null);
-    fetchProdKnowledge(pid);
+    await onSave(editId?products.map(x=>x.id===editId?p:x):[p,...products]);
+    showToast(editId?"更新しました":"追加しました"); setForm(E); setEditId(null); setOpen(false);
   };
 
   const resetToDefault=async()=>{
@@ -6960,10 +3856,10 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
   return(
     <div>
       {open&&(
-        <div ref={formRef} style={{...S.card,padding:24,marginBottom:18}}>
+        <div style={{...S.card,padding:24,marginBottom:18}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
             <h3 style={{margin:0,fontSize:16,fontWeight:700}}>{editId?"製品を編集":"製品を追加"}</h3>
-            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setProdKnowledge([]);setKnowledgeInputMode(null);setInlineQ("");setInlineA("");}} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={18} color="#94a3b8"/></button>
+            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);}} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={18} color="#94a3b8"/></button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"12px 20px"}}>
             <div><label style={S.lbl}>ブランド *</label><input value={form.brand} onChange={e=>setForm(f=>({...f,brand:e.target.value}))} style={S.inp} placeholder="Sony"/></div>
@@ -6973,221 +3869,10 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
               <input type="number" value={form.priceIn} onChange={e=>setForm(f=>({...f,priceIn:e.target.value}))} style={S.inp} placeholder="例: 11000"/>
               {form.priceIn&&<div style={{fontSize:11,color:"#16a34a",marginTop:3}}>税抜: {fmt(taxEx(Number(form.priceIn)))}/日</div>}
             </div>
-            <div style={{gridColumn:"1/-1"}}>
-              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13}}>
-                <input
-                  type="checkbox"
-                  checked={!!form.noBillingDiscount}
-                  onChange={e=>setForm(f=>({...f,noBillingDiscount:e.target.checked}))}
-                />
-                日数値引き非適用（チェックを入れると日数値引きが適用されなくなります）
-              </label>
-            </div>
-            <div style={{gridColumn:"1/-1",borderTop:"1px solid #e2e8f0",marginTop:8,paddingTop:16}}>
-  <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
-    {[{k:"knowledge",l:"📚 ナレッジ"},{k:"photos",l:"📷 写真"},{k:"basic",l:"基本情報"}].map(t=>(
-      <button key={t.k} type="button" onClick={()=>setProfileTab(t.k)}
-        style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:profileTab===t.k?700:400,background:profileTab===t.k?"#0f172a":"#f1f5f9",color:profileTab===t.k?"#fff":"#64748b"}}>
-        {t.l}
-      </button>
-    ))}
-  </div>
-
-  {profileTab==="knowledge"&&(
-    <div>
-      {/* 未回答バッジ */}
-      {prodKnowledge.filter(k=>k.status==='unanswered').length>0&&(
-        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,padding:"6px 12px",marginBottom:12,fontSize:12,color:"#dc2626",fontWeight:600}}>
-          ⚠️ 未回答の質問 {prodKnowledge.filter(k=>k.status==='unanswered').length}件
-        </div>
-      )}
-
-      {prodKnowledgeLoading&&<div style={{color:"#94a3b8",fontSize:13}}>読み込み中...</div>}
-
-      {/* ナレッジ一覧 */}
-      {!prodKnowledgeLoading&&(
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16,maxHeight:320,overflowY:"auto"}}>
-          {/* 未回答を先頭に */}
-          {[...prodKnowledge.filter(k=>k.status==='unanswered'), ...prodKnowledge.filter(k=>k.status!=='unanswered')].map(k=>(
-            <div key={k.id} style={{background:k.status==='unanswered'?"#fef9f0":"#f8fafc",border:`1px solid ${k.status==='unanswered'?"#fde68a":"#e2e8f0"}`,borderRadius:8,padding:12}}>
-              <div style={{fontSize:12,fontWeight:600,color:"#0f172a",marginBottom:4}}>
-                {k.status==='unanswered'&&<span style={{color:"#d97706",marginRight:6}}>⚠️ 未回答</span>}
-                ❓ {k.question_text||"（質問なし）"}
-              </div>
-              {k.answer_text&&(
-                <div style={{fontSize:12,color:"#334155",whiteSpace:"pre-wrap",lineHeight:1.6}}>
-                  {k.answer_text}
-                </div>
-              )}
-              {k.status==='unanswered'&&(
-                <button
-                  onClick={()=>{setInlineQ(k.question_text||"");setKnowledgeInputMode('qa');}}
-                  style={{marginTop:6,fontSize:11,padding:"3px 8px",borderRadius:4,border:"1px solid #d97706",background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>
-                  ✏️ 答えを書く
-                </button>
-              )}
-              <div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>
-                {k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}
-              </div>
-            </div>
-          ))}
-          {prodKnowledge.length===0&&(
-            <div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:24}}>
-              まだナレッジがありません。下から追加してください。
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 投稿UI */}
-      {knowledgeInputMode===null&&(
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setKnowledgeInputMode('q_only')}
-            style={{flex:1,padding:"8px",borderRadius:6,border:"1px solid #fde68a",background:"#fffbeb",fontSize:12,cursor:"pointer",color:"#d97706",fontWeight:600}}>
-            ❓ 質問を登録
-          </button>
-        </div>
-      )}
-
-      {knowledgeInputMode!==null&&(
-        <div style={{border:"1px solid #e2e8f0",borderRadius:8,padding:12,background:"#fff"}}>
-          <div style={{fontSize:12,color:"#64748b",marginBottom:8,fontWeight:600}}>
-            ❓ 質問を登録
-          </div>
-          <input
-            type="text"
-            value={inlineQ}
-            onChange={e=>setInlineQ(e.target.value)}
-            placeholder="質問を入力..."
-            style={{width:"100%",padding:"7px 10px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,marginBottom:8,boxSizing:"border-box"}}
-          />
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>saveInlineKnowledge(editId, form.name)}
-              disabled={!inlineQ.trim()||inlineSaving}
-              style={{flex:1,padding:"7px",borderRadius:6,border:"none",background:inlineQ.trim()?"#0f172a":"#e2e8f0",color:inlineQ.trim()?"#fff":"#94a3b8",fontSize:12,fontWeight:600,cursor:inlineQ.trim()?"pointer":"not-allowed"}}>
-              {inlineSaving?"保存中...":"💾 保存"}
-            </button>
-            <button onClick={()=>{setKnowledgeInputMode(null);setInlineQ("");setInlineA("");}}
-              style={{padding:"7px 12px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",fontSize:12,cursor:"pointer",color:"#64748b"}}>
-              キャンセル
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )}
-
-  {profileTab==="photos"&&(
-    <div>
-      <label style={S.lbl}>写真を追加（最大1200px・JPEG圧縮して保存）</label>
-      <input type="file" accept="image/*" multiple onChange={async e=>{
-        const files=Array.from(e.target.files||[]);
-        const results=await Promise.all(files.map(f=>resizeImage(f)));
-        setForm(fm=>({...fm,photos:[...(fm.photos||[]),...results.map(dataUrl=>({id:uid(),dataUrl,caption:""}))]}));
-        e.target.value="";
-      }} style={{...S.inp,padding:8}}/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginTop:12}}>
-        {(form.photos||[]).map((ph,i)=>(
-          <div key={ph.id} style={{position:"relative",borderRadius:8,overflow:"hidden",border:"1px solid #e2e8f0"}}>
-            <img src={ph.dataUrl} alt="" style={{width:"100%",height:120,objectFit:"cover",display:"block"}}/>
-            <div style={{padding:6}}>
-              <input value={ph.caption} onChange={e=>setForm(f=>({...f,photos:f.photos.map((x,j)=>j===i?{...x,caption:e.target.value}:x)}))} placeholder="キャプション" style={{...S.inp,fontSize:11,padding:"3px 6px"}}/>
-            </div>
-            <button type="button" onClick={()=>setForm(f=>({...f,photos:f.photos.filter((_,j)=>j!==i)}))} style={{position:"absolute",top:4,right:4,background:"rgba(0,0,0,0.6)",border:"none",borderRadius:4,cursor:"pointer",padding:"2px 6px"}}><Ico d={I.x} size={12} color="#fff"/></button>
-          </div>
-        ))}
-      </div>
-    </div>
-  )}
-
-  {profileTab==="basic"&&(
-    <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {(()=>{
-        const prod=products.find(p=>p.id===editId);
-        if(!prod||(!prod.ecDescription&&!prod.ecRecordingTime&&!prod.ecOlqNotes&&!prod.ecHasImageData))return null;
-        return(
-          <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:12}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#0369a1",marginBottom:8}}>🌐 ECサイトデータ（読み取り専用）</div>
-            {prod.ecHasImageData&&(
-              <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,padding:"6px 10px",marginBottom:8,fontSize:12,color:"#dc2626"}}>
-                ⚠️ 収録時間データに画像が含まれています。ECサイトを直接確認してください。
-              </div>
-            )}
-            {prod.ecDescription&&(
-              <div style={{marginBottom:8}}>
-                <div style={{fontSize:11,color:"#0369a1",fontWeight:600,marginBottom:2}}>詳細</div>
-                <div style={{fontSize:12,color:"#334155",whiteSpace:"pre-wrap",background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:8,maxHeight:200,overflowY:"auto"}}>{prod.ecDescription}</div>
-              </div>
-            )}
-            {prod.ecRecordingTime&&(
-              <div style={{marginBottom:8}}>
-                <div style={{fontSize:11,color:"#0369a1",fontWeight:600,marginBottom:2}}>収録時間</div>
-                <div style={{fontSize:12,color:"#334155",whiteSpace:"pre-wrap",background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:8}}>{prod.ecRecordingTime}</div>
-              </div>
-            )}
-            {prod.ecOlqNotes&&(
-              <div>
-                <div style={{fontSize:11,color:"#0369a1",fontWeight:600,marginBottom:2}}>OLQノート</div>
-                <div style={{fontSize:12,color:"#334155",whiteSpace:"pre-wrap",background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:8,maxHeight:150,overflowY:"auto"}}>{prod.ecOlqNotes}</div>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-      <div>
-        <label style={S.lbl}>ECサイトURL</label>
-        <input value={form.ec_url||""} onChange={e=>setForm(f=>({...f,ec_url:e.target.value}))} placeholder="例: https://rental.olq.co.jp/products/xxx" style={S.inp}/>
-      </div>
-      <div>
-        <label style={S.lbl}>バッテリー持続時間（手動入力）</label>
-        <input value={form.batteryLife||""} onChange={e=>setForm(f=>({...f,batteryLife:e.target.value}))} placeholder="例: 約90分（4K記録時）" style={S.inp}/>
-      </div>
-      <div>
-        <label style={S.lbl}>備考</label>
-        <textarea value={form.memo||""} onChange={e=>setForm(f=>({...f,memo:e.target.value}))} rows={6} style={{...S.inp,height:"auto",resize:"vertical"}} placeholder="製品に関するメモ（納品書等には反映されません）"/>
-      </div>
-      <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:9,padding:16}}>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:10,color:"#92400e",display:"flex",alignItems:"center",gap:6}}>
-          <Ico d={I.star} size={14} color="#f59e0b"/>特別価格顧客（この製品専用）
-        </div>
-        {spList.map((s,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,fontSize:12}}>
-            <span style={{flex:1,fontWeight:600}}>{s.cname}</span>
-            <span style={{color:"#16a34a",fontWeight:700}}>{fmt(s.price)}/日（税込）</span>
-            <button type="button" onClick={()=>setSpList(l=>l.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer"}}><Ico d={I.x} size={14} color="#ef4444"/></button>
-          </div>
-        ))}
-        <div style={{marginBottom:6}}>
-          <input value={prodSpQ} onChange={e=>setProdSpQ(e.target.value)} placeholder="顧客名で検索（1文字以上入力）..." style={{...S.inp,marginBottom:4}}/>
-          {prodSpQ.length>=1?(
-            <select value={spCid} onChange={e=>setSpCid(e.target.value)} style={{...S.inp,marginBottom:6}} size={Math.min(6,filteredProdCusts.length+1)}>
-              <option value="">検索結果: {filteredProdCusts.length}件（全{customers.length}件中）</option>
-              {filteredProdCusts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          ):(
-            <div style={{fontSize:11,color:"#94a3b8",padding:"8px 0"}}>🔍 顧客名を入力すると全{customers.length}社から検索できます</div>
-          )}
-        </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <input type="number" value={spPrice} onChange={e=>setSpPrice(e.target.value)} placeholder="特別単価（税込）" style={{...S.inp,width:160}}/>
-          <button type="button" onClick={()=>{
-            if(!spCid||!spPrice){return;}
-            setSpList(l=>{
-              const cust=customers.find(c=>c.id===spCid);
-              const filtered=l.filter(s=>s.cid!==spCid);
-              return [...filtered,{cid:spCid,cname:cust?.name||"",price:Number(spPrice)}];
-            });
-            setSpCid(""); setSpPrice(""); setProdSpQ("");
-          }} style={S.btn("#f59e0b",true)}><Ico d={I.plus} size={13}/>追加</button>
-        </div>
-      </div>
-    </div>
-  )}
-</div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <button onClick={submit} style={S.btn("#0f172a")}>{editId?"更新":"追加"}</button>
-            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setSpList([]);setSpCid("");setSpPrice("");setProdSpQ("");setProdKnowledge([]);setKnowledgeInputMode(null);setInlineQ("");setInlineA("");}} style={S.btn("#94a3b8")}>キャンセル</button>
+            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);}} style={S.btn("#94a3b8")}>キャンセル</button>
           </div>
         </div>
       )}
@@ -7201,11 +3886,35 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="絞込..." style={{...S.inp,paddingLeft:28,width:200}}/>
           </div>
           <button onClick={()=>{setForm(E);setEditId(null);setOpen(true);}} style={S.btn("#0f172a",true)}><Ico d={I.plus} size={13}/>製品を追加</button>
-          <button onClick={manualSync} disabled={syncing} style={S.btn("#0369a1",true)}>{syncing?"同期中...":"🔄 手動同期"}</button>
-          <button onClick={()=>{setLogOpen(true);fetchSyncLog();}} style={S.btn("#7c3aed",true)}>📋 同期ログ</button>
+          <button onClick={()=>setShowImport(v=>!v)} style={S.btn("#0369a1",true)}>🔄 サイト同期</button>
           <button onClick={resetToDefault} style={S.btn("#64748b",true)}>↺ リセット</button>
         </div>
       </div>
+      {showImport && (
+        <div style={{...S.card,padding:20,marginBottom:14,border:"2px solid #0369a1"}}>
+          <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:"#0369a1"}}>🔄 OLQサイトと同期</h3>
+          <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:14,marginBottom:14,fontSize:12.5,lineHeight:1.8}}>
+            <b>手順：</b><br/>
+            1. 下の「ブックマークレットをコピー」ボタンをクリック<br/>
+            2. ブラウザのブックマークバーを右クリック →「ページを追加」→ URL欄に貼り付けて保存<br/>
+            3. <a href="https://rental.olq.co.jp/?actmode=ItemList" target="_blank" style={{color:"#0369a1"}}>rental.olq.co.jp</a> を開く<br/>
+            4. ブックマークレットをクリック → 完了アラートが出たら<br/>
+            5. 下のテキストエリアに貼り付け（Ctrl+V）→「同期を実行」
+          </div>
+          <button onClick={copyBookmarklet} style={{...S.btn("#0369a1",true),marginBottom:12}}>📋 ブックマークレットをコピー</button>
+          <div style={{marginBottom:8,fontSize:12,color:"#64748b"}}>ブックマークレット実行後、クリップボードの内容を貼り付けてください：</div>
+          <textarea
+            value={importText}
+            onChange={e=>setImportText(e.target.value)}
+            placeholder='ブックマークレット実行後、ここにCtrl+Vで貼り付け...'
+            style={{width:"100%",minHeight:80,padding:10,fontSize:12,borderRadius:6,border:"1px solid #cbd5e1",fontFamily:"monospace",resize:"vertical",boxSizing:"border-box"}}
+          />
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <button onClick={importFromJson} disabled={!importText.trim()} style={S.btn("#16a34a",true)}>✅ 同期を実行</button>
+            <button onClick={()=>{setShowImport(false);setImportText("");}} style={S.btn("#64748b",true)}>キャンセル</button>
+          </div>
+        </div>
+      )}
       <div style={S.card}>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
@@ -7222,10 +3931,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                   return(
                     <tr key={p.id} style={{borderBottom:"1px solid #f1f5f9",background:i%2?"#fcfcfc":"#fff"}}>
                       <td style={{padding:"9px 14px",color:"#64748b",fontSize:11}}>{p.brand}</td>
-                      <td style={{padding:"9px 14px",fontWeight:600}}>
-                        {p.name}
-                        {(p.usageMemo||p.combinations?.length||p.faqs?.length||p.photos?.length||p.cautions)&&<span style={{marginLeft:6,fontSize:9,background:"#dbeafe",color:"#1e40af",borderRadius:4,padding:"1px 5px"}}>📋</span>}
-                      </td>
+                      <td style={{padding:"9px 14px",fontWeight:600}}>{p.name}</td>
                       <td style={{padding:"9px 14px",textAlign:"right"}}>{fmt(p.priceIn)}</td>
                       <td style={{padding:"9px 14px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(p.priceEx)}</td>
                       <td style={{padding:"9px 14px",textAlign:"center"}}>
@@ -7251,7 +3957,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                         }
                       </td>
                       <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false,usageMemo:p.usageMemo||"",cautions:p.cautions||"",combinations:p.combinations||[],faqs:p.faqs||[],photos:p.photos||[],batteryLife:p.batteryLife||"",ec_url:p.ec_url||""});setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setSpList(customers.flatMap(c=>(c.specialPrices||[]).filter(s=>s.productId===p.id).map(s=>({cid:c.id,cname:c.name,price:s.price}))));setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);fetchProdKnowledge(p.id);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
+                        <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn)});setEditId(p.id);setOpen(true);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
                         <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(products.filter(x=>x.id!==p.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                       </td>
                     </tr>
@@ -7263,36 +3969,6 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
         </div>
       </div>
       <div style={{marginTop:10,fontSize:12,color:"#94a3b8"}}>💡 特別価格は「顧客管理」タブの各顧客編集から設定できます</div>
-      {logOpen&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setLogOpen(false)}>
-          <div style={{background:"#fff",borderRadius:12,padding:28,width:"90%",maxWidth:700,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-              <h3 style={{margin:0,fontSize:16,fontWeight:700}}>📋 同期ログ（直近20件）</h3>
-              <button onClick={()=>setLogOpen(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#94a3b8"}}>×</button>
-            </div>
-            {syncLog===null
-              ?<div style={{textAlign:"center",padding:40,color:"#94a3b8"}}>読み込み中...</div>
-              :syncLog.length===0
-                ?<div style={{textAlign:"center",padding:40,color:"#94a3b8"}}>ログがありません</div>
-                :syncLog.map((log,i)=>(
-                  <div key={i} style={{borderBottom:"1px solid #f1f5f9",padding:"12px 0"}}>
-                    <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:6}}>
-                      <span style={{fontSize:12,color:"#64748b"}}>{log.at}</span>
-                      <span style={{fontSize:11,background:log.mode==="auto"?"#eff6ff":"#f0fdf4",color:log.mode==="auto"?"#2563eb":"#16a34a",borderRadius:4,padding:"2px 7px",fontWeight:700}}>{log.mode==="auto"?"自動":"手動"}</span>
-                      <span style={{fontSize:11,background:log.status==="success"?"#f0fdf4":"#fef2f2",color:log.status==="success"?"#16a34a":"#dc2626",borderRadius:4,padding:"2px 7px",fontWeight:700}}>{log.status==="success"?"✅ 成功":"❌ 失敗"}</span>
-                      <span style={{fontSize:12,fontWeight:700}}>計{log.total}件</span>
-                    </div>
-                    <div style={{display:"flex",gap:16,fontSize:12}}>
-                      <span style={{color:"#16a34a"}}>＋追加 {log.added?.count||0}件{log.added?.names?.length>0?`（${log.added.names.join("、")}）`:""}</span>
-                      <span style={{color:"#f59e0b"}}>～修正 {log.modified?.count||0}件{log.modified?.names?.length>0?`（${log.modified.names.join("、")}）`:""}</span>
-                      <span style={{color:"#ef4444"}}>－削除 {log.deleted?.count||0}件{log.deleted?.names?.length>0?`（${log.deleted.names.join("、")}）`:""}</span>
-                    </div>
-                  </div>
-                ))
-            }
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -7318,11 +3994,11 @@ function LoginScreen() {
   return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:'#f1f5f9',fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif"}}>
       <div style={{background:'#fff',borderRadius:16,boxShadow:'0 4px 32px rgba(0,0,0,0.10)',padding:'40px 36px',width:360}}>
-        <div style={{display:'flex',flexDirection:'column',alignItems:'center',marginBottom:28}}>
-          <div style={{background:"#fff",borderRadius:"50%",width:56,height:56,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",padding:6,marginBottom:14,boxShadow:"0 2px 12px rgba(0,0,0,0.10)"}}>
-            <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:28}}>
+          <div style={{background:'#0f172a',borderRadius:8,padding:'6px 10px'}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           </div>
-          <span style={{fontWeight:800,fontSize:17,letterSpacing:2,color:'#0f172a'}}>オルク レンタル伝票管理</span>
+          <span style={{fontWeight:800,fontSize:17,letterSpacing:2,color:'#0f172a'}}>OLQ レンタル管理</span>
         </div>
         <form onSubmit={handleLogin}>
           <div style={{marginBottom:14}}>
@@ -7347,104 +4023,6 @@ function LoginScreen() {
 }
 
 // =========================================================
-// SnapshotScreen
-// =========================================================
-function SnapshotScreen({onDone, showToast, setCustomers, setRecords, setInvoiceData, setProducts}) {
-  const [snapshots, setSnapshots] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [restoring, setRestoring] = useState(false);
-  const [confirmSnap, setConfirmSnap] = useState(null);
-
-  useEffect(()=>{
-    (async()=>{
-      const {data} = await supabase.from('snapshots').select('id,at,data,created_at').order('created_at',{ascending:false}).limit(30);
-      if(data) setSnapshots(data.map(row => ({ ...row.data, _id: row.id, _created_at: row.created_at })));
-      setLoading(false);
-    })();
-  },[]);
-
-  const doRestore = async(snap) => {
-    setRestoring(true);
-    try {
-      if(snap.olqP7?.length){
-        const rows=snap.olqP7.map(p=>({id:String(p.id),data:p,updated_at:new Date().toISOString()}));
-        await supabase.from('products').upsert(rows,{onConflict:'id'});
-        setProducts(snap.olqP7);
-      }
-      if(snap.olqC7?.length){
-        const rows=snap.olqC7.map(c=>({id:String(c.id),data:c,updated_at:new Date().toISOString()}));
-        await supabase.from('customers').upsert(rows,{onConflict:'id'});
-        setCustomers(snap.olqC7);
-      }
-      if(snap.olqR7?.length){
-        const rows=snap.olqR7.map(r=>({id:String(r.id),data:r,updated_at:new Date().toISOString()}));
-        await supabase.from('cases').upsert(rows,{onConflict:'id'});
-        setRecords(snap.olqR7);
-      }
-      if(snap.olqInv7&&Object.keys(snap.olqInv7).length){
-        const rows=Object.entries(snap.olqInv7).map(([id,v])=>({id,data:v,is_locked:v?.status==='locked',updated_at:new Date().toISOString()}));
-        await supabase.from('invoices').upsert(rows,{onConflict:'id'});
-        setInvoiceData(snap.olqInv7);
-      }
-      showToast(snap.at+'に復元しました');
-      setConfirmSnap(null);
-      onDone();
-    } catch(e) {
-      showToast('復元失敗: '+e.message, false);
-    }
-    setRestoring(false);
-  };
-
-  return(
-    <div style={{maxWidth:700,margin:'0 auto',padding:'40px 20px'}}>
-      <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 16px rgba(0,0,0,0.07)',padding:32}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <h2 style={{margin:0,fontSize:18,fontWeight:800}}>🕐 スナップショット一覧</h2>
-          <button onClick={onDone} style={{background:'none',border:'1.5px solid #e2e8f0',borderRadius:6,padding:'6px 14px',cursor:'pointer',fontSize:12,color:'#64748b'}}>閉じる</button>
-        </div>
-        <p style={{fontSize:12,color:'#64748b',marginBottom:16}}>毎時自動保存。最大30件。選択した時点のデータに復元できます。</p>
-        {loading
-          ? <div style={{textAlign:'center',padding:40,color:'#94a3b8'}}>読み込み中...</div>
-          : snapshots.length===0
-            ? <div style={{textAlign:'center',padding:40,color:'#94a3b8'}}>スナップショットがありません</div>
-            : snapshots.map((snap,i)=>(
-              <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderRadius:8,background:i%2?'#f8fafc':'#fff',border:'1px solid #f1f5f9',marginBottom:6}}>
-                <div>
-                  <span style={{fontWeight:600,fontSize:13}}>{snap.at}</span>
-                  <span style={{fontSize:11,color:'#94a3b8',marginLeft:12}}>製品{snap.olqP7?.length||0}件 / 顧客{snap.olqC7?.length||0}件 / 案件{snap.olqR7?.length||0}件 / 請求{snap.olqInv7?Object.keys(snap.olqInv7).length:0}件</span>
-                </div>
-                <button onClick={()=>setConfirmSnap(snap)} disabled={restoring}
-                  style={{background:'#2563eb',color:'#fff',border:'none',borderRadius:6,padding:'5px 14px',cursor:restoring?'not-allowed':'pointer',fontSize:12,fontWeight:700,opacity:restoring?0.5:1}}>
-                  この時点に復元
-                </button>
-              </div>
-            ))
-        }
-      </div>
-      {confirmSnap&&(
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.45)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}}
-          onClick={()=>setConfirmSnap(null)}>
-          <div style={{background:'#fff',borderRadius:12,padding:28,width:380,boxShadow:'0 8px 32px rgba(0,0,0,0.25)'}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:8,color:'#1e293b'}}>⚠️ 復元の確認</div>
-            <div style={{fontSize:13,color:'#374151',marginBottom:8}}><strong>{confirmSnap.at}</strong> の状態に復元します。</div>
-            <div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',borderRadius:6,padding:'8px 12px',marginBottom:8}}>現在のデータは上書きされます。この操作は取り消せません。</div>
-            <div style={{marginTop:8,marginBottom:20,padding:"8px 12px",background:"#fef9c3",borderRadius:6,fontSize:11,color:"#92400e"}}>
-              ⚠️ スナップショット以降に追加されたデータは残ります。完全に元に戻したい場合は復元後に手動で確認してください。
-            </div>
-            <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
-              <button onClick={()=>setConfirmSnap(null)} style={{background:'none',border:'1.5px solid #64748b',color:'#64748b',borderRadius:6,padding:'6px 18px',cursor:'pointer'}}>キャンセル</button>
-              <button onClick={()=>doRestore(confirmSnap)} disabled={restoring}
-                style={{background:'#dc2626',color:'#fff',border:'none',borderRadius:6,padding:'6px 18px',cursor:'pointer',fontWeight:700}}>
-                {restoring?'復元中...':'復元する'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ImportScreen（localStorageデータ → Supabase移行）
 // =========================================================
 function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceData, setProducts }) {
@@ -7459,6 +4037,7 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
     setLog([]);
     try {
       const data = JSON.parse(json);
+      // products
       if (data['olqP7']?.length) {
         addLog(`製品マスタ: ${data['olqP7'].length}件 投入中...`);
         const rows = data['olqP7'].map(p => ({ id: String(p.id), data: p, updated_at: new Date().toISOString() }));
@@ -7467,6 +4046,7 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
         setProducts(data['olqP7']);
         addLog(`✅ 製品マスタ: ${rows.length}件 完了`);
       }
+      // customers
       if (data['olqC7']?.length) {
         addLog(`顧客: ${data['olqC7'].length}件 投入中...`);
         const rows = data['olqC7'].map(c => ({ id: String(c.id), data: c, updated_at: new Date().toISOString() }));
@@ -7475,6 +4055,7 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
         setCustomers(data['olqC7']);
         addLog(`✅ 顧客: ${rows.length}件 完了`);
       }
+      // cases
       if (data['olqR7']?.length) {
         addLog(`案件: ${data['olqR7'].length}件 投入中...`);
         const rows = data['olqR7'].map(r => ({ id: String(r.id), data: r, updated_at: new Date().toISOString() }));
@@ -7483,6 +4064,7 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
         setRecords(data['olqR7']);
         addLog(`✅ 案件: ${rows.length}件 完了`);
       }
+      // invoices
       if (data['olqInv7'] && Object.keys(data['olqInv7']).length) {
         addLog(`請求書: ${Object.keys(data['olqInv7']).length}件 投入中...`);
         const rows = Object.entries(data['olqInv7']).map(([id, v]) => ({
@@ -7493,6 +4075,7 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
         setInvoiceData(data['olqInv7']);
         addLog(`✅ 請求書: ${rows.length}件 完了`);
       }
+      // settings: DNo/INo
       const dno = data['olqDNo7'];
       const ino = data['olqINo7'];
       if (dno !== undefined && dno !== null) {
@@ -7503,8 +4086,8 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
         await supabase.from('settings').upsert({ key: 'olqINo7', value: String(ino) }, { onConflict: 'key' });
         addLog(`✅ 請求書連番: ${ino}`);
       }
-      addLog('🎉 復元完了！');
-      showToast('復元が完了しました');
+      addLog('🎉 移行完了！');
+      showToast('データ移行が完了しました');
     } catch(e) {
       addLog('❌ エラー: ' + e.message);
       showToast('移行に失敗しました: ' + e.message, false);
@@ -7515,19 +4098,16 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
   return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'40px 20px',fontFamily:"'Noto Sans JP','Hiragino Sans',sans-serif"}}>
       <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 16px rgba(0,0,0,0.07)',padding:32}}>
-        <h2 style={{margin:'0 0 6px',fontSize:18,fontWeight:800}}>📥 バックアップから復元</h2>
+        <h2 style={{margin:'0 0 6px',fontSize:18,fontWeight:800}}>📥 旧データ移行ツール</h2>
         <p style={{fontSize:12,color:'#64748b',margin:'0 0 20px'}}>
-          バックアップファイル（olq-backup-YYYY-MM-DD.json）を選択するか、JSONを貼り付けてください。
+          旧OLQ.htmlのコンソールで以下を実行してJSONをコピーし、下のテキストエリアに貼り付けてください。
         </p>
-        <div style={{marginBottom:14}}>
-          <input type="file" accept=".json" onChange={e=>{
-            const file=e.target.files[0];
-            if(!file)return;
-            const reader=new FileReader();
-            reader.onload=ev=>setJson(ev.target.result);
-            reader.readAsText(file);
-          }}/>
-        </div>
+        <pre style={{background:'#0f172a',color:'#86efac',borderRadius:8,padding:'12px 16px',fontSize:11,marginBottom:20,overflowX:'auto',lineHeight:1.6}}>
+{`const keys=['olqP7','olqC7','olqR7','olqInv7','olqDNo7','olqINo7']
+const d={}
+keys.forEach(k=>{try{d[k]=JSON.parse(localStorage.getItem(k))}catch{d[k]=localStorage.getItem(k)}})
+console.log(JSON.stringify(d))`}
+        </pre>
         <textarea
           value={json}
           onChange={e=>setJson(e.target.value)}
@@ -7537,7 +4117,7 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
         <div style={{display:'flex',gap:10,marginBottom:20}}>
           <button onClick={handleImport} disabled={loading||!json.trim()}
             style={{background:'#2563eb',color:'#fff',border:'none',borderRadius:8,padding:'10px 24px',fontSize:13,fontWeight:700,cursor:loading||!json.trim()?'not-allowed':'pointer',opacity:loading||!json.trim()?0.5:1}}>
-            {loading ? '復元中...' : '復元を実行'}
+            {loading ? '移行中...' : '移行を実行'}
           </button>
           <button onClick={onDone}
             style={{background:'none',border:'1.5px solid #e2e8f0',borderRadius:8,padding:'10px 20px',fontSize:13,color:'#64748b',cursor:'pointer'}}>
@@ -7552,340 +4132,6 @@ function ImportScreen({ onDone, showToast, setCustomers, setRecords, setInvoiceD
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoToDelivery}){
-  const today=()=>{const d=new Date();return d.getFullYear()+"-"+(String(d.getMonth()+1).padStart(2,"0"))+"-"+(String(d.getDate()).padStart(2,"0"));};
-  const fmt=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY"}).format(n||0);
-  const fmtD=s=>s?s.replace(/-/g,"/"):"";
-  const [filterMonth,setFilterMonth]=useState(()=>{const d=new Date();return d.getFullYear()+"-"+(String(d.getMonth()+1).padStart(2,"0"));});
-  const [filterCust,setFilterCust]=useState("");
-  const [filterCustQ,setFilterCustQ]=useState("");
-  const [modal,setModal]=useState(null);
-  const [custQ,setCustQ]=useState("");
-  const [selectedProjectName,setSelectedProjectName]=useState("");
-  const [recQ,setRecQ]=useState("");
-  const E={type:"loss",customerId:"",relatedRecordId:"",relatedProjectName:"",occurredDate:today(),itemName:"",unitPrice:"",quantity:"1",chargeAmount:"",description:"",separateInvoice:false,status:"pending",invoiceMonth:filterMonth};
-  const [form,setForm]=useState(E);
-  const [saving,setSaving]=useState(false);
-
-  const filtered=incidents.filter(x=>{
-    const monthOk=!filterMonth||x.occurred_date?.slice(0,7)===filterMonth;
-    const custOk=!filterCust||x.customer_id===filterCust;
-    return monthOk&&custOk;
-  });
-
-  const totalAmt=filtered.reduce((s,x)=>s+(x.charge_amount||0),0);
-  const lossAmt=filtered.filter(x=>x.type==="loss").reduce((s,x)=>s+(x.charge_amount||0),0);
-  const repairAmt=filtered.filter(x=>x.type==="repair").reduce((s,x)=>s+(x.charge_amount||0),0);
-
-  const custRecords=records.filter(r=>r.customerId===form.customerId);
-
-  const statusLabel=s=>s==="pending"?"未請求":s==="invoiced"?"請求済":s==="paid"?"回収済":"";
-  const statusColor=s=>s==="pending"?"#dc2626":s==="invoiced"?"#2563eb":s==="paid"?"#16a34a":"#64748b";
-  const typeLabel=t=>t==="loss"?"紛失":"修理/破損";
-  const typeColor=t=>t==="loss"?"#dc2626":"#d97706";
-
-  const openNew=()=>{setForm({...E,invoiceMonth:filterMonth});setModal("new");};
-  const openEdit=inc=>{setForm({type:inc.type,customerId:inc.customer_id,relatedRecordId:inc.related_record_id,relatedProjectName:inc.related_project_name||"",occurredDate:inc.occurred_date,itemName:inc.item_name,unitPrice:String(inc.unit_price||""),quantity:String(inc.quantity||"1"),chargeAmount:String(inc.charge_amount||""),description:inc.description||"",separateInvoice:!!inc.separate_invoice,status:inc.status||"pending",invoiceMonth:inc.invoice_month||""});setCustQ(customers.find(c=>c.id===inc.customer_id)?.name||"");setSelectedProjectName(inc.related_project_name||"");setModal(inc.id);};
-
-  const save=async()=>{
-    if(!form.customerId){showToast("顧客を選択してください",false);return;}
-    if(!form.itemName){showToast("品目を入力してください",false);return;}
-    setSaving(true);
-    const payload={type:form.type,customer_id:form.customerId,related_record_id:form.relatedRecordId,related_project_name:form.relatedProjectName,occurred_date:form.occurredDate,item_name:form.itemName,unit_price:Number(form.unitPrice)||0,quantity:Number(form.quantity)||1,charge_amount:(Number(form.unitPrice)||0)*(Number(form.quantity)||1),description:form.description,separate_invoice:form.separateInvoice,status:form.status,invoice_month:form.invoiceMonth};
-    if(modal==="new"){
-      const{data,error}=await supabase.from('incidents').insert([payload]).select().single();
-      if(error){showToast("保存に失敗しました",false);}else{setIncidents(prev=>[data,...prev]);showToast("登録しました");}
-    } else {
-      const{data,error}=await supabase.from('incidents').update(payload).eq('id',modal).select().single();
-      if(error){showToast("保存に失敗しました",false);}else{setIncidents(prev=>prev.map(x=>x.id===modal?data:x));showToast("更新しました");}
-    }
-    setSaving(false);setModal(null);
-  };
-
-  const del=async id=>{
-    await supabase.from('incidents').delete().eq('id',id);
-    setIncidents(prev=>prev.filter(x=>x.id!==id));
-    showToast("削除しました");
-  };
-
-  const S2={td:{padding:"8px 10px",borderBottom:"1px solid #e2e8f0",fontSize:12},th:{padding:"8px 10px",background:"#f8fafc",fontSize:12,fontWeight:600,borderBottom:"1px solid #e2e8f0",textAlign:"left"}};
-
-  return(
-    <div style={{padding:"20px 24px",maxWidth:1100,margin:"0 auto"}}>
-      {/* フィルター */}
-      <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-        <input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13}}/>
-        <input type="text" value={filterCustQ} onChange={e=>setFilterCustQ(e.target.value)} placeholder="顧客名で検索..." style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,minWidth:160}}/>
-        <select value={filterCust} onChange={e=>setFilterCust(e.target.value)} style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,minWidth:160}}>
-          <option value="">全顧客</option>
-          {customers.filter(c=>!filterCustQ||c.name.includes(filterCustQ)).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <button onClick={openNew} style={{marginLeft:"auto",padding:"7px 18px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontSize:13,fontWeight:600,cursor:"pointer"}}>＋ 新規登録</button>
-      </div>
-
-      {/* 集計カード */}
-      <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-        {[{label:"合計",val:totalAmt,color:"#1e293b"},{label:"紛失",val:lossAmt,color:"#dc2626"},{label:"修理/破損",val:repairAmt,color:"#d97706"}].map(c=>(
-          <div key={c.label} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,padding:"12px 20px",minWidth:160}}>
-            <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>{c.label}（{filtered.filter(x=>c.label==="合計"||(c.label==="紛失"?x.type==="loss":x.type==="repair")).length}件）</div>
-            <div style={{fontSize:20,fontWeight:700,color:c.color}}>{fmt(c.val)}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* 一覧テーブル */}
-      <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse"}}>
-          <thead>
-            <tr>
-              {["発生日","種別","顧客","品目","請求額","状態",""].map(h=><th key={h} style={S2.th}>{h}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length===0&&<tr><td colSpan={7} style={{...S2.td,textAlign:"center",color:"#94a3b8",padding:32}}>該当するレコードがありません</td></tr>}
-            {filtered.map(inc=>{
-              const cust=customers.find(c=>c.id===inc.customer_id);
-              const rec=records.find(r=>r.id===inc.related_record_id);
-              return(
-                <tr key={inc.id} style={{cursor:"pointer"}} onClick={()=>openEdit(inc)}>
-                  <td style={S2.td}>{fmtD(inc.occurred_date)}</td>
-                  <td style={S2.td}><span style={{background:inc.type==="loss"?"#fef2f2":"#fffbeb",color:typeColor(inc.type),padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:600}}>{typeLabel(inc.type)}</span></td>
-                  <td style={S2.td}>{cust?.name||"-"}</td>
-                  <td style={S2.td}>{inc.item_name}</td>
-                  <td style={{...S2.td,fontWeight:600}}>{fmt(inc.charge_amount)}</td>
-                  <td style={S2.td}><span style={{color:statusColor(inc.status),fontWeight:600,fontSize:11}}>{statusLabel(inc.status)}</span></td>
-                  <td style={{...S2.td,textAlign:"right",whiteSpace:"nowrap"}}>
-                    {inc.related_record_id&&inc.related_record_id!=="none"&&(
-                      <button onClick={e=>{e.stopPropagation();onGoToDelivery(inc.related_record_id);}} style={{padding:"3px 10px",background:"none",border:"1px solid #93c5fd",color:"#2563eb",borderRadius:4,cursor:"pointer",fontSize:11,marginRight:6}}>→ 納品書</button>
-                    )}
-                    <button onClick={e=>{e.stopPropagation();if(window.confirm("削除しますか？"))del(inc.id);}} style={{padding:"3px 10px",background:"none",border:"1px solid #fca5a5",color:"#dc2626",borderRadius:4,cursor:"pointer",fontSize:11}}>削除</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* 登録/編集モーダル */}
-      {modal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setModal(null)}>
-          <div style={{background:"#fff",borderRadius:12,padding:28,width:520,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700}}>{modal==="new"?"新規登録":"編集"}</h3>
-            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>種別 *</div>
-                <div style={{display:"flex",gap:8}}>
-                  {[{v:"loss",l:"紛失"},{v:"repair",l:"修理/破損"}].map(o=>(
-                    <button key={o.v} onClick={()=>setForm(f=>({...f,type:o.v}))} style={{flex:1,padding:"8px",border:`2px solid ${form.type===o.v?"#2563eb":"#e2e8f0"}`,borderRadius:6,background:form.type===o.v?"#eff6ff":"#fff",color:form.type===o.v?"#2563eb":"#64748b",fontWeight:600,cursor:"pointer",fontSize:13}}>{o.l}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>顧客 *</div>
-                <input type="text" value={custQ} onChange={e=>{setCustQ(e.target.value);setForm(f=>({...f,customerId:"",relatedRecordId:""}));setRecQ("");}} placeholder="顧客名で検索..." style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box",marginBottom:6}}/>
-                {custQ&&!form.customerId&&(
-                  <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:160,overflowY:"auto"}}>
-                    {customers.filter(c=>c.name.includes(custQ)).map(c=>(
-                      <div key={c.id} onClick={()=>{setForm(f=>({...f,customerId:c.id,relatedRecordId:""}));setCustQ(c.name);setRecQ("");}} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>{c.name}</div>
-                    ))}
-                    {customers.filter(c=>c.name.includes(custQ)).length===0&&<div style={{padding:"8px 10px",fontSize:12,color:"#94a3b8"}}>該当なし</div>}
-                  </div>
-                )}
-                {form.customerId&&<div style={{fontSize:11,color:"#2563eb",marginTop:2}}>✓ {customers.find(c=>c.id===form.customerId)?.name}</div>}
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>元案件</div>
-                {!form.customerId?<div style={{fontSize:12,color:"#94a3b8",padding:"8px 0"}}>先に顧客を選択してください</div>:(()=>{
-                  const projectNames=[...new Set(custRecords.map(r=>r.projectName||"（案件名なし）"))].sort();
-                  const slipsForProject=custRecords.filter(r=>(r.projectName||"（案件名なし）")===selectedProjectName).sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
-                  return(
-                    <>
-                      {/* Step2: 案件名選択 */}
-                      {!selectedProjectName?(
-                        <>
-                          <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>案件名を選択してください</div>
-                          <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:220,overflowY:"auto"}}>
-                            {projectNames.map(pn=>(
-                              <div key={pn} onClick={()=>{setSelectedProjectName(pn);setForm(f=>({...f,relatedProjectName:pn==="（案件名なし）"?"":pn,relatedRecordId:""}));}} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9",background:"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                                {pn}
-                                <span style={{fontSize:11,color:"#94a3b8",marginLeft:8}}>{custRecords.filter(r=>(r.projectName||"（案件名なし）")===pn).length}件</span>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      ):(
-                        <>
-                          {/* Step3: 伝票選択 */}
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                            <div style={{fontSize:12,fontWeight:600,color:"#2563eb"}}>{selectedProjectName}</div>
-                            <button onClick={()=>{setSelectedProjectName("");setForm(f=>({...f,relatedProjectName:"",relatedRecordId:""}));}} style={{fontSize:11,color:"#64748b",background:"none",border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 8px",cursor:"pointer"}}>変更</button>
-                          </div>
-                          <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:220,overflowY:"auto"}}>
-                            <div onClick={()=>setForm(f=>({...f,relatedRecordId:"none"}))} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9",background:form.relatedRecordId==="none"?"#eff6ff":"#fff",color:form.relatedRecordId==="none"?"#2563eb":"#64748b",fontWeight:form.relatedRecordId==="none"?600:400}} onMouseEnter={e=>e.currentTarget.style.background=form.relatedRecordId==="none"?"#eff6ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=form.relatedRecordId==="none"?"#eff6ff":"#fff"}>選択しないで作成</div>
-                            {slipsForProject.map(r=>(
-                              <div key={r.id} onClick={()=>setForm(f=>({...f,relatedRecordId:r.id}))} style={{padding:"8px 10px",cursor:"pointer",fontSize:12,borderBottom:"1px solid #f1f5f9",background:form.relatedRecordId===r.id?"#eff6ff":"#fff",color:form.relatedRecordId===r.id?"#2563eb":"#1e293b"}} onMouseEnter={e=>e.currentTarget.style.background=form.relatedRecordId===r.id?"#eff6ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=form.relatedRecordId===r.id?"#eff6ff":"#fff"}>
-                                <div style={{fontWeight:600}}>{r.deliveryNo||r.id}</div>
-                                <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{r.startDate}〜{r.endDate||"継続中"}</div>
-                              </div>
-                            ))}
-                          </div>
-                          {form.relatedRecordId&&<div style={{fontSize:11,color:"#2563eb",marginTop:4}}>✓ {form.relatedRecordId==="none"?"選択なし（案件名のみ紐付け）":records.find(r=>r.id===form.relatedRecordId)?.deliveryNo||"選択済"}</div>}
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>発生日 *</div>
-                <input type="date" value={form.occurredDate} onChange={e=>setForm(f=>({...f,occurredDate:e.target.value}))} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>品目 *</div>
-                <input type="text" value={form.itemName} onChange={e=>setForm(f=>({...f,itemName:e.target.value}))} placeholder="例：XLRケーブル 5m" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>単価</div>
-                <input type="text" inputMode="numeric" value={form.unitPrice} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setForm(f=>({...f,unitPrice:v}));}} placeholder="0" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>数量</div>
-                <input type="text" inputMode="numeric" value={form.quantity} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setForm(f=>({...f,quantity:v}));}} placeholder="1" style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box"}}/>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>請求額（自動計算）</div>
-                <div style={{padding:"8px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,fontWeight:600,color:"#16a34a"}}>
-                  {new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY"}).format((Number(form.unitPrice)||0)*(Number(form.quantity)||1))}
-                </div>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>請求月</div>
-                <input type="month" value={form.invoiceMonth} onChange={e=>setForm(f=>({...f,invoiceMonth:e.target.value}))} style={{padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13}}/>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>状態</div>
-                <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13}}>
-                  <option value="pending">未請求</option>
-                  <option value="invoiced">請求済</option>
-                  <option value="paid">回収済</option>
-                </select>
-              </div>
-              <div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>状況メモ</div>
-                <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} rows={3} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <input type="checkbox" id="sep" checked={form.separateInvoice} onChange={e=>setForm(f=>({...f,separateInvoice:e.target.checked}))} style={{cursor:"pointer"}}/>
-                <label htmlFor="sep" style={{fontSize:13,cursor:"pointer"}}>別請求書で発行する</label>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:24,justifyContent:"flex-end"}}>
-              <button onClick={()=>setModal(null)} style={{padding:"8px 20px",border:"1px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer",fontSize:13}}>キャンセル</button>
-              <button onClick={save} disabled={saving} style={{padding:"8px 24px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontWeight:600,cursor:"pointer",fontSize:13}}>{saving?"保存中...":"保存"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ActivityLogsTab({session}) {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({type:"", user:""});
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const { data } = await supabase
-        .from('activity_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200);
-      setLogs(data || []);
-      setLoading(false);
-    })();
-  }, []);
-
-  const typeLabel = {record:"案件", customer:"顧客"};
-  const typeColor = {record:"#2563eb", customer:"#16a34a"};
-
-  const users = [...new Set(logs.map(l => l.user_name).filter(Boolean))];
-
-  const filtered = logs.filter(l => {
-    if (filter.type && l.target_type !== filter.type) return false;
-    if (filter.user && l.user_name !== filter.user) return false;
-    return true;
-  });
-
-  const fd = iso => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    const pad = n => String(n).padStart(2,'0');
-    const jst = new Date(d.getTime() + 9*60*60*1000);
-    return `${jst.getUTCFullYear()}/${pad(jst.getUTCMonth()+1)}/${pad(jst.getUTCDate())} ${pad(jst.getUTCHours())}:${pad(jst.getUTCMinutes())}`;
-  };
-
-  return (
-    <div style={{maxWidth:900,margin:"0 auto"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <h2 style={{fontSize:16,fontWeight:700,color:"#1e293b",margin:0}}>作業履歴</h2>
-        <div style={{display:"flex",gap:8}}>
-          <select value={filter.type} onChange={e=>setFilter(f=>({...f,type:e.target.value}))}
-            style={{border:"1.5px solid #e2e8f0",borderRadius:6,padding:"5px 10px",fontSize:12,color:"#374151",background:"#fff"}}>
-            <option value="">全種別</option>
-            <option value="record">案件</option>
-            <option value="customer">顧客</option>
-          </select>
-          <select value={filter.user} onChange={e=>setFilter(f=>({...f,user:e.target.value}))}
-            style={{border:"1.5px solid #e2e8f0",borderRadius:6,padding:"5px 10px",fontSize:12,color:"#374151",background:"#fff"}}>
-            <option value="">全スタッフ</option>
-            {users.map(u=><option key={u} value={u}>{u}</option>)}
-          </select>
-        </div>
-      </div>
-      {loading ? (
-        <div style={{textAlign:"center",padding:40,color:"#94a3b8",fontSize:13}}>読み込み中...</div>
-      ) : filtered.length === 0 ? (
-        <div style={{textAlign:"center",padding:40,color:"#94a3b8",fontSize:13}}>履歴がありません</div>
-      ) : (
-        <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead>
-              <tr style={{background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
-                <th style={{padding:"10px 14px",textAlign:"left",fontWeight:600,color:"#64748b",fontSize:12,width:140}}>日時</th>
-                <th style={{padding:"10px 14px",textAlign:"left",fontWeight:600,color:"#64748b",fontSize:12,width:80}}>スタッフ</th>
-                <th style={{padding:"10px 14px",textAlign:"left",fontWeight:600,color:"#64748b",fontSize:12,width:60}}>種別</th>
-                <th style={{padding:"10px 14px",textAlign:"left",fontWeight:600,color:"#64748b",fontSize:12,width:100}}>操作</th>
-                <th style={{padding:"10px 14px",textAlign:"left",fontWeight:600,color:"#64748b",fontSize:12}}>対象</th>
-                <th style={{padding:"10px 14px",textAlign:"left",fontWeight:600,color:"#64748b",fontSize:12}}>詳細</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((l,i) => (
-                <tr key={l.id||i} style={{borderBottom:"1px solid #f1f5f9",background:i%2===0?"#fff":"#fafafa"}}>
-                  <td style={{padding:"9px 14px",color:"#64748b",fontSize:12,whiteSpace:"nowrap"}}>{fd(l.created_at)}</td>
-                  <td style={{padding:"9px 14px",fontWeight:500,color:"#1e293b"}}>{l.user_name||"-"}</td>
-                  <td style={{padding:"9px 14px"}}>
-                    <span style={{background:(typeColor[l.target_type]||"#64748b")+"18",color:typeColor[l.target_type]||"#64748b",borderRadius:4,padding:"2px 7px",fontSize:11,fontWeight:600}}>
-                      {typeLabel[l.target_type]||l.target_type||"-"}
-                    </span>
-                  </td>
-                  <td style={{padding:"9px 14px",color:"#374151"}}>{l.action||"-"}</td>
-                  <td style={{padding:"9px 14px",color:"#1e293b",fontWeight:500}}>{l.target_name||"-"}</td>
-                  <td style={{padding:"9px 14px",color:"#64748b",fontSize:12}}>{l.detail||""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
