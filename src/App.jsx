@@ -1592,7 +1592,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.64</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.65</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -5583,9 +5583,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                   if(!allBody) return;
                                   const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
                                   const nt=window.open("","_blank");
-                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+lastCss+"\n@media print{.no-print{display:none!important}body{margin:0}}</style></head><body>");
+                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+lastCss+"\n@media print{.no-print{display:none!important}body{margin:0}}\n@media screen{.pb,.pb-last{margin-top:52px}}</style></head><body>");
                                   nt.document.write("<div class='no-print' style='position:fixed;top:0;left:0;right:0;background:#1e293b;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:9999;font-family:sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)'><span style='font-weight:700;flex:1'>"+mtitle+"</span><button onclick='window.print()' style='background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px 20px;font-size:14px;font-weight:700;cursor:pointer'>🖨 印刷 / PDF保存</button><button onclick='window.close()' style='background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer'>✕ 閉じる</button></div>");
-                                  nt.document.write("<div style='margin-top:52px'>"+allBody+"</div></body></html>");
+                                  nt.document.write("<div>"+allBody+"</div></body></html>");
                                   nt.document.close();
                                 }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px"}}>
                                   <Ico d={I.print} size={10}/>一括確認
@@ -5610,9 +5610,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                   if(!allBody) return;
                                   const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
                                   const nt=window.open("","_blank");
-                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+lastCss+"\n@media print{.no-print{display:none!important}body{margin:0}}</style></head><body>");
+                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+lastCss+"\n@media print{.no-print{display:none!important}body{margin:0}}\n@media screen{.pb,.pb-last{margin-top:52px}}</style></head><body>");
                                   nt.document.write("<div class='no-print' style='position:fixed;top:0;left:0;right:0;background:#1e293b;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:9999;font-family:sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)'><span style='font-weight:700;flex:1'>"+mtitle+"</span><button onclick='window.print()' style='background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px 20px;font-size:14px;font-weight:700;cursor:pointer'>🖨 印刷 / PDF保存</button><button onclick='window.close()' style='background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer'>✕ 閉じる</button></div>");
-                                  nt.document.write("<div style='margin-top:52px'>"+allBody+"</div></body></html>");
+                                  nt.document.write("<div>"+allBody+"</div></body></html>");
                                   nt.document.close();
                                 }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
                                   🖨一括印刷
