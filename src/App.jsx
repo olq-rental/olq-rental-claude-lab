@@ -5576,15 +5576,15 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     const invNo=cur.invNo||(grp.month?(grp.month+"-???"):"");
                                     const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
                                     if(r&&r.body){
-                                      const b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      let b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      b=b.replace('class="pb"','class="pb" style="padding-top:52px"').replace('class="pb-last"','class="pb-last" style="padding-top:52px"');
                                       allBody+=b;lastCss=r.css;
                                     }
                                   }
                                   if(!allBody) return;
                                   const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
-                                  const bCss1=lastCss.replace('@page{margin:0mm;size:A4}','@page{margin:52px 0 0 0;size:A4}');
                                   const nt=window.open("","_blank");
-                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+bCss1+"\n@media print{.no-print{display:none!important}body{margin:0}}</style></head><body>");
+                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+lastCss+"\n@media print{.no-print{display:none!important}body{margin:0}}</style></head><body>");
                                   nt.document.write("<div class='no-print' style='position:fixed;top:0;left:0;right:0;background:#1e293b;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:9999;font-family:sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)'><span style='font-weight:700;flex:1'>"+mtitle+"</span><button onclick='window.print()' style='background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px 20px;font-size:14px;font-weight:700;cursor:pointer'>🖨 印刷 / PDF保存</button><button onclick='window.close()' style='background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer'>✕ 閉じる</button></div>");
                                   nt.document.write("<div>"+allBody+"</div></body></html>");
                                   nt.document.close();
@@ -5604,15 +5604,15 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     const invNo=count<=1?baseNo:(baseNo+"-"+count);
                                     const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
                                     if(r&&r.body){
-                                      const b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      let b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      b=b.replace('class="pb"','class="pb" style="padding-top:52px"').replace('class="pb-last"','class="pb-last" style="padding-top:52px"');
                                       allBody+=b;lastCss=r.css;
                                     }
                                   }
                                   if(!allBody) return;
                                   const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
-                                  const bCss2=lastCss.replace('@page{margin:0mm;size:A4}','@page{margin:52px 0 0 0;size:A4}');
                                   const nt=window.open("","_blank");
-                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+bCss2+"\n@media print{.no-print{display:none!important}body{margin:0}}</style></head><body>");
+                                  nt.document.write("<!DOCTYPE html><html lang='ja'><head><meta charset='utf-8'><title>"+mtitle+"</title><style>"+lastCss+"\n@media print{.no-print{display:none!important}body{margin:0}}</style></head><body>");
                                   nt.document.write("<div class='no-print' style='position:fixed;top:0;left:0;right:0;background:#1e293b;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:9999;font-family:sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)'><span style='font-weight:700;flex:1'>"+mtitle+"</span><button onclick='window.print()' style='background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px 20px;font-size:14px;font-weight:700;cursor:pointer'>🖨 印刷 / PDF保存</button><button onclick='window.close()' style='background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer'>✕ 閉じる</button></div>");
                                   nt.document.write("<div>"+allBody+"</div></body></html>");
                                   nt.document.close();
