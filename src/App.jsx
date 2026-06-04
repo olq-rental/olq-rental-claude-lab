@@ -4188,7 +4188,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const legs = legMap[pid];
       const firstLeg = legs[0];
       const baseLn = firstLeg.line;
-      const _ceqName = baseLn.equipmentName || firstLeg.record.equipmentName || "";const _cProjInfo=g.projectName?(firstLeg.record.projectDetail||""):firstLeg.record.projectName?firstLeg.record.projectName+(firstLeg.record.projectDetail?`　${firstLeg.record.projectDetail}`:""):(firstLeg.record.projectDetail||"");const _ceqNameDisp=_ceqName+(_cProjInfo?`<span style="color:#555;font-size:10px">　[${_cProjInfo}]</span>`:"");
+      const _ceqName = baseLn.equipmentName || firstLeg.record.equipmentName || "";const _cProjInfo=g.projectName?(firstLeg.record.projectDetail||""):firstLeg.record.projectName?firstLeg.record.projectName+(firstLeg.record.projectDetail?`　${firstLeg.record.projectDetail}`:""):(firstLeg.record.projectDetail||"");const _chainHasAdj=legs.some(function(l){return (l.record.notes||"").indexOf("【日数調整】")>=0;});const _chainAdjReason=_chainHasAdj?(firstLeg.record.adjustReason||""):"";const _chainAdjReasonHtml=_chainAdjReason?`<div style="font-size:8px;color:#0369a1;margin-top:1px">${_chainAdjReason}</div>`:"";const _ceqNameDisp=_ceqName+(_cProjInfo?`<span style="color:#555;font-size:10px">　[${_cProjInfo}]</span>`:"")+_chainAdjReasonHtml;
       const _cqty = baseLn.quantity || 1;
       const _cprod2 = showDiscountLine ? (products||[]).find(p=>p.id===baseLn.productId) : null;
       const _clistPrice2 = _cprod2 ? _cprod2.priceEx : (baseLn.unitPrice||0);
@@ -4212,12 +4212,14 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const _csNameExtra=_csProjInfo?`<span style="color:#555;font-size:10px">　[${_csProjInfo}]</span>`:"";
           const _dd=!noDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);
           const _ddDays=_dd?r.billingDays:(r.days||0);
-          const _ddSub=_dd?`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`:"";
+          const _hasAdj=(r.notes||"").indexOf("【日数調整】")>=0;
+          const _adjReasonHtml=_hasAdj&&(r.adjustReason||"")?`<div style="font-size:8px;color:#0369a1;margin-top:1px">${r.adjustReason}</div>`:"";
+          const _ddSub=_dd?(_hasAdj?`<div style="font-size:8px;color:#555;margin-top:1px">日数調整</div>`:`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`):"";
           allInvRows.push({html:`<tr>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}<div style="font-size:7px;color:#555">${r.isExtension?"└ご延長":"└ご注文"}</div></td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${equipName}${_csNameExtra}</td>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${equipName}${_csNameExtra}${_adjReasonHtml}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${ln.quantity||1}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(dispPrice)}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(lineAmt)}</td>
@@ -4243,7 +4245,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const _legEnd=legs[legs.length-1].record.returnDate||legs[legs.length-1].record.endDate||"";
         const _noValueDisc=_hasNoDisc||_legBillDays>=_legCalDays;
         const _chainBillDisp=_noValueDisc?_legCalDays:_legBillDays;
-        const _chainDateSub=_noValueDisc?``:`<div style="font-size:8px;color:#555;margin-top:1px">合計${_legCalDays}日間 → 日数値引</div>`;
+        const _chainDateSub=_noValueDisc?``:`<div style="font-size:8px;color:#555;margin-top:1px">${_chainHasAdj?"日数調整":"合計"+_legCalDays+"日間 → 日数値引"}</div>`;
         const _csegRows=legs.map(({record:r},si)=>{
           const _se=r.returnDate||r.endDate;
           const _sl=r.isExtension?"ご延長":"ご注文";
@@ -4292,8 +4294,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
           : hasPerLineDate
             ? `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${lineDaysPdf}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
-            : (()=>{const _dd=!hasNoBilling&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);const _ddDays=_dd?r.billingDays:days;const _ddSub=_dd?`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`:"";return `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`;})()}
-        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}</td>
+            : (()=>{const _dd=!hasNoBilling&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);const _ddDays=_dd?r.billingDays:days;const _hasAdj3=(r.notes||"").indexOf("【日数調整】")>=0;const _ddSub=_dd?(_hasAdj3?`<div style="font-size:8px;color:#555;margin-top:1px">日数調整</div>`:`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`):"";return `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`;})()}
+        <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}${li===0&&(r.notes||"").indexOf("【日数調整】")>=0&&(r.adjustReason||"")?`<div style="font-size:8px;color:#0369a1;margin-top:1px">${r.adjustReason}</div>`:""}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
