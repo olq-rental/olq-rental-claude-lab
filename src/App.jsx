@@ -5576,7 +5576,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     const invNo=cur.invNo||(grp.month?(grp.month+"-???"):"");
                                     const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
                                     if(r&&r.body){
-                                      const b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      let b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      b=b.replace('padding:0px 34px 28px 34px','padding:52px 34px 28px 34px');
                                       allBody+=b;lastCss=r.css;
                                     }
                                   }
@@ -5604,7 +5605,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     const invNo=count<=1?baseNo:(baseNo+"-"+count);
                                     const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
                                     if(r&&r.body){
-                                      const b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      let b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
+                                      b=b.replace('padding:0px 34px 28px 34px','padding:52px 34px 28px 34px');
                                       allBody+=b;lastCss=r.css;
                                     }
                                   }
