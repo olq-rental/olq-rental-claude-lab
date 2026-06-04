@@ -4223,7 +4223,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${ln.quantity||1}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(dispPrice)}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(lineAmt)}</td>
-          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));const base=sw>=150?4:sw>=100?3:sw>=50?2:1;return base+1+(r.ecOrderNo?1:0);})()});
+          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));const base=sw>=150?4:sw>=100?3:sw>=50?2:1;return base+1+(r.ecOrderNo?1:0)+(_ddSub?1:0);})()});
         });
       } else {
         // chainブロック（leg>=2かつ台数・単価一致）
