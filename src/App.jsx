@@ -5563,7 +5563,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                               if(issued===total) return <span style={{fontSize:10,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>✅ 全件発行済</span>;
                               return <span style={{fontSize:10,color:"#0369a1",fontWeight:700,whiteSpace:"nowrap"}}>{total}件中{issued}件発行済 残{total-issued}件</span>;
                             })()}
-                            {cust.groups.length>1&&(
+                            {cust.groups.length>1&&custOpen&&(
                               <div style={{display:"flex",gap:4,justifyContent:"center",marginTop:4}}>
                                 <button onClick={async()=>{
                                   let allBody="";let lastCss="";
