@@ -1596,7 +1596,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.65</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.66</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -6229,6 +6229,7 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
   const [projInput,setProjInput]=useState("");
   const [editProjModal,setEditProjModal]=useState(null); // {index, name, useCount}
   const [editProjName,setEditProjName]=useState("");
+  const [resetPresetModal,setResetPresetModal]=useState(false);
   const xlsxInputRef=useRef(null);
   const importFromXlsx=async(file)=>{
     try{
@@ -6295,8 +6296,11 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
   });
   const getSales = id => salesMap[id]||0;
 
-  const resetToPreset=async()=>{
-    if(!confirm(`顧客データをプリセット（${presetCustomers.length}社）にリセットしますか？\n手動で追加した顧客は失われます。`))return;
+  const resetToPreset=()=>{
+    setResetPresetModal(true);
+  };
+  const doResetToPreset=async()=>{
+    setResetPresetModal(false);
     await onSave(presetCustomers);
     showToast(`${presetCustomers.length}社にリセットしました`);
   };
@@ -6887,6 +6891,18 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
                 </div>
               </>
             }
+          </div>
+        </div>
+      )}
+      {resetPresetModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#991b1b"}}>⚠️ 顧客データをリセットしますか？</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>プリセット（{presetCustomers.length}社）に戻します。<br/>手動で追加した顧客は失われます。</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={doResetToPreset} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>リセットする</button>
+              <button onClick={()=>setResetPresetModal(false)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            </div>
           </div>
         </div>
       )}
