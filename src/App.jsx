@@ -923,13 +923,15 @@ export default function App() {
     if (localStorage.getItem('olqLastBackup') === today) return;
     (async () => {
       try {
-        const [pRes, cRes, rRes, invRes, dnoRes, inoRes] = await Promise.all([
+        const [pRes, cRes, rRes, invRes, dnoRes, inoRes, cmsRes, incRes] = await Promise.all([
           supabase.from('products').select('data'),
           supabase.from('customers').select('data'),
           supabase.from('cases').select('data'),
           supabase.from('invoices').select('id,data'),
           supabase.from('settings').select('value').eq('key','olqDNo7').maybeSingle(),
           supabase.from('settings').select('value').eq('key','olqINo7').maybeSingle(),
+          supabase.from('settings').select('value').eq('key','crossMonthSplits').maybeSingle(),
+          supabase.from('incidents').select('*'),
         ]);
         const invMap = {};
         (invRes.data||[]).forEach(row => { invMap[row.id] = row.data; });
@@ -941,6 +943,8 @@ export default function App() {
           olqInv7: invMap,
           olqDNo7: dnoRes.data?.value ?? "",
           olqINo7: inoRes.data?.value ?? "",
+          olqCrossMonthSplits: (cmsRes.data&&cmsRes.data.value)||"{}",
+          olqIncidents: incRes.data||[],
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
