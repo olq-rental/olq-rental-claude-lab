@@ -709,7 +709,7 @@ const taxEx  = n => Math.round((n||0)/1.1);
 const fmt    = n => `¥${Number(n||0).toLocaleString()}`;
 const fmtD   = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
 const uid    = () => `${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-const today  = () => new Date().toISOString().slice(0,10);
+const today  = () => {const d=new Date();return d.getFullYear()+"-"+(String(d.getMonth()+1).padStart(2,"0"))+"-"+(String(d.getDate()).padStart(2,"0"));};
 
 function resolvePrice(prod, cust) {
   if (!prod) return 0;
@@ -919,7 +919,7 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     if (session.user.email !== 'y_inoue@olq.co.jp') return;
-    const today = new Date().toISOString().slice(0, 10);
+    const d2=new Date();const today=d2.getFullYear()+"-"+(String(d2.getMonth()+1).padStart(2,"0"))+"-"+(String(d2.getDate()).padStart(2,"0"));
     if (localStorage.getItem('olqLastBackup') === today) return;
     (async () => {
       try {
