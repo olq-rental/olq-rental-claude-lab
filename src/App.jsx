@@ -4918,8 +4918,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   const [showPwSetting, setShowPwSetting] = useState(false);
   const [crossMonthSplits, setCrossMonthSplits] = useState(()=>{try{const s=localStorage.getItem('olqCrossMonthSplits');return s?JSON.parse(s):{};}catch{return {};}}); // {recordId: {type:'full'|'split', targetMonth?:string, splits?:[{startDate,endDate}]}}
   const [crossMonthSplitsReady, setCrossMonthSplitsReady] = useState(false);
-  React.useEffect(()=>{if(!crossMonthSplitsReady)return;try{localStorage.setItem('olqCrossMonthSplits',JSON.stringify(crossMonthSplits));}catch{} supabase.from('settings').upsert({key:'crossMonthSplits',value:JSON.stringify(crossMonthSplits)},{onConflict:'key'}).then(({error})=>{if(error)console.error('crossMonthSplits save error',error);});}, [crossMonthSplits,crossMonthSplitsReady]);
-  React.useEffect(()=>{supabase.from('settings').select('value').eq('key','crossMonthSplits').single().then(({data,error})=>{if(!error&&data?.value){try{const parsed=JSON.parse(data.value);setCrossMonthSplits(parsed);localStorage.setItem('olqCrossMonthSplits',data.value);}catch{}}setCrossMonthSplitsReady(true);});},[]);
+  const [crossMonthSplitsLoaded, setCrossMonthSplitsLoaded] = useState(false);
+  React.useEffect(()=>{if(!crossMonthSplitsReady)return;if(!crossMonthSplitsLoaded&&Object.keys(crossMonthSplits).length===0)return;try{localStorage.setItem('olqCrossMonthSplits',JSON.stringify(crossMonthSplits));}catch{} supabase.from('settings').upsert({key:'crossMonthSplits',value:JSON.stringify(crossMonthSplits)},{onConflict:'key'}).then(({error})=>{if(error)console.error('crossMonthSplits save error',error);});}, [crossMonthSplits,crossMonthSplitsReady,crossMonthSplitsLoaded]);
+  React.useEffect(()=>{supabase.from('settings').select('value').eq('key','crossMonthSplits').maybeSingle().then(({data,error})=>{if(!error&&data&&data.value){try{const parsed=JSON.parse(data.value);setCrossMonthSplits(parsed);localStorage.setItem('olqCrossMonthSplits',data.value);}catch{}}setCrossMonthSplitsLoaded(true);setCrossMonthSplitsReady(true);}).catch(()=>{setCrossMonthSplitsReady(true);});},[]);
   const [newPw, setNewPw] = useState("");
   const [custQ, setCustQ] = useState("");
 
