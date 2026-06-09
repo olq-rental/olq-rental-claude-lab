@@ -4924,6 +4924,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   const [newPw, setNewPw] = useState("");
   const [lockModal, setLockModal] = useState(null); // null | {mode:"confirm",key:string} | {mode:"unlock",key:string}
   const [changePwModal, setChangePwModal] = useState(false);
+  const [printCountResetModal, setPrintCountResetModal] = useState(false);
   const [custQ, setCustQ] = useState("");
 
   const getInvData = (key, month) => {
@@ -4983,6 +4984,19 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     setNewPw("");
     setShowPwSetting(false);
     showToast("パスワードを変更しました");
+  };
+  const triggerPrintCountReset = () => { setPrintCountResetModal(true); };
+  const doPrintCountReset = async () => {
+    setPrintCountResetModal(false);
+    const next={...invoiceData};
+    Object.keys(next).forEach(key=>{
+      const [cid,,month]=key.split("||");
+      const grpRecords=records.filter(r=>r.customerId===cid&&(r.startDate||"").startsWith(month));
+      const hasReceipt=grpRecords.some(r=>r.issueReceipt);
+      if(!hasReceipt) next[key]={...next[key],printCount:0,invNo:"",lastPrintDate:""};
+    });
+    await onSaveInv(next);
+    showToast("リセット完了しました",true);
   };
   const toggleExpand = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
 
@@ -5402,18 +5416,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
               a.href = URL.createObjectURL(blob); a.download = `freee_取引_${selMonth}.csv`;
               a.click();
             }} style={{...S.btn("#0ea5e9",true),fontSize:11,marginLeft:"auto"}}>📤 freee CSV</button>
-            <button onClick={async()=>{
-              if(!window.confirm("領収済以外の請求書発行履歴（printCount）をリセットしますか？")) return;
-              const next={...invoiceData};
-              Object.keys(next).forEach(key=>{
-                const [cid,,month]=key.split("||");
-                const grpRecords=records.filter(r=>r.customerId===cid&&(r.startDate||"").startsWith(month));
-                const hasReceipt=grpRecords.some(r=>r.issueReceipt);
-                if(!hasReceipt) next[key]={...next[key],printCount:0,invNo:"",lastPrintDate:""};
-              });
-              await onSaveInv(next);
-              showToast("リセット完了しました",true);
-            }} style={{...S.btn("#dc2626",true),fontSize:11}}>🗑 発行履歴リセット</button>
+            <button onClick={triggerPrintCountReset} style={{...S.btn("#dc2626",true),fontSize:11}}>🗑 発行履歴リセット</button>
           </div>
         )}
 
@@ -5919,6 +5922,18 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>🔑 パスワードの変更</div>
             <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>現在のパスワードを入力してください。</div>
             <PwInput onOk={doChangePw} onCancel={()=>setChangePwModal(false)}/>
+          </div>
+        </div>
+      )}
+      {printCountResetModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#991b1b"}}>⚠️ 発行履歴をリセット</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>領収済以外の請求書発行履歴（printCount）をリセットします。</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={doPrintCountReset} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>リセットする</button>
+              <button onClick={()=>setPrintCountResetModal(false)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            </div>
           </div>
         </div>
       )}
