@@ -6952,6 +6952,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
   const [inlineSaving, setInlineSaving] = useState(false);
   const [syncLog,setSyncLog]=useState(null);
   const [logOpen,setLogOpen]=useState(false);
+  const [resetDefaultModal,setResetDefaultModal]=useState(false);
 
   const fetchSyncLog=async()=>{
     const {data}=await supabase.from('settings').select('value').eq('key','sync_log').maybeSingle();
@@ -7035,8 +7036,11 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     fetchProdKnowledge(pid);
   };
 
-  const resetToDefault=async()=>{
-    if(!confirm(`製品マスタをサイトのデータ（${allProducts.length}件）にリセットしますか？\nカスタム変更は失われます。`))return;
+  const resetToDefault=()=>{
+    setResetDefaultModal(true);
+  };
+  const doResetToDefault=async()=>{
+    setResetDefaultModal(false);
     await onSave(allProducts);
     showToast(`${allProducts.length}件にリセットしました`);
   };
@@ -7374,6 +7378,18 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                   </div>
                 ))
             }
+          </div>
+        </div>
+      )}
+      {resetDefaultModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#991b1b"}}>⚠️ 製品マスタをリセットしますか？</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>サイトのデータ（{allProducts.length}件）に戻します。<br/>カスタム変更は失われます。</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={doResetToDefault} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>リセットする</button>
+              <button onClick={()=>setResetDefaultModal(false)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            </div>
           </div>
         </div>
       )}
