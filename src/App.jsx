@@ -1030,6 +1030,7 @@ export default function App() {
   const [questionSelectedProducts, setQuestionSelectedProducts] = useState([]);
   const [questionProductSearch, setQuestionProductSearch] = useState('');
   const [knowledgeSearchMode, setKnowledgeSearchMode] = useState('text');
+  const [presetModal, setPresetModal] = useState(false);
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
 
@@ -1047,8 +1048,7 @@ export default function App() {
       } else if (c.length > 0) {
         setCustomers(c);
       } else {
-        const ok = window.confirm('顧客データが空です。プリセット38社を投入しますか？\n※通常はキャンセルしてください。');
-        if (ok) { setCustomers(PRESET_CUSTOMERS); await sSet(K.c, PRESET_CUSTOMERS); }
+        setPresetModal(true);
       }
       if (r?.length) setRecords(r);
       if (inv) setInvoiceData(inv);
@@ -6367,6 +6367,12 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     await onSave(presetCustomers);
     showToast(`${presetCustomers.length}社にリセットしました`);
   };
+  const doPresetInsert=async()=>{
+    setPresetModal(false);
+    setCustomers(PRESET_CUSTOMERS);
+    await sSet(K.c, PRESET_CUSTOMERS);
+    showToast("プリセット38社を投入しました");
+  };
 
   // フォームデータを直接受け取って保存（setFormの非同期を回避）
   const saveCustomer=async(updatedForm)=>{
@@ -6969,6 +6975,18 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
           </div>
         </div>
       )}
+      {presetModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#1e293b"}}>📦 プリセットを投入しますか？</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>プリセット38社を投入します。<br/>※通常は不要な操作です。</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={doPresetInsert} style={{flex:1,background:"#0f172a",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>投入する</button>
+              <button onClick={()=>setPresetModal(false)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -7016,6 +7034,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
   const [syncLog,setSyncLog]=useState(null);
   const [logOpen,setLogOpen]=useState(false);
   const [resetDefaultModal,setResetDefaultModal]=useState(false);
+  const [deleteProdModal,setDeleteProdModal]=useState(null); // null | {id:string,name:string}
 
   const fetchSyncLog=async()=>{
     const {data}=await supabase.from('settings').select('value').eq('key','sync_log').maybeSingle();
@@ -7403,7 +7422,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
                       </td>
                       <td style={{padding:"9px 14px",whiteSpace:"nowrap"}}>
                         <button onClick={()=>{setForm({brand:p.brand,name:p.name,priceIn:String(p.priceIn),memo:p.memo||"",noBillingDiscount:p.noBillingDiscount||false,usageMemo:p.usageMemo||"",cautions:p.cautions||"",combinations:p.combinations||[],faqs:p.faqs||[],photos:p.photos||[],batteryLife:p.batteryLife||"",ec_url:p.ec_url||""});setProfileTab("knowledge");setComboSearch("");setFaqForm({question:"",answer:""});setSpList(customers.flatMap(c=>(c.specialPrices||[]).filter(s=>s.productId===p.id).map(s=>({cid:c.id,cname:c.name,price:s.price}))));setSpCid("");setSpPrice("");setProdSpQ("");setEditId(p.id);setOpen(true);fetchProdKnowledge(p.id);setTimeout(()=>formRef.current?.scrollIntoView({behavior:"smooth"}),50);}} style={{...S.ib("#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/>編集</button>
-                        <button onClick={async()=>{if(!confirm("削除？"))return;await onSave(products.filter(x=>x.id!==p.id));showToast("削除しました");}} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
+                        <button onClick={()=>setDeleteProdModal({id:p.id,name:p.name})} style={S.ib("#991b1b")}><Ico d={I.trash} size={12}/></button>
                       </td>
                     </tr>
                   );
@@ -7452,6 +7471,18 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
             <div style={{display:"flex",gap:10}}>
               <button onClick={doResetToDefault} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>リセットする</button>
               <button onClick={()=>setResetDefaultModal(false)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteProdModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#991b1b"}}>⚠️ 製品を削除しますか？</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>{deleteProdModal.name}</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={async()=>{const id=deleteProdModal.id;setDeleteProdModal(null);await onSave(products.filter(x=>x.id!==id));showToast("削除しました");}} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>削除する</button>
+              <button onClick={()=>setDeleteProdModal(null)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
             </div>
           </div>
         </div>
@@ -7733,6 +7764,7 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
   const E={type:"loss",customerId:"",relatedRecordId:"",relatedProjectName:"",occurredDate:today(),itemName:"",unitPrice:"",quantity:"1",chargeAmount:"",description:"",separateInvoice:false,status:"pending",invoiceMonth:filterMonth};
   const [form,setForm]=useState(E);
   const [saving,setSaving]=useState(false);
+  const [deleteIncModal,setDeleteIncModal]=useState(null); // null | {id:string}
 
   const filtered=incidents.filter(x=>{
     const monthOk=!filterMonth||x.occurred_date?.slice(0,7)===filterMonth;
@@ -7825,7 +7857,7 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
                     {inc.related_record_id&&inc.related_record_id!=="none"&&(
                       <button onClick={e=>{e.stopPropagation();onGoToDelivery(inc.related_record_id);}} style={{padding:"3px 10px",background:"none",border:"1px solid #93c5fd",color:"#2563eb",borderRadius:4,cursor:"pointer",fontSize:11,marginRight:6}}>→ 納品書</button>
                     )}
-                    <button onClick={e=>{e.stopPropagation();if(window.confirm("削除しますか？"))del(inc.id);}} style={{padding:"3px 10px",background:"none",border:"1px solid #fca5a5",color:"#dc2626",borderRadius:4,cursor:"pointer",fontSize:11}}>削除</button>
+                    <button onClick={e=>{e.stopPropagation();setDeleteIncModal({id:inc.id});}} style={{padding:"3px 10px",background:"none",border:"1px solid #fca5a5",color:"#dc2626",borderRadius:4,cursor:"pointer",fontSize:11}}>削除</button>
                   </td>
                 </tr>
               );
@@ -7950,6 +7982,18 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
             <div style={{display:"flex",gap:10,marginTop:24,justifyContent:"flex-end"}}>
               <button onClick={()=>setModal(null)} style={{padding:"8px 20px",border:"1px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer",fontSize:13}}>キャンセル</button>
               <button onClick={save} disabled={saving} style={{padding:"8px 24px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontWeight:600,cursor:"pointer",fontSize:13}}>{saving?"保存中...":"保存"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteIncModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#991b1b"}}>⚠️ インシデントを削除しますか？</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>この操作は取り消せません。</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{const id=deleteIncModal.id;setDeleteIncModal(null);del(id);}} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>削除する</button>
+              <button onClick={()=>setDeleteIncModal(null)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
             </div>
           </div>
         </div>
