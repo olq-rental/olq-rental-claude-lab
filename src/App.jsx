@@ -4922,6 +4922,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   React.useEffect(()=>{if(!crossMonthSplitsReady)return;if(!crossMonthSplitsLoaded&&Object.keys(crossMonthSplits).length===0)return;try{localStorage.setItem('olqCrossMonthSplits',JSON.stringify(crossMonthSplits));}catch{} supabase.from('settings').upsert({key:'crossMonthSplits',value:JSON.stringify(crossMonthSplits)},{onConflict:'key'}).then(({error})=>{if(error)console.error('crossMonthSplits save error',error);});}, [crossMonthSplits,crossMonthSplitsReady,crossMonthSplitsLoaded]);
   React.useEffect(()=>{supabase.from('settings').select('value').eq('key','crossMonthSplits').maybeSingle().then(({data,error})=>{if(!error&&data&&data.value){try{const parsed=JSON.parse(data.value);setCrossMonthSplits(parsed);localStorage.setItem('olqCrossMonthSplits',data.value);}catch{}}setCrossMonthSplitsLoaded(true);setCrossMonthSplitsReady(true);}).catch(()=>{setCrossMonthSplitsReady(true);});},[]);
   const [newPw, setNewPw] = useState("");
+  const [lockModal, setLockModal] = useState(null); // null | {mode:"confirm",key:string} | {mode:"unlock",key:string}
   const [custQ, setCustQ] = useState("");
 
   const getInvData = (key, month) => {
@@ -4950,21 +4951,28 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     const d = getInvData(key);
     await updateInvData(key, {adjustments:d.adjustments.filter(a=>a.id!==adjId)});
   };
-  const toggleLock = async (key, e) => {
+  const toggleLock = (key, e) => {
     e.stopPropagation();
     const d = getInvData(key);
     if(d.status==="locked"){
-      const pw = prompt("締め済みを解除するにはパスワードを入力してください。");
-      if(pw===null)return;
-      const ok = await verifyPw(pw);
-      if(!ok){alert("パスワードが違います");return;}
-      await updateInvData(key, {status:"open"});
-      showToast("締めを解除しました");
+      setLockModal({mode:"unlock", key});
     } else {
-      if(!window.confirm("この月を締め済みにしますか？\n解除にはパスワードが必要になります。"))return;
-      await updateInvData(key, {status:"locked"});
-      showToast("締め済みにしました 🔒");
+      setLockModal({mode:"confirm", key});
     }
+  };
+  const doLockConfirm = async () => {
+    const key = lockModal.key;
+    setLockModal(null);
+    await updateInvData(key, {status:"locked"});
+    showToast("締め済みにしました 🔒");
+  };
+  const doUnlock = async (pw) => {
+    const ok = await verifyPw(pw);
+    if(!ok){showToast("パスワードが違います", false);return;}
+    const key = lockModal.key;
+    setLockModal(null);
+    await updateInvData(key, {status:"open"});
+    showToast("締めを解除しました");
   };
   const toggleExpand = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
 
@@ -5874,6 +5882,27 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
         </div>
       </div>
 
+      {lockModal&&lockModal.mode==="confirm"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#1e293b"}}>🔒 締め済みにしますか？</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>解除にはパスワードが必要になります。</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={doLockConfirm} style={{flex:1,background:"#0f172a",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>締め済みにする</button>
+              <button onClick={()=>setLockModal(null)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {lockModal&&lockModal.mode==="unlock"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:24,width:320,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>🔓 締めを解除しますか？</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>解除するにはパスワードを入力してください。</div>
+            <PwInput onOk={doUnlock} onCancel={()=>setLockModal(null)}/>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
