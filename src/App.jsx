@@ -4923,6 +4923,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   React.useEffect(()=>{supabase.from('settings').select('value').eq('key','crossMonthSplits').maybeSingle().then(({data,error})=>{if(!error&&data&&data.value){try{const parsed=JSON.parse(data.value);setCrossMonthSplits(parsed);localStorage.setItem('olqCrossMonthSplits',data.value);}catch{}}setCrossMonthSplitsLoaded(true);setCrossMonthSplitsReady(true);}).catch(()=>{setCrossMonthSplitsReady(true);});},[]);
   const [newPw, setNewPw] = useState("");
   const [lockModal, setLockModal] = useState(null); // null | {mode:"confirm",key:string} | {mode:"unlock",key:string}
+  const [changePwModal, setChangePwModal] = useState(false);
   const [custQ, setCustQ] = useState("");
 
   const getInvData = (key, month) => {
@@ -4973,6 +4974,15 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
     setLockModal(null);
     await updateInvData(key, {status:"open"});
     showToast("締めを解除しました");
+  };
+  const doChangePw = async (cur) => {
+    const ok = await verifyPw(cur);
+    if(!ok){showToast("現在のパスワードが違います", false);return;}
+    await updateLockPw(newPw);
+    setChangePwModal(false);
+    setNewPw("");
+    setShowPwSetting(false);
+    showToast("パスワードを変更しました");
   };
   const toggleExpand = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
 
@@ -5314,7 +5324,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             <div style={{fontSize:12,fontWeight:700,marginBottom:8}}>🔑 締め解除パスワードの変更</div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <input type="password" value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="新しいパスワード" style={{...S.inp,width:180}}/>
-              <button onClick={async()=>{if(!newPw){alert("パスワードを入力してください");return;}const cur=prompt("現在のパスワードを入力");const ok=await verifyPw(cur);if(!ok){alert("現在のパスワードが違います");return;}await updateLockPw(newPw);setNewPw("");setShowPwSetting(false);showToast("パスワードを変更しました");}} style={S.btn("#0f172a",true)}>変更</button>
+              <button onClick={()=>{if(!newPw){showToast("パスワードを入力してください",false);return;}setChangePwModal(true);}} style={S.btn("#0f172a",true)}>変更</button>
               <button onClick={()=>{setShowPwSetting(false);setNewPw("");}} style={S.btn("#94a3b8")}>キャンセル</button>
             </div>
           </div>
@@ -5900,6 +5910,15 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
             <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>🔓 締めを解除しますか？</div>
             <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>解除するにはパスワードを入力してください。</div>
             <PwInput onOk={doUnlock} onCancel={()=>setLockModal(null)}/>
+          </div>
+        </div>
+      )}
+      {changePwModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:24,width:320,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>🔑 パスワードの変更</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>現在のパスワードを入力してください。</div>
+            <PwInput onOk={doChangePw} onCancel={()=>setChangePwModal(false)}/>
           </div>
         </div>
       )}
