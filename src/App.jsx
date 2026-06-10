@@ -1078,6 +1078,13 @@ export default function App() {
     return () => channels.forEach(ch => supabase.removeChannel(ch));
   }, [session]);
 
+  const doPresetInsert=async()=>{
+    setPresetModal(false);
+    setCustomers(PRESET_CUSTOMERS);
+    await sSet(K.c, PRESET_CUSTOMERS);
+    showToast("プリセット38社を投入しました");
+  };
+
   const fetchKnowledgeSearchMode = async () => {
     const {data} = await supabase.from('settings').select('value').eq('key','knowledge_search_mode').single();
     if(data) setKnowledgeSearchMode(JSON.parse(data.value));
@@ -6273,6 +6280,18 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
       )}
       </div>
 
+      {presetModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#1e293b"}}>📦 プリセットを投入しますか？</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:20}}>プリセット38社を投入します。<br/>※通常は不要な操作です。</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={doPresetInsert} style={{flex:1,background:"#0f172a",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>投入する</button>
+              <button onClick={()=>setPresetModal(false)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -6366,12 +6385,6 @@ function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActiv
     setResetPresetModal(false);
     await onSave(presetCustomers);
     showToast(`${presetCustomers.length}社にリセットしました`);
-  };
-  const doPresetInsert=async()=>{
-    setPresetModal(false);
-    setCustomers(PRESET_CUSTOMERS);
-    await sSet(K.c, PRESET_CUSTOMERS);
-    showToast("プリセット38社を投入しました");
   };
 
   // フォームデータを直接受け取って保存（setFormの非同期を回避）
