@@ -7609,7 +7609,7 @@ function SnapshotScreen({onDone, showToast, setCustomers, setRecords, setInvoice
           <h2 style={{margin:0,fontSize:18,fontWeight:800}}>🕐 スナップショット一覧</h2>
           <button onClick={onDone} style={{background:'none',border:'1.5px solid #e2e8f0',borderRadius:6,padding:'6px 14px',cursor:'pointer',fontSize:12,color:'#64748b'}}>閉じる</button>
         </div>
-        <p style={{fontSize:12,color:'#64748b',marginBottom:16}}>毎時自動保存。最大30件。選択した時点のデータに復元できます。</p>
+        <p style={{fontSize:12,color:'#64748b',marginBottom:16}}>毎時自動保存（11〜22時）。3日分を保持。選択した時点のデータに復元できます。</p>
         {loading
           ? <div style={{textAlign:'center',padding:40,color:'#94a3b8'}}>読み込み中...</div>
           : snapshots.length===0
