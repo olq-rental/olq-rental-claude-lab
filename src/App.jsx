@@ -7056,7 +7056,9 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     if (syncing) return;
     setSyncing(true);
     try {
-      const res = await fetch("https://olq-sync-worker.y-inoue-567.workers.dev/");
+      const res = await fetch("https://olq-sync-worker.y-inoue-567.workers.dev/", {
+        headers: { 'Authorization': `Bearer ${import.meta.env.VITE_ADMIN_SECRET}` }
+      });
       const msg = await res.text();
       alert(msg);
     } catch(e) {
