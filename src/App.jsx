@@ -2882,7 +2882,17 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
     }
     const wasNew=!editId;
     showToast(editId?"更新しました":"登録しました");setForm(E);setEditId(null);setOpen(false);setLineSearches([""]);
-    if(onAfterSubmit) onAfterSubmit(rec);
+    if(wasNew&&rec){
+      const c=customers.find(x=>x.id===rec.customerId);
+      const lns=(rec.lines&&rec.lines.length)?rec.lines:[{equipmentName:rec.equipmentName||"",unitPrice:rec.unitPrice,quantity:rec.quantity,subItems:rec.subItems||[]}];
+      const equipName=lns.map(ln=>ln.equipmentName||"").filter(Boolean).join("、");
+      const rWithEquip={...rec,equipmentName:rec.equipmentName||equipName};
+      const g={customerId:rec.customerId,customer:c||null,customerName:(c&&c.name)||"不明",projectName:rec.projectName||"",month:rec.startDate?rec.startDate.slice(0,7):"",items:[rWithEquip],split:true,consolidate:false};
+      downloadPrintHTML(rec.issueReceipt?"delivery-receipt":"delivery",g);
+      setTimeout(()=>{setOpen(true);},100);
+    }else{
+      if(onAfterSubmit) onAfterSubmit(rec);
+    }
   };
 
   const mnths=[...new Set(records.map(r=>r.startDate?.slice(0,7)))].filter(Boolean).sort().reverse();
