@@ -1165,7 +1165,7 @@ export default function App() {
     const now = new Date();
     const pad = n => String(n).padStart(2,'0');
     const approvedAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}+09:00`;
-    const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt}).eq('id',id);
+    const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt,edited_by_human:true}).eq('id',id);
     if(error){console.error(error);return;}
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==id));
     showToast('承認しました');
