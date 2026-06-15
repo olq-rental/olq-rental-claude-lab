@@ -1135,7 +1135,18 @@ export default function App() {
   const fetchPendingList = async () => {
     setPendingListLoading(true);
     const isYuta = session&&session.user.email==='y_inoue@olq.co.jp';
-    let query = supabase.from('knowledge').select('*').eq('status','pending');
+    // 1. ec_contact を上限なしで先に取得
+    let ecQuery = supabase.from('knowledge').select('*').eq('status','pending').eq('source_type','ec_contact');
+    if(isYuta){
+      ecQuery = ecQuery.not('review_status','eq','assigned');
+    } else {
+      ecQuery = ecQuery.eq('assigned_to', session?session.user.email:'');
+    }
+    ecQuery = ecQuery.order('created_at',{ascending:true});
+    const {data:ecData, error:ecError} = await ecQuery;
+    if(ecError) console.error('fetchPendingList ec_contact error',ecError);
+    // 2. 通常の pending を既存の順序でfetch
+    let query = supabase.from('knowledge').select('*').eq('status','pending').neq('source_type','ec_contact');
     if(isYuta){
       query = query.not('review_status','eq','assigned');
     } else {
@@ -1145,7 +1156,8 @@ export default function App() {
     const {data,error} = await query;
     setPendingListLoading(false);
     if(error){console.error('fetchPendingList error',error);return;}
-    const list = data||[];
+    // 3. ec_contact を先頭に結合
+    const list = [...(ecData||[]), ...(data||[])];
     setKnowledgePendingList(list);
     const sourceIds = [];
     for(const k of list){
