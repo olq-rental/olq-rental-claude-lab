@@ -1325,6 +1325,32 @@ export default function App() {
     }).eq('id',editingPending.id);
     setEditPendingSaving(false);
     if(error){console.error(error);return;}
+    // customer_question の場合、メール送信
+    const editId = editingPending.id;
+    const { data: kData } = await supabase
+      .from('knowledge')
+      .select('structured_data, question_text, answer_text, related_product_ids, type')
+      .eq('id', editId)
+      .single();
+    if (kData?.type === 'customer_question' && kData?.structured_data?.email) {
+      const productId = (kData.related_product_ids || [])[0];
+      await fetch(`${import.meta.env.VITE_WORKER_URL}/send-faq-reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_ADMIN_SECRET}`,
+        },
+        body: JSON.stringify({
+          email: kData.structured_data.email,
+          question_text: kData.question_text,
+          answer_text: kData.answer_text,
+          product_id: productId,
+          faq_page_url: productId
+            ? `https://faq.olqrental.com/faq-page?product_id=${productId}`
+            : null,
+        }),
+      });
+    }
     if(editingPending.source_type==='refine_improve'&&editingPending.refine_source_id){
       await supabase.from('knowledge').delete().eq('id',editingPending.refine_source_id);
     }
