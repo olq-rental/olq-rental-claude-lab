@@ -1341,7 +1341,7 @@ export default function App() {
     const editId = editingPending.id;
     const { data: kData } = await supabase
       .from('knowledge')
-      .select('structured_data, question_text, answer_text, related_product_ids, type')
+      .select('structured_data, question_text, answer_text, related_product_ids, type, source_type')
       .eq('id', editId)
       .single();
     if (kData?.source_type === 'ec_contact' && kData?.structured_data?.email) {
