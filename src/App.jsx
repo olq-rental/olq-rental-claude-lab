@@ -1332,7 +1332,7 @@ export default function App() {
       .select('structured_data, question_text, answer_text, related_product_ids, type')
       .eq('id', editId)
       .single();
-    if (kData?.type === 'customer_question' && kData?.structured_data?.email) {
+    if (kData?.source_type === 'ec_contact' && kData?.structured_data?.email) {
       const productId = (kData.related_product_ids || [])[0];
       await fetch(`${import.meta.env.VITE_WORKER_URL}/send-faq-reply`, {
         method: 'POST',
@@ -1908,7 +1908,7 @@ export default function App() {
                     ||(k.answer_text||'').toLowerCase().includes(q)
                     ||prodNames.includes(q)
                     ||tags.includes(q);
-                }).map(k=>{
+                }).sort((a,b)=>(a.source_type==='ec_contact'?0:1)-(b.source_type==='ec_contact'?0:1)).map(k=>{
                   const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
 
                   // 🔧 改善提案カード
