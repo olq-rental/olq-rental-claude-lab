@@ -1592,9 +1592,9 @@ export default function App() {
 
   const deleteKnowledge = async (id) => {
     const {error} = await supabase.from('knowledge').delete().eq('id',id);
-    if(error){showToast('削除に失敗しました');return;}
-    showToast('削除しました');
+    if(error){console.error('deleteKnowledge error',error);showToast('削除に失敗しました');return;}
     setKnowledgeList(prev=>prev.filter(k=>k.id!==id));
+    showToast('削除しました');
   };
 
   const updateKnowledge = async () => {
@@ -1836,8 +1836,8 @@ export default function App() {
                             if(ps==='do_not_answer') return <span style={{background:"#fff1f2",color:"#e11d48",borderRadius:4,padding:"2px 8px",fontSize:11}}>🚫 回答しない</span>;
                             return <span style={{background:"#fef3c7",color:"#d97706",borderRadius:4,padding:"2px 8px",fontSize:11}}>🔒 社内限定</span>;
                           })()}
-                          <span style={{background:k.source_type==="ec_auto"?"#f0fdf4":"#f8fafc",color:k.source_type==="ec_auto"?"#16a34a":"#64748b",borderRadius:4,padding:"2px 8px",fontSize:11}}>
-                            {k.source_type==="ec_auto"?"🤖 自動EC":"✏️ 手動"}
+                          <span style={{background:k.source_type==="ec_auto"?"#f0fdf4":k.source_type==="ec_contact"?"#fef2f2":"#f8fafc",color:k.source_type==="ec_auto"?"#16a34a":k.source_type==="ec_contact"?"#dc2626":"#64748b",borderRadius:4,padding:"2px 8px",fontSize:11}}>
+                            {k.source_type==="ec_auto"?"🤖 自動EC":k.source_type==="ec_contact"?"👤 EC顧客質問":"✏️ 手動"}
                           </span>
                           {k.concept_id&&(()=>{const c=knowledgeConcepts.find(x=>x.id===k.concept_id);return c?(<span style={{background:"#f0f9ff",color:"#0369a1",borderRadius:4,padding:"2px 8px",fontSize:11}}>📂 {c.name}</span>):null;})()}
                           <span style={{marginLeft:"auto",fontSize:11,color:"#94a3b8"}}>{k.created_by} · {new Date(k.created_at).toLocaleDateString('ja-JP')}</span>
