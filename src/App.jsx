@@ -2034,6 +2034,33 @@ export default function App() {
                     );
                   }
 
+                  // 👤 ECサイトからの質問カード
+                  if(k.source_type==='ec_contact'){
+                    return(
+                      <div key={k.id} style={{background:'#fff7ed',border:'2px solid #dc2626',borderRadius:10,padding:16,marginBottom:12}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                          <span style={{background:'#dc2626',color:'#fff',borderRadius:6,padding:'3px 12px',fontSize:12,fontWeight:700}}>👤 ECサイトからの質問</span>
+                          {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
+                        </div>
+                        {k.structured_data?.email&&(
+                          <div style={{fontSize:11,color:'#dc2626',marginBottom:8,fontWeight:600}}>📧 返信先: {k.structured_data.email}</div>
+                        )}
+                        <div style={{fontWeight:600,fontSize:14,color:'#0f172a',marginBottom:4}}>Q: {k.question_text||'（質問なし）'}</div>
+                        <div style={{fontSize:13,color:'#334155',marginBottom:10,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{k.answer_text}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                          <button onClick={()=>{setEditingPending(k);setEditPendingQuestion(k.question_text||'');setEditPendingAnswer(k.answer_text||'');setEditPendingPublicStatus(k.public_status||'internal_only');setEditPendingRiskLevel(k.risk_level||'low');setEditPendingNeedsHumanCheck(k.needs_human_check||false);setEditPendingCorrectionNote('');setEditPendingReferenceUrls(k.reference_urls||[]);setEditPendingImageFiles([]);setEditPendingImageUrls(k.image_urls||[]);}}
+                            style={{padding:'5px 14px',borderRadius:6,fontSize:12,border:'none',background:'#dc2626',color:'#fff',fontWeight:600,cursor:'pointer'}}>
+                            ✅ 訂正して承認・返信
+                          </button>
+                          <button onClick={()=>{setRejectModal(k.id);setRejectReason('');}}
+                            style={{padding:'5px 12px',borderRadius:6,fontSize:12,border:'1px solid #fecaca',background:'#fff',color:'#ef4444',cursor:'pointer'}}>
+                            却下
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   // 通常カード（ec_auto / manual）
                   const isYuta = session&&session.user.email==='y_inoue@olq.co.jp';
                   return(
