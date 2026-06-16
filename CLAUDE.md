@@ -16,6 +16,9 @@
 - Bug③内部タブ＝is_internalとpublic_statusの二重フィールド不整合（設計判断）
 - Bug④FAQ高さ＝EC埋め込みHTMLのCSS（別物）
 - WorkerはService Keyを使いRLSが適用されない。FAQ系knowledgeクエリには必ず deleted_at=is.null を付ける（漏れると削除済みFAQが公開・クローラーに露出する）。
+- 管理系POSTは必ず VITE_WORKER_URL（olq-sync-worker.y-inoue-567.workers.dev）。faq.olqrental.com は /send-faq-reply を302で殺す。
+- VITE_* 変数はCloudflare Pages の「変数とシークレット」に登録する。.env.local はgit管理外でCloudflareビルドに届かない。
+- 外部fetchは必ずtry-catchとstatus/bodyのログで無音失敗を作らない。
 
 ## Opus確認パケット（【止まる】時に出す形）
 現状1段落 / 確認点1つ / 暫定案+迷い / 関連ロック事項
