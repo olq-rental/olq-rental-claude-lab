@@ -8,12 +8,14 @@
 - env値・秘密情報は絶対に出力しない。
 - 管理系エンドポイント（/send-faq-reply等）は必ず olq-sync-worker.y-inoue-567.workers.dev。faq.olqrental.com は公開系のみ。
 - AIは雄太の判断を超えて勝手に進めない。初回承認は自動化しない。
+- knowledge削除はソフト削除（deleted_at）。ハード削除しない＝判断資産を不可逆に消さない。
 
 ## Known risks（直すたびに1行追記。診断済み4バグ）
 - Bug①メール届かない＝approveWithEditのselectに存在しないtype列→kData null→送信スキップ（コード）
 - Bug②削除が戻る＝knowledge DELETE用RLSポリシー不在→0行削除・無エラー→再描画で復活（DB/RLS・直さない）
 - Bug③内部タブ＝is_internalとpublic_statusの二重フィールド不整合（設計判断）
 - Bug④FAQ高さ＝EC埋め込みHTMLのCSS（別物）
+- WorkerはService Keyを使いRLSが適用されない。FAQ系knowledgeクエリには必ず deleted_at=is.null を付ける（漏れると削除済みFAQが公開・クローラーに露出する）。
 
 ## Opus確認パケット（【止まる】時に出す形）
 現状1段落 / 確認点1つ / 暫定案+迷い / 関連ロック事項
