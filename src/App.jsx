@@ -1097,6 +1097,7 @@ export default function App() {
       .from('knowledge')
       .select('*')
       .eq('status','approved')
+      .is('deleted_at', null)
       .order('priority',{ascending:false});
     const results = (data||[]).filter(k=>
       (k.question_text||'').toLowerCase().includes(lower)||
@@ -1136,7 +1137,7 @@ export default function App() {
     setPendingListLoading(true);
     const isYuta = session&&session.user.email==='y_inoue@olq.co.jp';
     // 1. ec_contact を上限なしで先に取得
-    let ecQuery = supabase.from('knowledge').select('*').eq('status','pending').eq('source_type','ec_contact');
+    let ecQuery = supabase.from('knowledge').select('*').eq('status','pending').eq('source_type','ec_contact').is('deleted_at', null);
     if(isYuta){
       ecQuery = ecQuery.not('review_status','eq','assigned');
     } else {
@@ -1146,7 +1147,7 @@ export default function App() {
     const {data:ecData, error:ecError} = await ecQuery;
     if(ecError) console.error('fetchPendingList ec_contact error',ecError);
     // 2. 通常の pending を既存の順序でfetch
-    let query = supabase.from('knowledge').select('*').eq('status','pending').neq('source_type','ec_contact');
+    let query = supabase.from('knowledge').select('*').eq('status','pending').neq('source_type','ec_contact').is('deleted_at', null);
     if(isYuta){
       query = query.not('review_status','eq','assigned');
     } else {
@@ -1393,6 +1394,7 @@ export default function App() {
       .from('knowledge')
       .select('*')
       .eq('status','approved')
+      .is('deleted_at', null)
       .order('created_at',{ascending:false});
     setKnowledgeListLoading(false);
     if(error){console.error('knowledge fetch error',error);return;}
@@ -1591,7 +1593,7 @@ export default function App() {
   };
 
   const deleteKnowledge = async (id) => {
-    const {error} = await supabase.from('knowledge').delete().eq('id',id);
+    const {error} = await supabase.from('knowledge').update({ deleted_at: new Date().toISOString() }).eq('id',id);
     if(error){console.error('deleteKnowledge error',error);showToast('削除に失敗しました');return;}
     setKnowledgeList(prev=>prev.filter(k=>k.id!==id));
     showToast('削除しました');
@@ -7169,6 +7171,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
       .select('*')
       .contains('related_product_ids', [String(pid)])
       .eq('status','approved')
+      .is('deleted_at', null)
       .order('created_at', {ascending: false});
     setProdKnowledgeLoading(false);
     if(error){console.error('fetchProdKnowledge error',error);return;}
