@@ -1345,9 +1345,12 @@ export default function App() {
       .select('structured_data, question_text, answer_text, related_product_ids, source_type')
       .eq('id', editId)
       .single();
+    console.log('[mail] kData.source_type:', kData?.source_type, 'email:', kData?.structured_data?.email);
     if (kData?.source_type === 'ec_contact' && kData?.structured_data?.email) {
       const productId = (kData.related_product_ids || [])[0];
-      await fetch(`${import.meta.env.VITE_WORKER_URL}/send-faq-reply`, {
+      const mailUrl = `${import.meta.env.VITE_WORKER_URL}/send-faq-reply`;
+      console.log('[mail] POST先URL:', mailUrl);
+      const mailRes = await fetch(mailUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1363,6 +1366,12 @@ export default function App() {
             : null,
         }),
       });
+      console.log('[mail] response.status:', mailRes.status);
+      if (!mailRes.ok) {
+        const errText = await mailRes.text();
+        console.log('[mail] response.body:', errText);
+        showToast(`メール送信に失敗（status=${mailRes.status}）`, false);
+      }
     }
     if(editingPending.source_type==='refine_improve'&&editingPending.refine_source_id){
       await supabase.from('knowledge').delete().eq('id',editingPending.refine_source_id);
