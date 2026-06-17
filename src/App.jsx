@@ -1216,7 +1216,7 @@ export default function App() {
     const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt,edited_by_human:true}).eq('id',pending.id);
     if(error){console.error(error);return;}
     if(pending.refine_source_id){
-      await supabase.from('knowledge').delete().eq('id',pending.refine_source_id);
+      await supabase.from('knowledge').update({ deleted_at: new Date().toISOString(), status: 'superseded' }).eq('id',pending.refine_source_id);
     }
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==pending.id));
     showToast('承認して差し替えました');
@@ -1247,7 +1247,7 @@ export default function App() {
     const {error} = await supabase.from('knowledge').update({status:'approved',approved_by:'y_inoue@olq.co.jp',approved_at:approvedAt,edited_by_human:true}).eq('id',pending.id);
     if(error){console.error(error);return;}
     for(const sourceId of (pending.merge_source_ids||[])){
-      await supabase.from('knowledge').delete().eq('id',sourceId);
+      await supabase.from('knowledge').update({ deleted_at: new Date().toISOString(), status: 'superseded' }).eq('id',sourceId);
     }
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==pending.id));
     showToast('統合して承認しました（元の'+((pending.merge_source_ids||[]).length)+'件を削除）');
@@ -1374,11 +1374,11 @@ export default function App() {
       }
     }
     if(editingPending.source_type==='refine_improve'&&editingPending.refine_source_id){
-      await supabase.from('knowledge').delete().eq('id',editingPending.refine_source_id);
+      await supabase.from('knowledge').update({ deleted_at: new Date().toISOString(), status: 'superseded' }).eq('id',editingPending.refine_source_id);
     }
     if(editingPending.source_type==='refine_merge'&&(editingPending.merge_source_ids||[]).length>0){
       for(const sid of editingPending.merge_source_ids){
-        await supabase.from('knowledge').delete().eq('id',sid);
+        await supabase.from('knowledge').update({ deleted_at: new Date().toISOString(), status: 'superseded' }).eq('id',sid);
       }
     }
     setKnowledgePendingList(prev=>prev.filter(k=>k.id!==editingPending.id));
