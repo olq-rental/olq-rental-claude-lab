@@ -1340,37 +1340,49 @@ export default function App() {
     if(error){console.error(error);return;}
     // customer_question の場合、メール送信
     const editId = editingPending.id;
-    const { data: kData } = await supabase
-      .from('knowledge')
-      .select('structured_data, question_text, answer_text, related_product_ids, source_type')
-      .eq('id', editId)
-      .single();
+    let kData = null;
+    try {
+      const { data, error: selErr } = await supabase
+        .from('knowledge')
+        .select('structured_data, question_text, answer_text, related_product_ids, source_type')
+        .eq('id', editId)
+        .single();
+      if (selErr) console.error('[mail] knowledge select error:', selErr);
+      kData = data;
+    } catch (e) {
+      console.error('[mail] knowledge select exception:', e);
+    }
     console.log('[mail] kData.source_type:', kData?.source_type, 'email:', kData?.structured_data?.email);
     if (kData?.source_type === 'ec_contact' && kData?.structured_data?.email) {
       const productId = (kData.related_product_ids || [])[0];
       const mailUrl = `${import.meta.env.VITE_WORKER_URL}/send-faq-reply`;
       console.log('[mail] POST先URL:', mailUrl);
-      const mailRes = await fetch(mailUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_ADMIN_SECRET}`,
-        },
-        body: JSON.stringify({
-          email: kData.structured_data.email,
-          question_text: kData.question_text,
-          answer_text: kData.answer_text,
-          product_id: productId,
-          faq_page_url: productId
-            ? `https://faq.olqrental.com/faq-page?product_id=${productId}`
-            : null,
-        }),
-      });
-      console.log('[mail] response.status:', mailRes.status);
-      if (!mailRes.ok) {
-        const errText = await mailRes.text();
-        console.log('[mail] response.body:', errText);
-        showToast(`メール送信に失敗（status=${mailRes.status}）`, false);
+      try {
+        const mailRes = await fetch(mailUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_ADMIN_SECRET}`,
+          },
+          body: JSON.stringify({
+            email: kData.structured_data.email,
+            question_text: kData.question_text,
+            answer_text: kData.answer_text,
+            product_id: productId,
+            faq_page_url: productId
+              ? `https://faq.olqrental.com/faq-page?product_id=${productId}`
+              : null,
+          }),
+        });
+        console.log('[mail] response.status:', mailRes.status);
+        if (!mailRes.ok) {
+          const errText = await mailRes.text();
+          console.log('[mail] response.body:', errText);
+          showToast(`メール送信に失敗（status=${mailRes.status}）`, false);
+        }
+      } catch (e) {
+        console.error('[mail] fetch exception:', e);
+        showToast('メール送信に失敗（通信エラー）', false);
       }
     }
     if(editingPending.source_type==='refine_improve'&&editingPending.refine_source_id){
