@@ -1790,7 +1790,7 @@ export default function App() {
                   .filter(k=>{
                     if(knowledgeFilter==="manual"&&k.source_type!=="manual") return false;
                     if(knowledgeFilter==="ec_auto"&&k.source_type!=="ec_auto") return false;
-                    if(knowledgeFilter==="internal"&&!k.is_internal) return false;
+                    if(knowledgeFilter==="internal"&&k.public_status!=='internal_only') return false;
                     if(knowledgeCategoryFilter&&k.concept_id!==knowledgeCategoryFilter) return false;
                     const q=knowledgeListSearch.toLowerCase();
                     if(!q) return true;
@@ -1871,7 +1871,7 @@ export default function App() {
                 {knowledgeList.filter(k=>{
                   if(knowledgeFilter==="manual"&&k.source_type!=="manual") return false;
                   if(knowledgeFilter==="ec_auto"&&k.source_type!=="ec_auto") return false;
-                  if(knowledgeFilter==="internal"&&!k.is_internal) return false;
+                  if(knowledgeFilter==="internal"&&k.public_status!=='internal_only') return false;
                   if(knowledgeCategoryFilter&&k.concept_id!==knowledgeCategoryFilter) return false;
                   const q=knowledgeListSearch.toLowerCase();
                   if(!q) return true;
