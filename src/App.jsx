@@ -1120,6 +1120,7 @@ export default function App() {
       related_product_ids: questionSelectedProducts.map(p=>String(p.id)),
       scenario_tags: [],
       source_type: 'manual',
+      public_status: 'internal_only',
       created_by: (await supabase.auth.getUser()).data?.user?.email || '',
     };
     await supabase.from('knowledge').insert([row]);
@@ -1596,6 +1597,7 @@ export default function App() {
       created_by: session?.user?.user_metadata?.name||session?.user?.email||"",
       source_type: 'manual',
       is_internal: knowledgeIsInternal,
+      public_status: 'internal_only',
       concept_id: knowledgeConceptId || null,
     };
     const {error} = await supabase.from('knowledge').insert([row]);
@@ -7209,6 +7211,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
       status: 'pending',
       related_product_ids: [String(pid)],
       scenario_tags: [],
+      public_status: 'internal_only',
       created_by: (await supabase.auth.getUser()).data?.user?.email || "",
     };
     const {error} = await supabase.from('knowledge').insert([row]);
