@@ -534,6 +534,17 @@ const SCENARIO_TAGS = [
   "車載撮影","水中撮影","レンタルフロー",
 ];
 
+// ── AI Activity Log：source → 日本語表示名・家族キーの対応表 ──
+// 新しい自走AI処理を繋ぐ時はここに1行追記するだけでバーに札が出る。
+// 将来想定: ec_sync, ga4_sync, qa_generate, improvement_integrate, concept_update
+const AI_SOURCE_MAP = {
+  market_report_submit:   { label: "市場レポート", family: "market_report" },
+  market_report_retrieve: { label: "市場レポート", family: "market_report" },
+};
+function aiSourceMeta(source) {
+  return AI_SOURCE_MAP[source] || { label: source, family: source };
+}
+
 // シンプルなパスワード入力コンポーネント
 function PwInput({onOk, onCancel}) {
   const [v, setV] = React.useState("");
@@ -966,6 +977,26 @@ export default function App() {
   const [incidents, setIncidents] = useState([]);
   const [newsFeed, setNewsFeed] = React.useState([]);
   React.useEffect(()=>{ supabase.from('settings').select('value').eq('key','news_feed').maybeSingle().then(({data})=>{ if(data?.value){try{setNewsFeed(JSON.parse(data.value));}catch{}} }); }, []);
+
+  // ── 自動AIの窓 ──
+  const [aiLogs, setAiLogs] = useState([]);
+  const [aiLogOpen, setAiLogOpen] = useState(false);
+  const [aiLogExpandedId, setAiLogExpandedId] = useState(null);
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('ai_activity_log')
+          .select('id, source, status, recorded_at, detail')
+          .order('recorded_at', { ascending: false })
+          .limit(200);
+        if (error) { console.error('ai_activity_log fetch error', error); return; }
+        setAiLogs(data || []);
+      } catch (e) { console.error('ai_activity_log exception', e); }
+    })();
+  }, [session]);
+
   const [openCustomerId, setOpenCustomerId] = useState(null);
   const [autoOpenDelivery, setAutoOpenDelivery] = useState(null);
   const [toast,     setToast]     = useState(null);
@@ -1684,6 +1715,112 @@ export default function App() {
       </header>
 
       {newsFeed.length>0&&(()=>{const pn=newsFeed.filter(n=>n.source==="pronews");const sn=newsFeed.filter(n=>n.source==="snrec");const itemStyle={color:"#334155",fontSize:10,textDecoration:"none",background:"#fff",border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 8px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:"1",display:"block",boxShadow:"0 1px 2px rgba(0,0,0,.05)"};return(<div style={{background:"#f1f5f9",borderTop:"1px solid #e2e8f0",borderBottom:"1px solid #e2e8f0",padding:"4px 18px",display:"flex",flexDirection:"column",gap:4}}><span style={{color:"#64748b",fontSize:9,fontWeight:700,letterSpacing:1}}>業界NEWS</span>{[{items:pn,color:"#2563eb",icon:"📹"},{items:sn,color:"#059669",icon:"🎵"}].map((row,ri)=>(<div key={ri} style={{display:"flex",gap:6,alignItems:"center"}}>{row.items.map((n,i)=><a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={itemStyle}><span style={{color:row.color,marginRight:3}}>{row.icon}</span>{n.title}</a>)}</div>))}</div>);})()}
+
+      {/* ── 自動AIの窓（信号灯バー） ── */}
+      {(()=>{
+        const today = new Date(); today.setHours(0,0,0,0);
+        const todayLogs = aiLogs.filter(l => new Date(l.recorded_at) >= today);
+        const failedCount = todayLogs.filter(l => l.status === 'failed').length;
+        const isOk = failedCount === 0;
+        // 家族単位で集約
+        const familyMap = {};
+        todayLogs.forEach(l => {
+          const m = aiSourceMeta(l.source);
+          if (!familyMap[m.family]) familyMap[m.family] = { label: m.label, hasFailed: false, latestAt: l.recorded_at };
+          if (l.status === 'failed') familyMap[m.family].hasFailed = true;
+          if (l.recorded_at > familyMap[m.family].latestAt) familyMap[m.family].latestAt = l.recorded_at;
+        });
+        const families = Object.values(familyMap);
+        const latestAt = aiLogs.length > 0 ? new Date(aiLogs[0].recorded_at) : null;
+        const timeStr = latestAt ? `${String(latestAt.getHours()).padStart(2,'0')}:${String(latestAt.getMinutes()).padStart(2,'0')}` : '--:--';
+        return (
+          <div>
+            <div onClick={()=>setAiLogOpen(o=>!o)} style={{
+              background: isOk ? "#f0fdf4" : "#fef2f2",
+              borderBottom:"1px solid "+(isOk ? "#bbf7d0" : "#fecaca"),
+              padding:"5px 18px", display:"flex", alignItems:"center", gap:10,
+              cursor:"pointer", userSelect:"none", fontSize:11
+            }}>
+              <span style={{fontWeight:700, color: isOk ? "#16a34a" : "#dc2626", fontSize:10, letterSpacing:1}}>
+                {isOk ? "自動AI ・ すべて正常" : `自動AI ・ ${failedCount}件の失敗`}
+              </span>
+              {families.map((f,i) => (
+                <span key={i} style={{
+                  background:"#fff", border:"1px solid "+(f.hasFailed ? "#fca5a5" : "#86efac"),
+                  borderRadius:4, padding:"1px 8px", fontSize:10, display:"inline-flex", alignItems:"center", gap:3
+                }}>
+                  {f.label}
+                  <span style={{color: f.hasFailed ? "#dc2626" : "#16a34a", fontWeight:700}}>
+                    {f.hasFailed ? "✕" : "✓"}
+                  </span>
+                </span>
+              ))}
+              <span style={{marginLeft:"auto", color:"#94a3b8", fontSize:10}}>
+                最終 {timeStr}
+              </span>
+              <span style={{color:"#94a3b8", fontSize:10}}>
+                {aiLogOpen ? "▲ 閉じる" : "▼ 詳細を見る"}
+              </span>
+            </div>
+            {aiLogOpen && (
+              <div style={{background:"#fff", borderBottom:"1px solid #e2e8f0", padding:"8px 18px", maxHeight:400, overflowY:"auto"}}>
+                <table style={{width:"100%", borderCollapse:"collapse", fontSize:12}}>
+                  <thead>
+                    <tr style={{borderBottom:"1px solid #e2e8f0"}}>
+                      <th style={{textAlign:"left", padding:"4px 8px", color:"#64748b", fontWeight:600, fontSize:10}}>時刻</th>
+                      <th style={{textAlign:"left", padding:"4px 8px", color:"#64748b", fontWeight:600, fontSize:10}}>処理名</th>
+                      <th style={{textAlign:"left", padding:"4px 8px", color:"#64748b", fontWeight:600, fontSize:10}}>状態</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiLogs.map(l => {
+                      const d = new Date(l.recorded_at);
+                      const ts = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                      const m = aiSourceMeta(l.source);
+                      const ok = l.status === 'succeeded';
+                      const expanded = aiLogExpandedId === l.id;
+                      return (
+                        <React.Fragment key={l.id}>
+                          <tr onClick={()=>setAiLogExpandedId(expanded ? null : l.id)}
+                            style={{borderBottom:"1px solid #f1f5f9", cursor:"pointer", background: expanded ? "#f8fafc" : "transparent"}}>
+                            <td style={{padding:"5px 8px", color:"#334155", whiteSpace:"nowrap"}}>{ts}</td>
+                            <td style={{padding:"5px 8px", color:"#334155"}}>{m.label}</td>
+                            <td style={{padding:"5px 8px"}}>
+                              <span style={{
+                                display:"inline-block", padding:"1px 8px", borderRadius:4, fontSize:10, fontWeight:600,
+                                background: ok ? "#f0fdf4" : "#fef2f2", color: ok ? "#16a34a" : "#dc2626",
+                                border:"1px solid "+(ok ? "#bbf7d0" : "#fecaca")
+                              }}>
+                                {ok ? "成功" : "失敗"}
+                              </span>
+                            </td>
+                          </tr>
+                          {expanded && l.detail && (
+                            <tr><td colSpan={3} style={{padding:"6px 8px 10px", background:"#f8fafc"}}>
+                              <pre onClick={e=>{e.stopPropagation();navigator.clipboard.writeText(JSON.stringify(l.detail,null,2)).catch(()=>{});}}
+                                style={{margin:0, fontSize:11, color:"#475569", background:"#f1f5f9", borderRadius:4,
+                                  padding:"8px 10px", whiteSpace:"pre-wrap", wordBreak:"break-all", cursor:"copy",
+                                  border:"1px solid #e2e8f0", maxHeight:200, overflowY:"auto"}}>
+                                {JSON.stringify(l.detail, null, 2)}
+                              </pre>
+                              <span style={{fontSize:9, color:"#94a3b8", marginTop:2, display:"block"}}>クリックでコピー</span>
+                            </td></tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                    {aiLogs.length === 0 && (
+                      <tr><td colSpan={3} style={{padding:"12px 8px", color:"#94a3b8", textAlign:"center", fontSize:11}}>
+                        ログがありません
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="app-tabs" style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"0 18px",display:"flex"}}>
         {TABS.map(t=>(
