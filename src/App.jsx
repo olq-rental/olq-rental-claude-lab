@@ -1716,8 +1716,8 @@ export default function App() {
 
       {newsFeed.length>0&&(()=>{const pn=newsFeed.filter(n=>n.source==="pronews");const sn=newsFeed.filter(n=>n.source==="snrec");const itemStyle={color:"#334155",fontSize:10,textDecoration:"none",background:"#fff",border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 8px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:"1",display:"block",boxShadow:"0 1px 2px rgba(0,0,0,.05)"};return(<div style={{background:"#f1f5f9",borderTop:"1px solid #e2e8f0",borderBottom:"1px solid #e2e8f0",padding:"4px 18px",display:"flex",flexDirection:"column",gap:4}}><span style={{color:"#64748b",fontSize:9,fontWeight:700,letterSpacing:1}}>業界NEWS</span>{[{items:pn,color:"#2563eb",icon:"📹"},{items:sn,color:"#059669",icon:"🎵"}].map((row,ri)=>(<div key={ri} style={{display:"flex",gap:6,alignItems:"center"}}>{row.items.map((n,i)=><a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={itemStyle}><span style={{color:row.color,marginRight:3}}>{row.icon}</span>{n.title}</a>)}</div>))}</div>);})()}
 
-      {/* ── 自動AIの窓（信号灯バー） ── */}
-      {(()=>{
+      {/* ── 自動AIの窓（信号灯バー）── 雄太ログイン時のみ表示 */}
+      {isOwner&&(()=>{
         const today = new Date(); today.setHours(0,0,0,0);
         const todayLogs = aiLogs.filter(l => new Date(l.recorded_at) >= today);
         const failedCount = todayLogs.filter(l => l.status === 'failed').length;
