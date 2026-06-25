@@ -536,10 +536,11 @@ const SCENARIO_TAGS = [
 
 // ── AI Activity Log：source → 日本語表示名・家族キーの対応表 ──
 // 新しい自走AI処理を繋ぐ時はここに1行追記するだけでバーに札が出る。
-// 将来想定: ec_sync, ga4_sync, qa_generate, improvement_integrate, concept_update
+// 将来想定: ec_sync, ga4_sync, improvement_integrate, concept_update
 const AI_SOURCE_MAP = {
   market_report_submit:   { label: "市場レポート", family: "market_report" },
   market_report_retrieve: { label: "市場レポート", family: "market_report" },
+  qa_generate:            { label: "Q&A生成",      family: "qa_generate" },
 };
 function aiSourceMeta(source) {
   return AI_SOURCE_MAP[source] || { label: source, family: source };
