@@ -751,19 +751,32 @@ function syncSPs(specialPrices, products) {
 // ---- データストア（Supabase版）----
 const _TABLE = { [K.p]:'products', [K.c]:'customers', [K.r]:'cases' };
 
+async function sGetAll(table, selectCols) {
+  const PAGE = 1000;
+  let all = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase.from(table).select(selectCols).range(from, from + PAGE - 1);
+    if (error) { console.error('sGetAll error', table, error); return null; }
+    if (!data?.length) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 async function sGet(k) {
   try {
     if (_TABLE[k]) {
       const isProducts = _TABLE[k] === 'products';
       const selectCols = isProducts ? 'id, data, ec_url' : 'id, data';
-      const { data, error } = await supabase.from(_TABLE[k]).select(selectCols);
-      if (error) { console.error('sGet error', k, error); return null; }
+      const data = await sGetAll(_TABLE[k], selectCols);
       if (!data?.length) return null;
       return data.map(row => isProducts ? { ...row.data, ec_url: row.ec_url || '' } : row.data);
     }
     if (k === K.inv) {
-      const { data, error } = await supabase.from('invoices').select('id, data, is_locked');
-      if (error) { console.error('sGet invoice error', error); return null; }
+      const data = await sGetAll('invoices', 'id, data, is_locked');
       if (!data?.length) return null;
       const result = {};
       data.forEach(row => { result[row.id] = { ...row.data, is_locked: row.is_locked }; });
