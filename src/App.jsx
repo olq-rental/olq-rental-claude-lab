@@ -3095,6 +3095,13 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
       equipmentName:lines.map(l=>l.equipmentName).join(", "),unitPrice:lines[0]?.unitPrice||0,quantity:lines.reduce((s,l)=>s+(Number(l.quantity)||0),0),
       productId:lines[0]?.productId||"",
       id:editId||uid(),updatedAt:Date.now(),createdAt:editId?records.find(r=>r.id===editId)?.createdAt:Date.now()};
+    if(editId && isRecordLocked(rec)){
+      const orig=records.find(r=>r.id===editId);
+      if(orig && ((orig.amount||0)!==(rec.amount||0)||(orig.insuranceAmount||0)!==(rec.insuranceAmount||0))){
+        showToast("この案件はロック済み請求書に含まれます。金額を変える保存はできません。先に請求書のロックを解除してください。",false);
+        return;
+      }
+    }
     if(!editId && !rec.deliveryNo) {
       const no = await nextDeliveryNo();
       if(no==='ERR'){showToast("伝票番号の採番に失敗しました。もう一度登録ボタンを押してください。",false);return;}
