@@ -4408,6 +4408,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
     const invCustomerName = g.customer?.invoiceName || g.customerName || "";
     const PAGE_WEIGHT_REST = 57;
+    const ORDERER_2LINE_MIN_W = 12;
     const allInvRows = [];
     const strWidth = str => [...(str||"")].reduce((w,c) => w+(c.match(/[^\x01-\x7E]/)?2:1),0);
     const invHeaderHtml = `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:4px 0;margin-bottom:8px">
@@ -4506,7 +4507,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${ln.quantity||1}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(dispPrice)}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(lineAmt)}</td>
-          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));const base=sw>=150?4:sw>=100?3:sw>=50?2:1;return base+1+(r.ecOrderNo?1:0)+(_ddSub?1:0);})()});
+          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));let base=sw>=150?4:sw>=100?3:sw>=50?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);return base+1+(r.ecOrderNo?1:0)+(_ddSub?1:0);})()});
         });
       } else {
         // chainブロック（leg>=2かつ台数・単価一致）
@@ -4535,7 +4536,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const _isLast=si===legs.length-1;
           return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:7px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
         }).join("");
-        const _hasEc=!!(firstLeg.record.ecOrderNo);const _csw=strWidth(_ceqName);const _cweight=legs.length+(_csw>=150?4:_csw>=100?3:_csw>=50?2:1)+(_noValueDisc?0:1)+(_hasEc?1:0);
+        const _hasEc=!!(firstLeg.record.ecOrderNo);const _csw=strWidth(_ceqName);let _cbase=_csw>=150?4:_csw>=100?3:_csw>=50?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)_cbase=Math.max(_cbase,2);const _cweight=legs.length+_cbase+(_noValueDisc?0:1)+(_hasEc?1:0);
         allInvRows.push({html:`<tr>
           <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${firstLeg.record.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${firstLeg.record.ecOrderNo}</div>`:""}${_chainDateSub}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
@@ -4582,7 +4583,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
-      </tr>`, weight: (()=>{const sw=strWidth(equipName+(projInfo?`　[${projInfo}]`:""));const base=sw>=150?4:sw>=100?3:sw>=50?2:1;const dd=!hasPerLineDate&&!hasNoBilling&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);return((r.billingType==="monthly"||r.ecOrderNo)?Math.max(2,base):base)+(dd?1:0);})()});
+      </tr>`, weight: (()=>{const sw=strWidth(equipName+(projInfo?`　[${projInfo}]`:""));let base=sw>=150?4:sw>=100?3:sw>=50?2:1;if(strWidth(orderer)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);const dd=!hasPerLineDate&&!hasNoBilling&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);return((r.billingType==="monthly"||r.ecOrderNo)?Math.max(2,base):base)+(dd?1:0);})()});
     });
     if((r.insuranceAmount||0)>0){
       allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
