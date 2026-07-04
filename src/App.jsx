@@ -1565,31 +1565,95 @@ export default function App() {
         _addToGroup(c, projKey, entry._billingMonth, split, consolidate, entry);
       });
     } else if (r.billingType === 'monthly' && r.startDate) {
-      // 固定月数の月極：months分だけ展開
-      const months_ = Number(r.months) || 1;
+      // 固定月数の月極
       const rLns = (r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
-      for (let n = 0; n < months_; n++) {
-        const pStart = new Date(r.startDate + 'T00:00:00');
-        pStart.setMonth(pStart.getMonth() + n);
-        const pEnd = new Date(pStart);
-        pEnd.setMonth(pEnd.getMonth() + 1);
-        pEnd.setDate(pEnd.getDate() - 1);
-        const pad = n=>String(n).padStart(2,"0");
-        const bMonth = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}`;
-        const pStartStr = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}-${pad(pStart.getDate())}`;
-        const pEndStr = `${pEnd.getFullYear()}-${pad(pEnd.getMonth()+1)}-${pad(pEnd.getDate())}`;
-        const lines = rLns.map(ln => {
-          const up = Number(ln.unitPrice||0);
-          const qty = Number(ln.quantity)||1;
-          return {...ln, amount: up * qty * 1};
-        });
-        const amt = lines.reduce((s,ln)=>s+(ln.amount||0),0);
-        const entry = {...r, id:r.id+'__mo__'+bMonth,
-          startDate:pStartStr, endDate:pEndStr,
-          billingType:'monthly', months:1,
-          isMonthlyEntry:true, amount:amt, lines,
-          _billingMonth:bMonth};
-        _addToGroup(c, projKey, bMonth, split, consolidate, entry);
+      const pad = n=>String(n).padStart(2,"0");
+      const hasExtension = records.some(x => x.extendedFrom === r.id);
+
+      if (r.endDate && hasExtension) {
+        // 延長済み月極：startDate〜endDate を月ごとに展開（満了月=月極、端数月=日極）
+        const startD = new Date(r.startDate + 'T00:00:00');
+        const limitD = new Date(r.endDate + 'T00:00:00');
+        const limitMonth = limitD.getFullYear() * 12 + limitD.getMonth();
+        let n = 0;
+        while (n <= 120) {
+          const pStart = new Date(startD);
+          pStart.setMonth(pStart.getMonth() + n);
+          const pStartMonth = pStart.getFullYear() * 12 + pStart.getMonth();
+          if (pStartMonth > limitMonth) break;
+          if (pStart > limitD) break; // 同月でも日付が超えていたら終了（幽霊エントリ防止）
+          const pEnd = new Date(pStart);
+          pEnd.setMonth(pEnd.getMonth() + 1);
+          pEnd.setDate(pEnd.getDate() - 1);
+          const bMonth = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}`;
+          const pStartStr = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}-${pad(pStart.getDate())}`;
+          const pEndStr = `${pEnd.getFullYear()}-${pad(pEnd.getMonth()+1)}-${pad(pEnd.getDate())}`;
+
+          if (limitD >= pStart && limitD < pEnd) {
+            // 端数月：endDateが月の途中（pEnd未満）→ 部分期間を日極で計上
+            const days = Math.max(1, Math.ceil((limitD - pStart) / 86400000) + 1);
+            const bDays = calcBillingDays(days);
+            const lines = rLns.map(ln => {
+              const prod = (products||[]).find(p => p.id === ln.productId);
+              const dailyPrice = prod ? resolvePrice(prod, c) : Number(ln.dailyUnitPrice || ln.unitPrice || 0);
+              const qty = Number(ln.quantity) || 1;
+              const noDisc = ln.noBillingDiscount || (prod && prod.noBillingDiscount);
+              const useDays = noDisc ? days : bDays;
+              const monthlyPrice = Number(ln.unitPrice || 0) * qty;
+              const rawAmt = dailyPrice * qty * useDays;
+              const amount = monthlyPrice > 0 ? Math.min(rawAmt, monthlyPrice) : rawAmt;
+              return {...ln, unitPrice: dailyPrice, amount};
+            });
+            const amt = lines.reduce((s,ln)=>s+(ln.amount||0),0);
+            const entry = {...r, id:r.id+'__ret__'+bMonth,
+              startDate:pStartStr, endDate:r.endDate,
+              billingType:'daily', billingDays:bDays, days,
+              isMonthlyEntry:true, isReturnEntry:true, amount:amt, lines,
+              _billingMonth:bMonth};
+            _addToGroup(c, projKey, bMonth, split, consolidate, entry);
+            break;
+          } else {
+            // 満了月：月極価格
+            const lines = rLns.map(ln => {
+              const up = Number(ln.unitPrice||0);
+              const qty = Number(ln.quantity)||1;
+              return {...ln, amount: up * qty * 1};
+            });
+            const amt = lines.reduce((s,ln)=>s+(ln.amount||0),0);
+            const entry = {...r, id:r.id+'__mo__'+bMonth,
+              startDate:pStartStr, endDate:pEndStr,
+              billingType:'monthly', months:1,
+              isMonthlyEntry:true, amount:amt, lines,
+              _billingMonth:bMonth};
+            _addToGroup(c, projKey, bMonth, split, consolidate, entry);
+          }
+          n++;
+        }
+      } else {
+        // 従来の固定月数展開（returnDateなし）
+        const months_ = Number(r.months) || 1;
+        for (let n = 0; n < months_; n++) {
+          const pStart = new Date(r.startDate + 'T00:00:00');
+          pStart.setMonth(pStart.getMonth() + n);
+          const pEnd = new Date(pStart);
+          pEnd.setMonth(pEnd.getMonth() + 1);
+          pEnd.setDate(pEnd.getDate() - 1);
+          const bMonth = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}`;
+          const pStartStr = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}-${pad(pStart.getDate())}`;
+          const pEndStr = `${pEnd.getFullYear()}-${pad(pEnd.getMonth()+1)}-${pad(pEnd.getDate())}`;
+          const lines = rLns.map(ln => {
+            const up = Number(ln.unitPrice||0);
+            const qty = Number(ln.quantity)||1;
+            return {...ln, amount: up * qty * 1};
+          });
+          const amt = lines.reduce((s,ln)=>s+(ln.amount||0),0);
+          const entry = {...r, id:r.id+'__mo__'+bMonth,
+            startDate:pStartStr, endDate:pEndStr,
+            billingType:'monthly', months:1,
+            isMonthlyEntry:true, amount:amt, lines,
+            _billingMonth:bMonth};
+          _addToGroup(c, projKey, bMonth, split, consolidate, entry);
+        }
       }
     } else {
       // 通常案件（日極）：既存ロジック
