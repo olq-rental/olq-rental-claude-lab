@@ -568,7 +568,7 @@ function PwInput({onOk, onCancel}) {
 }
 
 // 終了未定月極案件を月ごとに展開する
-function expandMonthlyOpenRecord(r, calcBillingDaysFn, todayFn) {
+function expandMonthlyOpenRecord(r, calcBillingDaysFn, todayFn, products, cust) {
   const results = [];
   if (!r.startDate) return results;
   const startD = new Date(r.startDate + 'T00:00:00');
@@ -603,9 +603,13 @@ function expandMonthlyOpenRecord(r, calcBillingDaysFn, todayFn) {
       const days = Math.max(1, Math.ceil((returnD - pStart) / 86400000) + 1);
       const bDays = calcBillingDaysFn(days);
       const lines = rLns.map(ln => {
-        const dp = Number(ln.dailyUnitPrice || ln.unitPrice || 0);
+        const prod = (products||[]).find(p => p.id === ln.productId);
+        const dailyPrice = prod ? resolvePrice(prod, cust) : Number(ln.dailyUnitPrice || ln.unitPrice || 0);
         const qty = Number(ln.quantity) || 1;
-        return {...ln, unitPrice: dp, amount: dp * qty * bDays};
+        const monthlyPrice = Number(ln.unitPrice || 0) * qty;
+        const rawAmt = dailyPrice * qty * bDays;
+        const amount = monthlyPrice > 0 ? Math.min(rawAmt, monthlyPrice) : rawAmt;
+        return {...ln, unitPrice: dailyPrice, amount};
       });
       const amt = lines.reduce((s,ln)=>s+(ln.amount||0),0);
       results.push({
@@ -1556,7 +1560,7 @@ export default function App() {
 
     if (r.endDateOpen && r.billingType === 'monthly') {
       // 終了未定月極：月ごとに展開
-      const entries = expandMonthlyOpenRecord(r, calcBillingDays, today);
+      const entries = expandMonthlyOpenRecord(r, calcBillingDays, today, products, c);
       entries.forEach(entry => {
         _addToGroup(c, projKey, entry._billingMonth, split, consolidate, entry);
       });
