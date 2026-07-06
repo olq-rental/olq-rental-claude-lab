@@ -3664,6 +3664,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                 }
                 const c=customers.find(x=>x.id===r.customerId);
                 const split=c?.splitInvoice!==false;
+                const projOptions=[...new Set(records.filter(x=>x.customerId===r.customerId&&x.projectName).map(x=>x.projectName))].sort((a,b)=>a.localeCompare(b,"ja"));
                 let hasLockedMonth=false;
                 const rows=monthList.map(m=>{
                   const currentMonthName=r.monthlyProjectNames?.[m]??r.projectName??"";
@@ -3673,13 +3674,12 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                   return(
                     <div key={m} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
                       <span style={{fontSize:11,color:"#7c3aed",fontWeight:600,minWidth:64}}>{m}</span>
-                      <input
-                        value={monthlyNameModal.names[m]||""}
-                        placeholder={r.projectName||"（既定）"}
+                      <select
+                        value={monthlyNameModal.names[m]||r.projectName||""}
                         disabled={isLocked}
                         onChange={e=>{const v=e.target.value;setMonthlyNameModal(prev=>({...prev,names:{...prev.names,[m]:v}}));}}
                         style={{...S.inp,flex:1,fontSize:11,padding:"3px 8px",...(isLocked?{background:"#f1f5f9",color:"#94a3b8",cursor:"not-allowed"}:{})}}
-                      />
+                      >{projOptions.map(p=><option key={p} value={p}>{p}</option>)}</select>
                       {isLocked&&<span style={{fontSize:10,color:"#94a3b8"}}>🔒</span>}
                     </div>
                   );
@@ -3694,7 +3694,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
               <button onClick={()=>{
                 const r=monthlyNameModal.record;
                 const newNames={...monthlyNameModal.names};
-                Object.keys(newNames).forEach(k=>{if(!newNames[k])delete newNames[k];});
+                Object.keys(newNames).forEach(k=>{if(!newNames[k]||newNames[k]===r.projectName)delete newNames[k];});
                 const updated={...r,monthlyProjectNames:newNames};
                 if(Object.keys(updated.monthlyProjectNames).length===0) delete updated.monthlyProjectNames;
                 onSave(records.map(x=>x.id===r.id?updated:x),{action:"月別名変更",name:r.projectName||r.deliveryNo},[updated]);
