@@ -1552,6 +1552,10 @@ export default function App() {
     }
     invoiceGroups[key].items.push(entry);
   };
+  // 締め済みキーセット（展開時に月別名ガードで使用 — (C)の完全一致ロジックと同一）
+  const lockedKeysForExpand = new Set(
+    Object.entries(invoiceData||{}).filter(([,d])=>d.status==="locked").map(([k])=>k)
+  );
   records.forEach(r => {
     const c = customers.find(x=>x.id===r.customerId);
     const split = c?.splitInvoice !== false;
@@ -1562,7 +1566,11 @@ export default function App() {
       // 終了未定月極：月ごとに展開
       const entries = expandMonthlyOpenRecord(r, calcBillingDays, today, products, c);
       entries.forEach(entry => {
-        _addToGroup(c, projKey, entry._billingMonth, split, consolidate, entry);
+        const defKey = `${r.customerId}||${projKey}||${entry._billingMonth}`;
+        const mpn = lockedKeysForExpand.has(defKey) ? (r.projectName ?? "") : (r.monthlyProjectNames?.[entry._billingMonth] ?? r.projectName ?? "");
+        entry.projectName = mpn;
+        const mpk = split ? mpn : "";
+        _addToGroup(c, mpk, entry._billingMonth, split, consolidate, entry);
       });
     } else if (r.billingType === 'monthly' && r.startDate) {
       // 固定月数の月極
@@ -1588,6 +1596,9 @@ export default function App() {
           const bMonth = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}`;
           const pStartStr = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}-${pad(pStart.getDate())}`;
           const pEndStr = `${pEnd.getFullYear()}-${pad(pEnd.getMonth()+1)}-${pad(pEnd.getDate())}`;
+          const defKey1 = `${r.customerId}||${projKey}||${bMonth}`;
+          const mpn1 = lockedKeysForExpand.has(defKey1) ? (r.projectName ?? "") : (r.monthlyProjectNames?.[bMonth] ?? r.projectName ?? "");
+          const mpk1 = split ? mpn1 : "";
 
           if (limitD >= pStart && limitD < pEnd) {
             // 端数月：endDateが月の途中（pEnd未満）→ 部分期間を日極で計上
@@ -1606,11 +1617,12 @@ export default function App() {
             });
             const amt = lines.reduce((s,ln)=>s+(ln.amount||0),0);
             const entry = {...r, id:r.id+'__ret__'+bMonth,
+              projectName:mpn1,
               startDate:pStartStr, endDate:r.endDate,
               billingType:'daily', billingDays:bDays, days,
               isMonthlyEntry:true, isReturnEntry:true, amount:amt, lines,
               _billingMonth:bMonth};
-            _addToGroup(c, projKey, bMonth, split, consolidate, entry);
+            _addToGroup(c, mpk1, bMonth, split, consolidate, entry);
             break;
           } else {
             // 満了月：月極価格
@@ -1621,11 +1633,12 @@ export default function App() {
             });
             const amt = lines.reduce((s,ln)=>s+(ln.amount||0),0);
             const entry = {...r, id:r.id+'__mo__'+bMonth,
+              projectName:mpn1,
               startDate:pStartStr, endDate:pEndStr,
               billingType:'monthly', months:1,
               isMonthlyEntry:true, amount:amt, lines,
               _billingMonth:bMonth};
-            _addToGroup(c, projKey, bMonth, split, consolidate, entry);
+            _addToGroup(c, mpk1, bMonth, split, consolidate, entry);
           }
           n++;
         }
@@ -1641,6 +1654,9 @@ export default function App() {
           const bMonth = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}`;
           const pStartStr = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}-${pad(pStart.getDate())}`;
           const pEndStr = `${pEnd.getFullYear()}-${pad(pEnd.getMonth()+1)}-${pad(pEnd.getDate())}`;
+          const defKey2 = `${r.customerId}||${projKey}||${bMonth}`;
+          const mpn2 = lockedKeysForExpand.has(defKey2) ? (r.projectName ?? "") : (r.monthlyProjectNames?.[bMonth] ?? r.projectName ?? "");
+          const mpk2 = split ? mpn2 : "";
           const lines = rLns.map(ln => {
             const up = Number(ln.unitPrice||0);
             const qty = Number(ln.quantity)||1;
@@ -1648,11 +1664,12 @@ export default function App() {
           });
           const amt = lines.reduce((s,ln)=>s+(ln.amount||0),0);
           const entry = {...r, id:r.id+'__mo__'+bMonth,
+            projectName:mpn2,
             startDate:pStartStr, endDate:pEndStr,
             billingType:'monthly', months:1,
             isMonthlyEntry:true, amount:amt, lines,
             _billingMonth:bMonth};
-          _addToGroup(c, projKey, bMonth, split, consolidate, entry);
+          _addToGroup(c, mpk2, bMonth, split, consolidate, entry);
         }
       }
     } else {
@@ -2958,11 +2975,18 @@ export default function App() {
 }
 
 function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ,session}){
-  // 締め済みの案件月セット
-  const lockedMonths = new Set(
-    Object.entries(invoiceData||{}).filter(([,d])=>d.status==="locked").map(([k])=>k.split("__")[1]).filter(Boolean)
+  // 締め済みキーセット（customerId||projectName||month 完全一致）
+  const lockedKeys = new Set(
+    Object.entries(invoiceData||{}).filter(([,d])=>d.status==="locked").map(([k])=>k)
   );
-  const isRecordLocked = r => r.startDate && lockedMonths.has(r.startDate.slice(0,7));
+  const isRecordLocked = r => {
+    if (!r.startDate) return false;
+    const c = customers.find(x=>x.id===r.customerId);
+    const split = c?.splitInvoice !== false;
+    const projKey = split ? (r.projectName||"") : "";
+    const month = r.startDate.slice(0,7);
+    return lockedKeys.has(`${r.customerId}||${projKey}||${month}`);
+  };
   const [pwModal, setPwModal] = useState(null);
   const checkLock = (r, action) => {
     if (!isRecordLocked(r)) return true;
@@ -2982,7 +3006,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
   });
   const emptyLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false};
   const emptyManualLine={productId:"",equipNo:"",unitPrice:"",quantity:"1",lineNote:"",subItems:[],equipmentName:"",expandRows:false,isManual:true,isFee:false,noBillingDiscount:false};
-  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:session?.user?.user_metadata?.name?.split(/[\s　]/)[0]||"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false,isExtension:false,extendedFrom:"",extendedFromNo:"",adjustDays:"",adjustReason:""};
+  const E={customerId:"",projectName:"",projectDetail:"",ecOrderNo:"",ordererName:"",ourStaff:session?.user?.user_metadata?.name?.split(/[\s　]/)[0]||"",billingType:"daily",months:"1",startDate:today(),endDate:today(),endDateOpen:false,notes:"",lines:[{...emptyLine}],noProjectName:false,issueReceipt:false,receiptDate:"",paymentMethod:"credit",receiptNote:"機材レンタル代として　[クレジット スクエア]",receiptNameCustom:false,receiptNameOverride:"",receiptHonorific:"御中",includeInsurance:false,isExtension:false,extendedFrom:"",extendedFromNo:"",adjustDays:"",adjustReason:"",monthlyProjectNames:{}};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
   const [open,setOpen]=useState(false);
@@ -3156,7 +3180,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
     });
     const rec={customerId:form.customerId,projectName:form.projectName,noProjectName:!!form.noProjectName,projectDetail:form.projectDetail,ecOrderNo:form.ecOrderNo||"",ordererName:form.ordererName,ourStaff:form.ourStaff,
       billingType:form.billingType,months:form.billingType==="monthly"?(Number(form.months)||1):0,
-      days:form.billingType==="monthly"?0:days,billingDays:form.billingType==="monthly"?0:adjustedBillingDays,startDate:form.startDate,endDate:form.endDateOpen?"":form.endDate,endDateOpen:form.billingType==="monthly"&&!!form.endDateOpen,notes:(()=>{const NOTICE="⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。";const hasApple=lines.some(ln=>/iPhone|iPad/i.test(ln.equipmentName||""));const base=(form.notes||"").replace(/\n*⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。/g,"").trimEnd();return hasApple?(base?(base+"\n\n"+NOTICE):NOTICE):base;})(),adjustDays:form.adjustDays||"",adjustReason:form.adjustDays&&form.adjustReason?form.adjustReason:"",
+      days:form.billingType==="monthly"?0:days,billingDays:form.billingType==="monthly"?0:adjustedBillingDays,startDate:form.startDate,endDate:form.endDateOpen?"":form.endDate,endDateOpen:form.billingType==="monthly"&&!!form.endDateOpen,notes:(()=>{const NOTICE="⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。";const hasApple=lines.some(ln=>/iPhone|iPad/i.test(ln.equipmentName||""));const base=(form.notes||"").replace(/\n*⚠︎注意⚠︎\niPhoneまたはiPadをご返却の際には、必ずサインアウトしてご返却ください。/g,"").trimEnd();return hasApple?(base?(base+"\n\n"+NOTICE):NOTICE):base;})(),adjustDays:form.adjustDays||"",adjustReason:form.adjustDays&&form.adjustReason?form.adjustReason:"",monthlyProjectNames:form.billingType==="monthly"&&Object.keys(form.monthlyProjectNames||{}).length>0?form.monthlyProjectNames:undefined,
       issueReceipt:!!form.issueReceipt,receiptDate:form.issueReceipt?(form.receiptDate||""):"",paymentMethod:form.issueReceipt?(form.paymentMethod||"credit"):"",receiptNote:form.issueReceipt?(form.receiptNote||""):"",receiptNameCustom:form.issueReceipt?!!form.receiptNameCustom:false,receiptNameOverride:form.issueReceipt?(form.receiptNameOverride||""):"",receiptHonorific:form.issueReceipt?(form.receiptHonorific||"御中"):"",
       includeInsurance:!!form.includeInsurance,
       lines,amount:totalAmount,insuranceAmount,
@@ -3308,6 +3332,44 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
               <div style={{display:"flex",gap:2,background:"#e2e8f0",borderRadius:6,padding:2}}>{[{k:"daily",l:"日極"},{k:"monthly",l:"月極"}].map(t=>(<button key={t.k} type="button" onClick={()=>setForm(f=>({...f,billingType:t.k}))} style={{flex:1,background:form.billingType===t.k?"#fff":"transparent",border:"none",borderRadius:5,padding:"6px 0",fontSize:12,fontWeight:form.billingType===t.k?700:500,color:form.billingType===t.k?(t.k==="daily"?"#2563eb":"#9333ea"):"#94a3b8",cursor:"pointer",boxShadow:form.billingType===t.k?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>{t.l}</button>))}</div></div>
             {form.billingType==="monthly"&&<div><label style={S.lbl}>月数</label><input type="number" min={1} value={form.months} onChange={e=>setForm(f=>({...f,months:e.target.value}))} style={S.inp}/></div>}
           </div>
+          {/* 月別案件名（月極のみ） */}
+          {form.billingType==="monthly"&&form.startDate&&(
+            <div style={{marginTop:14,background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:9,padding:"12px 18px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{fontSize:12,fontWeight:700,color:"#7c3aed"}}>月別案件名（任意）</span>
+                <span style={{fontSize:10,color:"#94a3b8"}}>空欄＝上の案件名をそのまま使用</span>
+              </div>
+              {(()=>{
+                const months_ = Number(form.months)||1;
+                const startD = new Date(form.startDate+'T00:00:00');
+                const pad = n=>String(n).padStart(2,"0");
+                const monthList = [];
+                for(let n=0;n<months_&&n<=120;n++){
+                  const d=new Date(startD);d.setMonth(d.getMonth()+n);
+                  monthList.push(`${d.getFullYear()}-${pad(d.getMonth()+1)}`);
+                }
+                if(form.endDateOpen){
+                  const today_=new Date();
+                  const limitMonth=today_.getFullYear()*12+today_.getMonth()+2;
+                  const startMonth=startD.getFullYear()*12+startD.getMonth();
+                  monthList.length=0;
+                  for(let m=startMonth;m<=limitMonth;m++){
+                    const y=Math.floor(m/12);const mo=m%12;
+                    monthList.push(`${y}-${pad(mo+1)}`);
+                  }
+                }
+                const mpn=form.monthlyProjectNames||{};
+                return monthList.map(m=>(
+                  <div key={m} style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:11,color:"#7c3aed",fontWeight:600,minWidth:64}}>{m}</span>
+                    <input value={mpn[m]||""} placeholder={form.projectName||"（既定）"}
+                      onChange={e=>{const v=e.target.value;setForm(f=>{const next={...(f.monthlyProjectNames||{})};if(v)next[m]=v;else delete next[m];return{...f,monthlyProjectNames:next};});}}
+                      style={{...S.inp,flex:1,fontSize:11,padding:"3px 8px"}}/>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
           {/* 機材リスト */}
           <div style={{marginTop:18}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -4023,7 +4085,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                                           }} style={{...S.ib("#0891b2"),marginRight:4,fontSize:10}}>⏪ 暫定締め取消</button>
                                         )}
                                         {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>{r.isProvisionalClose?"⚠️ 暫定締め:":"計上終了:"}{r.returnDate}</span>}
-                                        <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"編集"))return;const rLns=getLines(r);setForm({customerId:r.customerId,projectName:r.projectName||"",noProjectName:!!r.noProjectName,projectDetail:r.projectDetail||"",ecOrderNo:r.ecOrderNo||"",ordererName:r.ordererName||"",ourStaff:r.ourStaff||"",billingType:r.billingType||"daily",months:String(r.months||1),startDate:r.startDate,endDate:r.endDate||today(),endDateOpen:!!r.endDateOpen,notes:r.notes||"",issueReceipt:!!r.issueReceipt,receiptDate:r.receiptDate||today(),paymentMethod:r.paymentMethod||"credit",adjustDays:r.adjustDays||"",adjustReason:r.adjustReason||"",includeInsurance:!!(r.includeInsurance||(r.insuranceAmount||0)>0),lines:rLns.map(ln=>({productId:ln.productId||"",equipNo:ln.equipNo||"",unitPrice:String(ln.unitPrice||""),quantity:String(ln.quantity||1),lineNote:ln.lineNote||"",subItems:ln.subItems||[],equipmentName:ln.equipmentName||"",expandRows:!!ln.expandRows,isManual:!!ln.isManual,isFee:!!ln.isFee,noBillingDiscount:!!ln.noBillingDiscount}))});setLineSearches(rLns.map(()=>""));setEditId(r.id);setOpen(true);}} style={{...S.ib(locked?"#64748b":"#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/></button>
+                                        <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"編集"))return;const rLns=getLines(r);setForm({customerId:r.customerId,projectName:r.projectName||"",noProjectName:!!r.noProjectName,projectDetail:r.projectDetail||"",ecOrderNo:r.ecOrderNo||"",ordererName:r.ordererName||"",ourStaff:r.ourStaff||"",billingType:r.billingType||"daily",months:String(r.months||1),startDate:r.startDate,endDate:r.endDate||today(),endDateOpen:!!r.endDateOpen,notes:r.notes||"",issueReceipt:!!r.issueReceipt,receiptDate:r.receiptDate||today(),paymentMethod:r.paymentMethod||"credit",adjustDays:r.adjustDays||"",adjustReason:r.adjustReason||"",monthlyProjectNames:r.monthlyProjectNames||{},includeInsurance:!!(r.includeInsurance||(r.insuranceAmount||0)>0),lines:rLns.map(ln=>({productId:ln.productId||"",equipNo:ln.equipNo||"",unitPrice:String(ln.unitPrice||""),quantity:String(ln.quantity||1),lineNote:ln.lineNote||"",subItems:ln.subItems||[],equipmentName:ln.equipmentName||"",expandRows:!!ln.expandRows,isManual:!!ln.isManual,isFee:!!ln.isFee,noBillingDiscount:!!ln.noBillingDiscount}))});setLineSearches(rLns.map(()=>""));setEditId(r.id);setOpen(true);}} style={{...S.ib(locked?"#64748b":"#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/></button>
                                         <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"削除"))return;setDeleteModal({record:r,custName:customers.find(x=>x.id===r.customerId)?.name||""});}} style={S.ib(locked?"#64748b":"#991b1b")}><Ico d={I.trash} size={12}/></button>
                                       </td>
                                     </tr>
@@ -5314,7 +5376,35 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
   const doLockConfirm = async () => {
     const key = lockModal.key;
     setLockModal(null);
-    await updateInvData(key, {status:"locked"});
+    // 締め時にスナップショットを焼く（案件名変更やライブ再計算による金額変動から保護）
+    const g = groups.find(g => `${g.customerId}||${g.projectName}||${g.month}` === key);
+    const d = getInvData(key, g?.month);
+    const gInc = g ? (incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).filter(x=>x.status!=="paid") : [];
+    const incTot = gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
+    const baseTot = g ? g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot : 0;
+    const autoAdjTot = (g?._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+    const adjSum = d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
+    const snapshot = g ? {
+      projectName: g.projectName,
+      month: g.month,
+      items: g.items.map(r => ({
+        id:r.id, projectName:r.projectName, equipmentName:r.equipmentName,
+        amount:r.amount, insuranceAmount:r.insuranceAmount,
+        lines:r.lines, startDate:r.startDate, endDate:r.endDate,
+        billingType:r.billingType, days:r.days, billingDays:r.billingDays,
+        months:r.months, deliveryNo:r.deliveryNo, isExtension:r.isExtension,
+        extendedFromNo:r.extendedFromNo, ecOrderNo:r.ecOrderNo,
+        ordererName:r.ordererName, projectDetail:r.projectDetail,
+        isMonthlyEntry:r.isMonthlyEntry, isReturnEntry:r.isReturnEntry,
+        noBillingDiscount:r.noBillingDiscount, includeInsurance:r.includeInsurance,
+        issueReceipt:r.issueReceipt, receiptDate:r.receiptDate, paymentMethod:r.paymentMethod,
+      })),
+      incidents: gInc.map(x=>({id:x.id, charge_amount:x.charge_amount, description:x.description})),
+      adjustments: d.adjustments,
+      grandTotal: baseTot + autoAdjTot + adjSum,
+      frozenAt: new Date().toISOString(),
+    } : null;
+    await updateInvData(key, {status:"locked", ...(snapshot ? {snapshot} : {})});
     showToast("締め済みにしました 🔒");
   };
   const doUnlock = async (pw) => {
@@ -5950,7 +6040,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     const gkey=grp.customerId+"||"+grp.projectName+"||"+grp.month;
                                     const cur=getInvData(gkey);
                                     const invNo=cur.invNo||(grp.month?(grp.month+"-???"):"");
-                                    const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
+                                    const grpSnap = cur.status==="locked" && cur.snapshot && cur.snapshot.items;
+                                    const printGrp = grpSnap ? {...grp, items:cur.snapshot.items, projectName:cur.snapshot.projectName??grp.projectName, adjustments:cur.snapshot.adjustments||cur.adjustments} : {...grp, adjustments:cur.adjustments};
+                                    const r=downloadPrintHTML("invoice",Object.assign({},printGrp,{invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
                                     if(r&&r.body){
                                       let b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
                                       b=b.replace('padding:0px 34px 28px 34px','padding:52px 34px 28px 34px');
@@ -5979,7 +6071,9 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     else{count=(cur.printCount||1)+1;}
                                     await updateInvData(gkey,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
                                     const invNo=count<=1?baseNo:(baseNo+"-"+count);
-                                    const r=downloadPrintHTML("invoice",Object.assign({},grp,{adjustments:cur.adjustments,invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
+                                    const grpSnap2 = cur.status==="locked" && cur.snapshot && cur.snapshot.items;
+                                    const printGrp2 = grpSnap2 ? {...grp, items:cur.snapshot.items, projectName:cur.snapshot.projectName??grp.projectName, adjustments:cur.snapshot.adjustments||cur.adjustments} : {...grp, adjustments:cur.adjustments};
+                                    const r=downloadPrintHTML("invoice",Object.assign({},printGrp2,{invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
                                     if(r&&r.body){
                                       let b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
                                       b=b.replace('padding:0px 34px 28px 34px','padding:52px 34px 28px 34px');
@@ -6006,11 +6100,19 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                           const key=`${g.customerId}||${g.projectName}||${g.month}`;
                           const d=getInvData(key,g.month);
                           const locked=d.status==="locked";
-                          const gInc=(incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
-                          const incTot=gInc.filter(x=>x.status!=="paid").reduce((s,x)=>s+(x.charge_amount||0),0);
-                          const baseTot=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
-                          const autoAdjTot=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
-                          const adjSum=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
+                          // 締め済みならsnapshotの明細・金額を使う（案件名変更や再計算からの保護）
+                          const useSnapshot = locked && d.snapshot && d.snapshot.items;
+                          const displayItems = useSnapshot ? d.snapshot.items : g.items;
+                          const displayProjectName = useSnapshot ? (d.snapshot.projectName ?? g.projectName) : g.projectName;
+                          const gInc = useSnapshot
+                            ? (d.snapshot.incidents||[])
+                            : (incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||"")));
+                          const incTot = useSnapshot
+                            ? gInc.reduce((s,x)=>s+(x.charge_amount||0),0)
+                            : gInc.filter(x=>x.status!=="paid").reduce((s,x)=>s+(x.charge_amount||0),0);
+                          const baseTot=displayItems.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
+                          const autoAdjTot = useSnapshot ? 0 : (g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+                          const adjSum = useSnapshot ? (d.snapshot.adjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0) : d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
                           const grandTot=baseTot+autoAdjTot+adjSum;
                           const tax=Math.round(grandTot*0.1);
                           const isOpen=!!expanded[key];
@@ -6032,17 +6134,18 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                               >
                                 <td style={{padding:"8px 12px",textAlign:"center",color:"#94a3b8",fontSize:11,paddingLeft:28}}>{isOpen?"▼":"▶"}</td>
                                 <td style={{padding:"8px 12px",paddingLeft:28,color:"#64748b",fontSize:11}}>
-                                  {g.projectName
-                                    ?<span style={{background:"#eff6ff",color:"#1d4ed8",borderRadius:4,padding:"1px 6px",fontSize:11,fontWeight:600}}>{g.projectName}</span>
+                                  {displayProjectName
+                                    ?<span style={{background:"#eff6ff",color:"#1d4ed8",borderRadius:4,padding:"1px 6px",fontSize:11,fontWeight:600}}>{displayProjectName}</span>
                                     :<span style={{color:"#cbd5e1"}}>案件名なし</span>
                                   }
+                                  {useSnapshot&&<span style={{marginLeft:6,fontSize:10,color:"#15803d",background:"#dcfce7",borderRadius:3,padding:"1px 5px"}}>凍結</span>}
                                   {d.adjustments.length>0&&<span style={{marginLeft:6,fontSize:10,color:"#92400e"}}>調整あり</span>}
                                   {checkIssues.length > 0 && (
                                     <span style={{marginLeft:6,fontSize:10,background:"#fef2f2",color:"#dc2626",border:"1px solid #fca5a5",borderRadius:3,padding:"1px 5px",fontWeight:700}}>⚠️ {checkIssues.length}件要確認</span>
                                   )}
                                 </td>
                                 <td></td>
-                                <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{g.items.length}</td>
+                                <td style={{padding:"8px 12px",textAlign:"center",color:"#64748b"}}>{displayItems.length}</td>
                                 <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#16a34a"}}>{fmt(grandTot)}</td>
                                 <td style={{padding:"8px 12px",textAlign:"right",color:"#9333ea"}}>{fmt(grandTot+tax)}</td>
                                 <td style={{padding:"8px 12px",textAlign:"center"}} onClick={e=>toggleLock(key,e)}>
@@ -6053,7 +6156,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,
                                     cursor:"pointer",whiteSpace:"nowrap"
                                   }}>{locked?"✅ 締め済み":"未締め"}</span>
-                                {(()=>{const ri=g.items.find(r=>r.issueReceipt&&r.receiptDate);if(!ri)return null;const rd=new Date(ri.receiptDate+"T00:00:00");return <span style={{display:"block",fontSize:10,color:"#0369a1",fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>{(rd.getMonth()+1)}月{rd.getDate()}日 領収済　{ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット"}</span>;})()}
+                                {(()=>{const ri=displayItems.find(r=>r.issueReceipt&&r.receiptDate);if(!ri)return null;const rd=new Date(ri.receiptDate+"T00:00:00");return <span style={{display:"block",fontSize:10,color:"#0369a1",fontWeight:700,marginTop:2,whiteSpace:"nowrap"}}>{(rd.getMonth()+1)}月{rd.getDate()}日 領収済　{ri.paymentMethod==="cash"?"現金":ri.paymentMethod==="square"?"スクエア クレジット":"ECクレジット"}</span>;})()}
                                 {(()=>{
                                   const pc=getInvData(key)?.printCount||0;
                                   const pi=getInvData(key)?.lastPrintDate||"";
@@ -6067,7 +6170,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                   <button onClick={async()=>{
                                     const cur=getInvData(key);
                                     const invNo=cur.invNo||(g.month?`${g.month}-???`:"");
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
+                                    const printG = useSnapshot ? {...g, items:displayItems, projectName:displayProjectName, adjustments:cur.snapshot?.adjustments||cur.adjustments} : {...g, adjustments:cur.adjustments};
+                                    downloadPrintHTML("invoice",{...printG,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
                                   }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
                                     <Ico d={I.print} size={10}/>確認
                                   </button>
@@ -6083,7 +6187,8 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                     }
                                     await updateInvData(key,{invNo:baseNo,printCount:count,lastPrintDate:new Date().toISOString()});
                                     const invNo=count<=1?baseNo:`${baseNo}-${count}`;
-                                    downloadPrintHTML("invoice",{...g,adjustments:cur.adjustments,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
+                                    const printG = useSnapshot ? {...g, items:displayItems, projectName:displayProjectName, adjustments:cur.snapshot?.adjustments||cur.adjustments} : {...g, adjustments:cur.adjustments};
+                                    downloadPrintHTML("invoice",{...printG,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
                                   }} style={{...S.ib("#1d4ed8"),fontSize:10,padding:"2px 6px"}}>
                                     🖨
                                   </button>
@@ -6113,7 +6218,7 @@ function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSav
                                           </tr>
                                         </thead>
                                         <tbody>
-                                          {(()=>{const _bNo=dn=>(dn||"").replace(/E\d+.*$/,"");const chainEndMap={};g.items.forEach(r=>{const bk=_bNo(r.deliveryNo);if(!bk)return;const re=r.returnDate||r.endDate||"";if(!chainEndMap[bk]||re>chainEndMap[bk])chainEndMap[bk]=re;});const gKey=r=>{const bk=_bNo(r.deliveryNo);return(bk&&chainEndMap[bk])||(r.returnDate||r.endDate||"");};const sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const lastMIdx=sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const hasBoth=lastMIdx>=0&&sorted.some(r=>r.billingType!=="monthly");return buildChainBlocks(sorted).map((block, bi) => {
+                                          {(()=>{const _bNo=dn=>(dn||"").replace(/E\d+.*$/,"");const chainEndMap={};displayItems.forEach(r=>{const bk=_bNo(r.deliveryNo);if(!bk)return;const re=r.returnDate||r.endDate||"";if(!chainEndMap[bk]||re>chainEndMap[bk])chainEndMap[bk]=re;});const gKey=r=>{const bk=_bNo(r.deliveryNo);return(bk&&chainEndMap[bk])||(r.returnDate||r.endDate||"");};const sorted=[...displayItems].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const lastMIdx=sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const hasBoth=lastMIdx>=0&&sorted.some(r=>r.billingType!=="monthly");return buildChainBlocks(sorted).map((block, bi) => {
                                             if (block.type === "chain") {
                                               const { header: h, segments } = block;
                                               return (
