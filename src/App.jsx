@@ -3019,6 +3019,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
   const [lineSearches,setLineSearches]=useState([""]);
   const [custSearch,setCustSearch]=useState(""); // 顧客絞り込み入力
   const [deleteModal,setDeleteModal]=useState(null);
+  const [monthlyNameModal,setMonthlyNameModal]=useState(null);
 
   // 旧データ互換
   const getLines=r=>(r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
@@ -3625,6 +3626,86 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
           </div>
         </div>
       )}
+      {/* 月別案件名ミニモーダル */}
+      {monthlyNameModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"24px 28px",minWidth:360,maxWidth:480,boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:4,color:"#7c3aed"}}>月別案件名の変更</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:14}}>{monthlyNameModal.record.deliveryNo||""}</div>
+            <div style={{overflowY:"auto",flex:1,marginBottom:12}}>
+              {(()=>{
+                const r=monthlyNameModal.record;
+                const pad=n=>String(n).padStart(2,"0");
+                const startD=new Date(r.startDate+'T00:00:00');
+                const monthList=[];
+                const hasExtension=r.endDate&&records.some(x=>x.extendedFrom===r.id);
+                if(r.endDateOpen){
+                  const today_=new Date();
+                  const limitMonth=today_.getFullYear()*12+today_.getMonth()+2;
+                  const startMonth=startD.getFullYear()*12+startD.getMonth();
+                  for(let m=startMonth;m<=limitMonth;m++){
+                    const y=Math.floor(m/12);const mo=m%12;
+                    monthList.push(`${y}-${pad(mo+1)}`);
+                  }
+                }else if(hasExtension&&r.endDate){
+                  const endD=new Date(r.endDate+'T00:00:00');
+                  const startMonth=startD.getFullYear()*12+startD.getMonth();
+                  const endMonth=endD.getFullYear()*12+endD.getMonth();
+                  for(let m=startMonth;m<=endMonth;m++){
+                    const y=Math.floor(m/12);const mo=m%12;
+                    monthList.push(`${y}-${pad(mo+1)}`);
+                  }
+                }else{
+                  const months_=Number(r.months)||1;
+                  for(let n=0;n<months_&&n<=120;n++){
+                    const d=new Date(startD);d.setMonth(d.getMonth()+n);
+                    monthList.push(`${d.getFullYear()}-${pad(d.getMonth()+1)}`);
+                  }
+                }
+                const c=customers.find(x=>x.id===r.customerId);
+                const split=c?.splitInvoice!==false;
+                let hasLockedMonth=false;
+                const rows=monthList.map(m=>{
+                  const currentMonthName=r.monthlyProjectNames?.[m]??r.projectName??"";
+                  const checkKey=split?currentMonthName:"";
+                  const isLocked=lockedKeys.has(`${r.customerId}||${checkKey}||${m}`);
+                  if(isLocked) hasLockedMonth=true;
+                  return(
+                    <div key={m} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
+                      <span style={{fontSize:11,color:"#7c3aed",fontWeight:600,minWidth:64}}>{m}</span>
+                      <input
+                        value={monthlyNameModal.names[m]||""}
+                        placeholder={r.projectName||"（既定）"}
+                        disabled={isLocked}
+                        onChange={e=>{const v=e.target.value;setMonthlyNameModal(prev=>({...prev,names:{...prev.names,[m]:v}}));}}
+                        style={{...S.inp,flex:1,fontSize:11,padding:"3px 8px",...(isLocked?{background:"#f1f5f9",color:"#94a3b8",cursor:"not-allowed"}:{})}}
+                      />
+                      {isLocked&&<span style={{fontSize:10,color:"#94a3b8"}}>🔒</span>}
+                    </div>
+                  );
+                });
+                return(<>
+                  {rows}
+                  {hasLockedMonth&&<div style={{fontSize:10,color:"#94a3b8",marginTop:8,lineHeight:1.4}}>締め済みの月を変えるには、請求書タブで「✅ 締め済み」を解除してください</div>}
+                </>);
+              })()}
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{
+                const r=monthlyNameModal.record;
+                const newNames={...monthlyNameModal.names};
+                Object.keys(newNames).forEach(k=>{if(!newNames[k])delete newNames[k];});
+                const updated={...r,monthlyProjectNames:newNames};
+                if(Object.keys(updated.monthlyProjectNames).length===0) delete updated.monthlyProjectNames;
+                onSave(records.map(x=>x.id===r.id?updated:x),{action:"月別名変更",name:r.projectName||r.deliveryNo},[updated]);
+                setMonthlyNameModal(null);
+                showToast("月別案件名を保存しました");
+              }} style={{flex:1,background:"#7c3aed",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>保存</button>
+              <button onClick={()=>setMonthlyNameModal(null)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 戻り[終了]モーダル */}
       {returnModal&&(
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -4085,6 +4166,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                                           }} style={{...S.ib("#0891b2"),marginRight:4,fontSize:10}}>⏪ 暫定締め取消</button>
                                         )}
                                         {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>{r.isProvisionalClose?"⚠️ 暫定締め:":"計上終了:"}{r.returnDate}</span>}
+                                        {r.billingType==="monthly"&&<button onClick={e=>{e.stopPropagation();setMonthlyNameModal({record:r,names:{...(r.monthlyProjectNames||{})}});}} style={{...S.ib("#7c3aed"),marginRight:4,fontSize:10}}>月別名</button>}
                                         <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"編集"))return;const rLns=getLines(r);setForm({customerId:r.customerId,projectName:r.projectName||"",noProjectName:!!r.noProjectName,projectDetail:r.projectDetail||"",ecOrderNo:r.ecOrderNo||"",ordererName:r.ordererName||"",ourStaff:r.ourStaff||"",billingType:r.billingType||"daily",months:String(r.months||1),startDate:r.startDate,endDate:r.endDate||today(),endDateOpen:!!r.endDateOpen,notes:r.notes||"",issueReceipt:!!r.issueReceipt,receiptDate:r.receiptDate||today(),paymentMethod:r.paymentMethod||"credit",adjustDays:r.adjustDays||"",adjustReason:r.adjustReason||"",monthlyProjectNames:r.monthlyProjectNames||{},includeInsurance:!!(r.includeInsurance||(r.insuranceAmount||0)>0),lines:rLns.map(ln=>({productId:ln.productId||"",equipNo:ln.equipNo||"",unitPrice:String(ln.unitPrice||""),quantity:String(ln.quantity||1),lineNote:ln.lineNote||"",subItems:ln.subItems||[],equipmentName:ln.equipmentName||"",expandRows:!!ln.expandRows,isManual:!!ln.isManual,isFee:!!ln.isFee,noBillingDiscount:!!ln.noBillingDiscount}))});setLineSearches(rLns.map(()=>""));setEditId(r.id);setOpen(true);}} style={{...S.ib(locked?"#64748b":"#92400e"),marginRight:4}}><Ico d={I.edit} size={12}/></button>
                                         <button onClick={async e=>{e.stopPropagation();if(!await checkLockAsync(r,"削除"))return;setDeleteModal({record:r,custName:customers.find(x=>x.id===r.customerId)?.name||""});}} style={S.ib(locked?"#64748b":"#991b1b")}><Ico d={I.trash} size={12}/></button>
                                       </td>
