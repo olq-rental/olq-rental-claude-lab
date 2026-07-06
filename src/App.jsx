@@ -3664,22 +3664,26 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                 }
                 const c=customers.find(x=>x.id===r.customerId);
                 const split=c?.splitInvoice!==false;
-                const projOptions=[...new Set(records.filter(x=>x.customerId===r.customerId&&x.projectName).map(x=>x.projectName))].sort((a,b)=>a.localeCompare(b,"ja"));
+                const masterProjects=c?.projects||[];
+                const recordProjects=records.filter(x=>x.customerId===r.customerId&&x.projectName).map(x=>x.projectName);
+                const baseProjSet=new Set([...masterProjects,...recordProjects].filter(Boolean));
                 let hasLockedMonth=false;
                 const rows=monthList.map(m=>{
                   const currentMonthName=r.monthlyProjectNames?.[m]??r.projectName??"";
                   const checkKey=split?currentMonthName:"";
                   const isLocked=lockedKeys.has(`${r.customerId}||${checkKey}||${m}`);
                   if(isLocked) hasLockedMonth=true;
+                  const currentVal=monthlyNameModal.names[m]||r.projectName||"";
+                  const monthOpts=[...new Set([...baseProjSet,...(currentVal?[currentVal]:[])])].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ja"));
                   return(
                     <div key={m} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
                       <span style={{fontSize:11,color:"#7c3aed",fontWeight:600,minWidth:64}}>{m}</span>
                       <select
-                        value={monthlyNameModal.names[m]||r.projectName||""}
+                        value={currentVal}
                         disabled={isLocked}
                         onChange={e=>{const v=e.target.value;setMonthlyNameModal(prev=>({...prev,names:{...prev.names,[m]:v}}));}}
                         style={{...S.inp,flex:1,fontSize:11,padding:"3px 8px",...(isLocked?{background:"#f1f5f9",color:"#94a3b8",cursor:"not-allowed"}:{})}}
-                      >{projOptions.map(p=><option key={p} value={p}>{p}</option>)}</select>
+                      >{monthOpts.map(p=><option key={p} value={p}>{p}</option>)}</select>
                       {isLocked&&<span style={{fontSize:10,color:"#94a3b8"}}>🔒</span>}
                     </div>
                   );
