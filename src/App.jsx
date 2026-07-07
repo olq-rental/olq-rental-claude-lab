@@ -945,6 +945,8 @@ export default function App() {
 
   const isAdmin = session?.user?.user_metadata?.role === 'admin';
   const isOwner = session?.user?.email === 'y_inoue@olq.co.jp';
+  const isBruno = session?.user?.email === 'bruno@olq.co.jp';
+  const isBrunoTab = isOwner || isBruno;
 
   // ---- 自動バックアップ（1日1回）----
   useEffect(() => {
@@ -1700,6 +1702,7 @@ export default function App() {
     {id:"actlogs",  label:"作業履歴",    icon:I.list},
     {id:"incidents",label:"修理/紛失",   icon:I.list},
     {id:"knowledge",label:"📖 オルク辞典"},
+    {id:"bruno",    label:"Bruno"},
   ];
 
   // ナレッジ質問文の自動生成
@@ -1798,7 +1801,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.80</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.81</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -1924,7 +1927,7 @@ export default function App() {
       })()}
 
       <div className="app-tabs" style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"0 18px",display:"flex"}}>
-        {TABS.map(t=>(
+        {TABS.filter(t=> t.id!=='bruno' || isBrunoTab).map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{background:"none",border:"none",padding:"13px 16px",fontSize:13,fontWeight:600,cursor:"pointer",color:tab===t.id?"#2563eb":"#64748b",borderBottom:tab===t.id?"2px solid #2563eb":"2px solid transparent",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
             {t.icon&&<Ico d={t.icon} size={14} color={tab===t.id?"#2563eb":"#64748b"}/>}{t.label}
@@ -1961,6 +1964,7 @@ export default function App() {
         {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
         {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
+        {tab==='bruno' && isBrunoTab && <BrunoChat session={session} isBruno={isBruno}/>}
         {tab==='knowledge'&&(
           <div style={{padding:"24px 16px",maxWidth:800,margin:"0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -8524,6 +8528,282 @@ function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoTo
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- Bruno会話 UI文言 ----
+const BRUNO_UI = {
+  ja: {
+    title: 'Bruno 会話',
+    placeholder: 'メッセージを入力…',
+    preview: '翻訳プレビュー',
+    send: '送信',
+    sending: '送信中…',
+    previewing: '翻訳中…',
+    aiNotes: 'AIの指摘',
+    weekOf: d => `${d.getMonth()+1}/${d.getDate()}の週`,
+    errorAuth: '認証エラー。再ログインしてください。',
+    errorGeneral: '送信に失敗しました。',
+    errorPreview: '翻訳プレビューに失敗しました。',
+    loading: '読み込み中…',
+    empty: 'メッセージはまだありません',
+    editedHint: '※ 内容が変更されました。再プレビューしてください。',
+  },
+  en: {
+    title: 'Bruno Chat',
+    placeholder: 'Type a message…',
+    preview: 'Translation Preview',
+    send: 'Send',
+    sending: 'Sending…',
+    previewing: 'Translating…',
+    aiNotes: 'AI Notes',
+    weekOf: d => `Week of ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]} ${d.getDate()}`,
+    errorAuth: 'Auth error. Please log in again.',
+    errorGeneral: 'Failed to send.',
+    errorPreview: 'Translation preview failed.',
+    loading: 'Loading…',
+    empty: 'No messages yet',
+    editedHint: '* Text changed. Please re-preview.',
+  },
+};
+const BRUNO_NAMES = { ja: { y_inoue: '雄太', bruno: 'Bruno' }, en: { y_inoue: 'Yuta', bruno: 'Bruno' } };
+
+function getJSTMonday(date) {
+  // JST = UTC+9
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const day = jst.getUTCDay(); // 0=Sun
+  const diff = day === 0 ? 6 : day - 1; // days since Monday
+  const mon = new Date(jst);
+  mon.setUTCDate(mon.getUTCDate() - diff);
+  const y = mon.getUTCFullYear();
+  const m = String(mon.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(mon.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function BrunoChat({ session, isBruno }) {
+  const viewerLang = isBruno ? 'en' : 'ja';
+  const T = BRUNO_UI[viewerLang];
+  const nameMap = BRUNO_NAMES[viewerLang];
+
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [input, setInput] = useState('');
+  const [previewData, setPreviewData] = useState(null); // {translation, notes, originalText}
+  const [previewing, setPreviewing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const bottomRef = useRef(null);
+
+  const scrollToBottom = () => {
+    setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, 100);
+  };
+
+  const fetchMessages = async () => {
+    setLoading(true);
+    try {
+      const { data, error: err } = await supabase
+        .from('bruno_logs')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (err) throw err;
+      setMessages(data || []);
+    } catch (e) {
+      console.error('bruno_logs fetch error', e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchMessages().then(scrollToBottom);
+  }, []);
+
+  useEffect(() => {
+    if (!loading) scrollToBottom();
+  }, [messages, loading]);
+
+  const senderKey = (email) => {
+    if (email === 'y_inoue@olq.co.jp') return 'y_inoue';
+    if (email === 'bruno@olq.co.jp') return 'bruno';
+    return email || '?';
+  };
+  const isMe = (msg) => msg.sender_email === session?.user?.email;
+
+  // ---- 翻訳プレビュー ----
+  const handlePreview = async () => {
+    if (!input.trim()) return;
+    setError('');
+    setPreviewing(true);
+    try {
+      const tok = session?.access_token;
+      if (!tok) { setError(T.errorAuth); setPreviewing(false); return; }
+      const res = await fetch('https://olq-sync-worker.y-inoue-567.workers.dev/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({ text: input.trim(), lang: viewerLang }),
+      });
+      if (res.status === 401 || res.status === 403) { setError(T.errorAuth); setPreviewing(false); return; }
+      if (!res.ok) { const b = await res.text().catch(()=>''); console.error('/translate error', res.status, b); setError(T.errorPreview); setPreviewing(false); return; }
+      const json = await res.json();
+      setPreviewData({ translation: json.translation, notes: json.notes, originalText: input.trim() });
+    } catch (e) {
+      console.error('/translate fetch error', e);
+      setError(T.errorPreview);
+    }
+    setPreviewing(false);
+  };
+
+  // 送信可否: プレビュー済み原文と現在の入力が完全一致する間だけ有効
+  const canSend = previewData && input.trim() === previewData.originalText && !sending;
+
+  // ---- 送信 ----
+  const handleSend = async () => {
+    if (!canSend) return;
+    setSending(true);
+    setError('');
+    try {
+      const weekStart = getJSTMonday(new Date());
+      const email = session.user.email;
+      const row = {
+        week_start: weekStart,
+        sender_email: email,
+        original_lang: viewerLang,
+        body_ja: viewerLang === 'ja' ? input.trim() : previewData.translation,
+        body_en: viewerLang === 'en' ? input.trim() : previewData.translation,
+      };
+      const { error: insErr } = await supabase.from('bruno_logs').insert([row]);
+      if (insErr) {
+        console.error('bruno_logs insert error', insErr);
+        if (insErr.code === '42501' || insErr.message?.includes('policy')) {
+          setError(T.errorAuth);
+        } else {
+          setError(T.errorGeneral);
+        }
+        setSending(false);
+        return;
+      }
+      setInput('');
+      setPreviewData(null);
+      await fetchMessages();
+      scrollToBottom();
+    } catch (e) {
+      console.error('bruno send error', e);
+      setError(T.errorGeneral);
+    }
+    setSending(false);
+  };
+
+  // ---- 週区切り判定 ----
+  const weekLabel = (weekStart) => {
+    if (!weekStart) return '';
+    const parts = weekStart.split('-');
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return T.weekOf(d);
+  };
+
+  // 編集検知
+  const edited = previewData && input.trim() !== previewData.originalText;
+
+  return (
+    <div style={{ padding: '24px 16px', maxWidth: 600, margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
+      <h2 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700 }}>{T.title}</h2>
+
+      {/* メッセージ一覧 */}
+      <div style={{ flex: 1, overflowY: 'auto', background: '#f0f4f8', borderRadius: 12, padding: '12px 10px', marginBottom: 12 }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>{T.loading}</div>
+        ) : messages.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>{T.empty}</div>
+        ) : (
+          <>
+            {messages.map((msg, i) => {
+              const prevWeek = i > 0 ? messages[i - 1].week_start : null;
+              const showWeekDivider = msg.week_start !== prevWeek;
+              const me = isMe(msg);
+              const body = viewerLang === 'ja' ? msg.body_ja : msg.body_en;
+              const sk = senderKey(msg.sender_email);
+              const displayName = nameMap[sk] || sk;
+              const time = msg.created_at ? new Date(msg.created_at).toLocaleString(viewerLang === 'ja' ? 'ja-JP' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+              return (
+                <React.Fragment key={msg.id || i}>
+                  {showWeekDivider && (
+                    <div style={{ textAlign: 'center', margin: '14px 0 8px', fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
+                      <span style={{ background: '#e2e8f0', borderRadius: 8, padding: '3px 12px' }}>{weekLabel(msg.week_start)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: me ? 'flex-end' : 'flex-start', marginBottom: 6 }}>
+                    <div style={{ maxWidth: '75%' }}>
+                      {!me && <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2, marginLeft: 4 }}>{displayName}</div>}
+                      <div style={{
+                        background: me ? '#2563eb' : '#fff',
+                        color: me ? '#fff' : '#1e293b',
+                        borderRadius: me ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                        padding: '8px 14px',
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                      }}>
+                        {body || ''}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2, textAlign: me ? 'right' : 'left', marginLeft: 4, marginRight: 4 }}>{time}</div>
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+            <div ref={bottomRef} />
+          </>
+        )}
+      </div>
+
+      {/* プレビューカード */}
+      {previewData && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 13 }}>
+          <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 4, fontSize: 12 }}>Translation</div>
+          <div style={{ color: '#1e293b', whiteSpace: 'pre-wrap', marginBottom: previewData.notes ? 6 : 0 }}>{previewData.translation}</div>
+          {previewData.notes && (
+            <>
+              <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 2, marginTop: 6, fontSize: 11 }}>{T.aiNotes}</div>
+              <div style={{ color: '#78716c', fontSize: 12, whiteSpace: 'pre-wrap' }}>{previewData.notes}</div>
+            </>
+          )}
+          {edited && <div style={{ color: '#dc2626', fontSize: 11, marginTop: 6, fontWeight: 600 }}>{T.editedHint}</div>}
+        </div>
+      )}
+
+      {/* エラー */}
+      {error && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 6, fontWeight: 600 }}>{error}</div>}
+
+      {/* 入力欄 */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+        <textarea
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder={T.placeholder}
+          rows={2}
+          style={{ flex: 1, border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 14, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, outline: 'none' }}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && canSend) { e.preventDefault(); handleSend(); } }}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <button
+            onClick={handlePreview}
+            disabled={previewing || !input.trim()}
+            style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: previewing || !input.trim() ? 'default' : 'pointer', opacity: previewing || !input.trim() ? 0.5 : 1, whiteSpace: 'nowrap' }}
+          >
+            {previewing ? T.previewing : T.preview}
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={!canSend}
+            style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: canSend ? 'pointer' : 'default', opacity: canSend ? 1 : 0.4, whiteSpace: 'nowrap' }}
+          >
+            {sending ? T.sending : T.send}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
