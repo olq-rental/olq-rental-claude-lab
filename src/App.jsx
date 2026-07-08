@@ -8772,7 +8772,7 @@ function BrunoChat({ session, isBruno }) {
             </span>
           </div>
           {reportOpen && (
-            <div style={{ marginTop: 8, color: '#1e293b', whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, maxHeight: 300, overflowY: 'auto' }}>
+            <div style={{ marginTop: 8, color: '#1e293b', whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, maxHeight: 750, overflowY: 'auto', textAlign: 'left' }}>
               {report.text}
             </div>
           )}
