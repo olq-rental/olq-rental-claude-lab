@@ -8550,6 +8550,8 @@ const BRUNO_UI = {
     empty: 'メッセージはまだありません',
     editedHint: '※ 内容が変更されました。再プレビューしてください。',
     reportTitle: '今日の市場レポート',
+    copy: '📋 コピー',
+    copied: '✅ コピーしました',
   },
   en: {
     title: 'Bruno Chat',
@@ -8567,6 +8569,8 @@ const BRUNO_UI = {
     empty: 'No messages yet',
     editedHint: '* Text changed. Please re-preview.',
     reportTitle: "Today's Market Report (Japanese)",
+    copy: '📋 Copy',
+    copied: '✅ Copied',
   },
 };
 const BRUNO_NAMES = { ja: { y_inoue: '雄太', bruno: 'Bruno' }, en: { y_inoue: 'Yuta', bruno: 'Bruno' } };
@@ -8600,6 +8604,7 @@ function BrunoChat({ session, isBruno }) {
   const inputRef = useRef(null);
   const [report, setReport] = useState(null); // {text, generatedAt}
   const [reportOpen, setReportOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const INPUT_LINE_H = 21; // fontSize14 × lineHeight1.5
   const INPUT_MAX_H = INPUT_LINE_H * 8 + 16; // 8行 + padding上下
 
@@ -8749,9 +8754,21 @@ function BrunoChat({ session, isBruno }) {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, color: '#166534' }}>{T.reportTitle}</span>
-            <span style={{ fontSize: 11, color: '#64748b' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#64748b' }}>
               {report.generatedAt ? new Date(report.generatedAt).toLocaleString(viewerLang === 'ja' ? 'ja-JP' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-              {' '}{reportOpen ? '▲' : '▼'}
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(report.text).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1800);
+                  }).catch(err => console.error('clipboard write failed', err));
+                }}
+                style={{ background: copied ? '#dcfce7' : '#e2e8f0', border: 'none', borderRadius: 6, padding: '2px 8px', fontSize: 11, cursor: 'pointer', color: copied ? '#166534' : '#475569', whiteSpace: 'nowrap' }}
+              >
+                {copied ? T.copied : T.copy}
+              </button>
+              {reportOpen ? '▲' : '▼'}
             </span>
           </div>
           {reportOpen && (
