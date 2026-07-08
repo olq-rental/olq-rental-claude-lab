@@ -8549,6 +8549,7 @@ const BRUNO_UI = {
     loading: '読み込み中…',
     empty: 'メッセージはまだありません',
     editedHint: '※ 内容が変更されました。再プレビューしてください。',
+    reportTitle: '今日の市場レポート',
   },
   en: {
     title: 'Bruno Chat',
@@ -8565,6 +8566,7 @@ const BRUNO_UI = {
     loading: 'Loading…',
     empty: 'No messages yet',
     editedHint: '* Text changed. Please re-preview.',
+    reportTitle: "Today's Market Report (Japanese)",
   },
 };
 const BRUNO_NAMES = { ja: { y_inoue: '雄太', bruno: 'Bruno' }, en: { y_inoue: 'Yuta', bruno: 'Bruno' } };
@@ -8596,6 +8598,8 @@ function BrunoChat({ session, isBruno }) {
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const [report, setReport] = useState(null); // {text, generatedAt}
+  const [reportOpen, setReportOpen] = useState(false);
   const INPUT_LINE_H = 21; // fontSize14 × lineHeight1.5
   const INPUT_MAX_H = INPUT_LINE_H * 8 + 16; // 8行 + padding上下
 
@@ -8631,6 +8635,18 @@ function BrunoChat({ session, isBruno }) {
 
   useEffect(() => {
     fetchMessages().then(scrollToBottom);
+    // 市場レポート取得（1回）
+    (async () => {
+      try {
+        const { data, error: err } = await supabase
+          .from('market_reports')
+          .select('report, generated_at')
+          .eq('cadence', 'daily')
+          .maybeSingle();
+        if (err) throw err;
+        if (data) setReport({ text: data.report?.report_text || '', generatedAt: data.generated_at });
+      } catch (e) { console.error('market_reports fetch error', e); }
+    })();
   }, []);
 
   useEffect(() => {
@@ -8650,7 +8666,8 @@ function BrunoChat({ session, isBruno }) {
     setError('');
     setPreviewing(true);
     try {
-      const tok = session?.access_token;
+      const { data: { session: freshSession } } = await supabase.auth.getSession();
+      const tok = freshSession?.access_token;
       if (!tok) { setError(T.errorAuth); setPreviewing(false); return; }
       const res = await fetch('https://olq-sync-worker.y-inoue-567.workers.dev/translate', {
         method: 'POST',
@@ -8723,6 +8740,27 @@ function BrunoChat({ session, isBruno }) {
   return (
     <div style={{ padding: '24px 16px', maxWidth: 600, margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
       <h2 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700 }}>{T.title}</h2>
+
+      {/* 市場レポートカード */}
+      {report && report.text && (
+        <div
+          onClick={() => setReportOpen(o => !o)}
+          style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '10px 14px', marginBottom: 10, cursor: 'pointer', fontSize: 13 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, color: '#166534' }}>{T.reportTitle}</span>
+            <span style={{ fontSize: 11, color: '#64748b' }}>
+              {report.generatedAt ? new Date(report.generatedAt).toLocaleString(viewerLang === 'ja' ? 'ja-JP' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+              {' '}{reportOpen ? '▲' : '▼'}
+            </span>
+          </div>
+          {reportOpen && (
+            <div style={{ marginTop: 8, color: '#1e293b', whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, maxHeight: 300, overflowY: 'auto' }}>
+              {report.text}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* メッセージ一覧 */}
       <div style={{ flex: 1, overflowY: 'auto', background: '#f0f4f8', borderRadius: 12, padding: '12px 10px', marginBottom: 12 }}>
