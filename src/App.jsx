@@ -8595,9 +8595,23 @@ function BrunoChat({ session, isBruno }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+  const INPUT_LINE_H = 21; // fontSize14 × lineHeight1.5
+  const INPUT_MAX_H = INPUT_LINE_H * 8 + 16; // 8行 + padding上下
 
   const scrollToBottom = () => {
     setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, 100);
+  };
+  const autoResize = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, INPUT_MAX_H) + 'px';
+    el.style.overflowY = el.scrollHeight > INPUT_MAX_H ? 'auto' : 'hidden';
+  };
+  const resetInputHeight = () => {
+    const el = inputRef.current;
+    if (el) { el.style.height = 'auto'; el.style.overflowY = 'hidden'; }
   };
 
   const fetchMessages = async () => {
@@ -8685,6 +8699,7 @@ function BrunoChat({ session, isBruno }) {
       }
       setInput('');
       setPreviewData(null);
+      resetInputHeight();
       await fetchMessages();
       scrollToBottom();
     } catch (e) {
@@ -8745,6 +8760,7 @@ function BrunoChat({ session, isBruno }) {
                         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
+                        textAlign: 'left',
                       }}>
                         {body || ''}
                       </div>
@@ -8780,11 +8796,12 @@ function BrunoChat({ session, isBruno }) {
       {/* 入力欄 */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
         <textarea
+          ref={inputRef}
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={e => { setInput(e.target.value); autoResize(); }}
           placeholder={T.placeholder}
-          rows={2}
-          style={{ flex: 1, border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 14, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, outline: 'none' }}
+          rows={1}
+          style={{ flex: 1, border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 14, resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, outline: 'none', overflowY: 'hidden' }}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && canSend) { e.preventDefault(); handleSend(); } }}
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
