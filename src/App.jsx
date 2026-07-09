@@ -1059,6 +1059,7 @@ export default function App() {
   const [knowledgeCategoryFilter, setKnowledgeCategoryFilter] = useState('');
   const [knowledgePendingList, setKnowledgePendingList] = useState([]);
   const [pendingListLoading, setPendingListLoading] = useState(false);
+  const [shelvedCount, setShelvedCount] = useState(0);
   const [knowledgeSubTab, setKnowledgeSubTab] = useState('list');
   const [editingPending, setEditingPending] = useState(null);
   const [editPendingQuestion, setEditPendingQuestion] = useState('');
@@ -1226,6 +1227,19 @@ export default function App() {
       (srcData||[]).forEach(q=>{map[q.id]=q;});
       setSourceKnowledgeMap(map);
     }
+    // 4. shelved件数取得
+    const {count:sc}=await supabase.from('knowledge').select('id',{count:'exact',head:true}).eq('status','shelved').is('deleted_at',null);
+    setShelvedCount(sc||0);
+  };
+
+  // 棚から1件昇格
+  const promoteShelved = async () => {
+    const {data:rows,error:err}=await supabase.from('knowledge').select('id').eq('status','shelved').is('deleted_at',null).order('created_at',{ascending:false}).limit(1);
+    if(err||!rows||rows.length===0) return;
+    const {error:upErr}=await supabase.from('knowledge').update({status:'pending',promoted_at:new Date().toISOString()}).eq('id',rows[0].id).eq('status','shelved');
+    if(upErr){console.error('promoteShelved error',upErr);return;}
+    await fetchPendingList();
+    showToast('棚から1件を承認待ちに昇格しました');
   };
 
   const approveKnowledge = async (id) => {
@@ -2167,6 +2181,15 @@ export default function App() {
                   </button>
                   <span style={{fontSize:11,color:'#94a3b8'}}>{refineModeEnabled?'毎朝8時に改善・統合提案を自動生成中':'Phase 2移行後にONにする'}</span>
                 </div>
+                {/* 棚から昇格ボタン */}
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'10px 14px',background:'#faf5ff',borderRadius:8,border:'1px solid #e9d5ff'}}>
+                  <button onClick={promoteShelved} disabled={shelvedCount===0}
+                    style={{padding:'5px 14px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',cursor:shelvedCount===0?'default':'pointer',
+                      background:shelvedCount>0?'#7c3aed':'#e2e8f0',color:shelvedCount>0?'#fff':'#94a3b8'}}>
+                    📥 次のFAQを出す
+                  </button>
+                  <span style={{fontSize:12,color:shelvedCount>0?'#7c3aed':'#94a3b8',fontWeight:600}}>棚に{shelvedCount}件</span>
+                </div>
                 {/* 承認待ち検索 */}
                 <div style={{marginBottom:12}}>
                   <input
@@ -2177,7 +2200,10 @@ export default function App() {
                   />
                 </div>
 
-                {!pendingListLoading&&knowledgePendingList.filter(k=>{
+                {!pendingListLoading&&(()=>{
+                  const CREATOR_MAP={'y_inoue':'井上 雄太','k_matsuzaka':'松坂 穫','bruno':'Bruno','j_goto':'後藤 潤一郎','h_iwamoto':'岩本 一志','t_katsuo':'勝男 拓海','k_sato':'佐藤 康祐'};
+                  const creatorName=(v)=>{if(!v)return null;const key=v.includes('@')?v.split('@')[0]:v;return CREATOR_MAP[key]||key;};
+                  return knowledgePendingList.filter(k=>{
                   if(!pendingSearch.trim()) return true;
                   const q=pendingSearch.toLowerCase();
                   const relProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
@@ -2187,7 +2213,7 @@ export default function App() {
                     ||(k.answer_text||'').toLowerCase().includes(q)
                     ||prodNames.includes(q)
                     ||tags.includes(q);
-                }).sort((a,b)=>(a.source_type==='ec_contact'?0:1)-(b.source_type==='ec_contact'?0:1)).map(k=>{
+                }).sort((a,b)=>((['ec_contact','manual'].includes(a.source_type))?0:1)-((['ec_contact','manual'].includes(b.source_type))?0:1)).map(k=>{
                   const relatedProds=(k.related_product_ids||[]).map(id=>products.find(p=>String(p.id)===String(id))).filter(Boolean);
 
                   // 🔧 改善提案カード
@@ -2307,6 +2333,7 @@ export default function App() {
                       <div key={k.id} style={{background:'#fff7ed',border:'2px solid #dc2626',borderRadius:10,padding:16,marginBottom:12}}>
                         <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
                           <span style={{background:'#dc2626',color:'#fff',borderRadius:6,padding:'3px 12px',fontSize:12,fontWeight:700}}>👤 ECサイトからの質問</span>
+                          <span style={{background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:600}}>お客様</span>
                           {relatedProds.map(p=>(<span key={(p&&p.id)||''} style={{background:'#f1f5f9',color:'#475569',borderRadius:4,padding:'2px 8px',fontSize:11}}>📷 {(p&&p.name)||''}</span>))}
                         </div>
                         {k.structured_data?.email&&(
@@ -2345,6 +2372,9 @@ export default function App() {
                         <span style={{background:k.source_type==='ec_auto'?'#f0fdf4':'#f8fafc',color:k.source_type==='ec_auto'?'#16a34a':'#64748b',borderRadius:4,padding:'2px 8px',fontSize:11}}>
                           {k.source_type==='ec_auto'?'🤖 自動EC':'✏️ 手動'}
                         </span>
+                        {k.source_type==='manual'&&creatorName(k.created_by)&&(
+                          <span style={{background:'#ede9fe',color:'#6d28d9',borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:600}}>✍️ {creatorName(k.created_by)}</span>
+                        )}
                       </div>
                       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                         {isYuta&&(<>
@@ -2381,7 +2411,7 @@ export default function App() {
                       </div>
                     </div>
                   );
-                })}
+                });})()}
               </div>
             )}
 
