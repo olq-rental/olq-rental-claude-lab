@@ -685,6 +685,24 @@ function chainBillingDays(record, allRecords, segEnd) {
   const cumBefore = Math.max(0, calcDays(rootStart, segStart) - 1);
   return Math.max(0, calcBillingDays(cumThrough) - calcBillingDays(cumBefore));
 }
+function chainBillingDetail(record, allRecords, segEnd) {
+  const segStart = record.startDate;
+  if (!segStart || !segEnd) return null;
+  const bNo = no => (no || "").replace(/E\d+.*$/, "");
+  const key = bNo(record.deliveryNo);
+  if (!key) return null;
+  let rootStart = segStart;
+  (allRecords || []).forEach(x => {
+    if (bNo(x.deliveryNo) === key && x.startDate && x.startDate < rootStart) rootStart = x.startDate;
+  });
+  const segDays = calcDays(segStart, segEnd);
+  const standaloneBilling = calcBillingDays(segDays);
+  const cbd = chainBillingDays(record, allRecords || [], segEnd);
+  if (cbd === standaloneBilling) return null;
+  const cumActual = calcDays(rootStart, segEnd);
+  const cumBilling = calcBillingDays(cumActual);
+  return { cumActual, cumBilling, thisBilling: cbd, prevBilling: cumBilling - cbd };
+}
 function buildChainBlocks(sortedItems) {
   const baseNo = dn => (dn || "").replace(/E\d+.*$/, "");
   const chainMap = {};
@@ -4843,6 +4861,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         </div>
       </div>`;
     const invTableHeadHtml = `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0"><thead><tr style="background:#f0f0f0"><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;white-space:nowrap">ご利用日</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:40px">日数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:70px">ご発注者</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">製品名</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:36px">台数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:72px">単価</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:80px">金額</th></tr></thead>`;
+    let _pdfEquipSum = 0;
     (()=>{const _bNo=dn=>(dn||"").replace(/E\d+.*$/,"");const chainEndMap={};g.items.forEach(r=>{const bk=_bNo(r.deliveryNo);if(!bk)return;const re=r.returnDate||r.endDate||"";if(!chainEndMap[bk]||re>chainEndMap[bk])chainEndMap[bk]=re;});const gKey=r=>{const bk=_bNo(r.deliveryNo);return(bk&&chainEndMap[bk])||(r.returnDate||r.endDate||"");};const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");buildChainBlocks(_sorted).forEach((block, _bi) => {
   if (block.type === "chain") {
     const { header: h, segments } = block;
@@ -4879,16 +4898,19 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const listPrice=prod?prod.priceEx:(ln.unitPrice||0);
           const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:(ln.unitPrice||0);
           const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
-          const useDaysSgl=r.billingType==="monthly"?(r.months||1):(noDisc?(r.days||1):(r.billingDays||r.days||1));
+          const _cbdA=(!noDisc&&r.billingType!=="monthly")?chainBillingDetail(r,allRecords||g.items,lineEndDate):null;
+          const useDaysSgl=_cbdA?_cbdA.thisBilling:(r.billingType==="monthly"?(r.months||1):(noDisc?(r.days||1):(r.billingDays||r.days||1)));
           const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysSgl):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysSgl);
+          _pdfEquipSum+=lineAmt;
           const equipName=ln.equipmentName||r.equipmentName||"";
           const _csProjInfo=g.projectName?(r.projectDetail||""):r.projectName?r.projectName+(r.projectDetail?`　${r.projectDetail}`:""):(r.projectDetail||"");
           const _csNameExtra=_csProjInfo?`<span style="color:#555;font-size:10px">　[${_csProjInfo}]</span>`:"";
-          const _dd=!noDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);
-          const _ddDays=_dd?r.billingDays:(r.days||0);
+          const _dd=!_cbdA&&!noDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);
+          const _ddDays=_cbdA?_cbdA.thisBilling:(_dd?r.billingDays:(r.days||0));
           const _hasAdj=(r.notes||"").indexOf("【日数調整】")>=0;
           const _adjReasonHtml=_hasAdj&&(r.adjustReason||"")?`<div style="font-size:8px;color:#555;margin-top:1px">[${r.adjustReason}]</div>`:"";
-          const _ddSub=_dd?(_hasAdj?`<div style="font-size:8px;color:#555;margin-top:1px">日数調整</div>`:`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`):"";
+          const _chainSubA=_cbdA?`<div style="font-size:8px;color:#555;margin-top:1px">継続通算${_cbdA.cumActual}日間 → ${_cbdA.cumBilling}日間ご請求</div><div style="font-size:8px;color:#555">(${_cbdA.prevBilling}日間ご請求済 → 今回${_cbdA.thisBilling}日間)</div>`:"";
+          const _ddSub=_cbdA?_chainSubA:(_dd?(_hasAdj?`<div style="font-size:8px;color:#555;margin-top:1px">日数調整</div>`:`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`):"");
           allInvRows.push({html:`<tr>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}<div style="font-size:7px;color:#555">${r.isExtension?"└ご延長":"└ご注文"}</div></td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td>
@@ -4897,7 +4919,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${ln.quantity||1}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(dispPrice)}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(lineAmt)}</td>
-          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));let base=sw>=150?4:sw>=100?3:sw>=50?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);return base+1+(r.ecOrderNo?1:0)+(_ddSub?1:0);})()});
+          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));let base=sw>=150?4:sw>=100?3:sw>=50?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);if(_cbdA)base=Math.max(base,3);return base+1+(r.ecOrderNo?1:0)+(!_cbdA&&_dd?1:0);})()});
         });
       } else {
         // chainブロック（leg>=2かつ台数・単価一致）
@@ -4915,18 +4937,22 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           _legCalDays+=(r.days||0);
           _legBillDays+=noDisc?(r.days||0):cbd;
         });
+        _pdfEquipSum+=_clineTotal;
         const _legStart=legs[0].record.startDate||"";
         const _legEnd=legs[legs.length-1].record.returnDate||legs[legs.length-1].record.endDate||"";
         const _noValueDisc=_hasNoDisc||_legBillDays>=_legCalDays;
         const _chainBillDisp=_noValueDisc?_legCalDays:_legBillDays;
-        const _chainDateSub=_noValueDisc?``:`<div style="font-size:8px;color:#555;margin-top:1px">${_chainHasAdj?"日数調整":"合計"+_legCalDays+"日間 → 日数値引"}</div>`;
+        // チェーン通算注記: rootStartからの累計を算出
+        const _cbNoB=no=>(no||"").replace(/E\d+.*$/,"");const _cbKey=_cbNoB(firstLeg.record.deliveryNo);let _cbRootStart=_legStart;if(_cbKey){(allRecords||g.items).forEach(x=>{if(_cbNoB(x.deliveryNo)===_cbKey&&x.startDate&&x.startDate<_cbRootStart)_cbRootStart=x.startDate;});}
+        const _cbCumActual=calcDays(_cbRootStart,_legEnd);const _cbCumBilling=calcBillingDays(_cbCumActual);const _cbPrevBilling=Math.max(0,_cbCumBilling-_legBillDays);
+        const _chainDateSub=_noValueDisc?``:(_chainHasAdj?`<div style="font-size:8px;color:#555;margin-top:1px">日数調整</div>`:`<div style="font-size:8px;color:#555;margin-top:1px">継続通算${_cbCumActual}日間 → ${_cbCumBilling}日間ご請求</div><div style="font-size:8px;color:#555">(${_cbPrevBilling}日間ご請求済 → 今回${_legBillDays}日間)</div>`);
         const _csegRows=legs.map(({record:r},si)=>{
           const _se=r.returnDate||r.endDate;
           const _sl=r.isExtension?"ご延長":"ご注文";
           const _isLast=si===legs.length-1;
           return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:7px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
         }).join("");
-        const _hasEc=!!(firstLeg.record.ecOrderNo);const _csw=strWidth(_ceqName);let _cbase=_csw>=150?4:_csw>=100?3:_csw>=50?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)_cbase=Math.max(_cbase,2);const _cweight=legs.length+_cbase+(_noValueDisc?0:1)+(_hasEc?1:0);
+        const _hasEc=!!(firstLeg.record.ecOrderNo);const _csw=strWidth(_ceqName);let _cbase=_csw>=150?4:_csw>=100?3:_csw>=50?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)_cbase=Math.max(_cbase,2);if(!_noValueDisc&&!_chainHasAdj)_cbase=Math.max(_cbase,3);const _cweight=legs.length+_cbase+(_noValueDisc?0:(_chainHasAdj?1:0))+(_hasEc?1:0);
         allInvRows.push({html:`<tr>
           <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${firstLeg.record.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${firstLeg.record.ecOrderNo}</div>`:""}${_chainDateSub}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
@@ -4955,10 +4981,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       const prod = showDiscountLine ? (products||[]).find(p=>p.id===ln.productId) : null;
       const listPrice = prod ? prod.priceEx : (ln.unitPrice||0);
       const dispPrice=(showDiscountLine&&r.billingType!=="monthly")?listPrice:r.billingType==="monthly"?Math.round((ln.amount||0)/(ln.quantity||1)):(ln.unitPrice||r.unitPrice);
-      const useDaysForLinePdf=ln.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;return noDisc?d:calcBillingDays(d);})():((ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount)?(r.days||1):(r.billingDays||r.days||1)));
       const lnNoDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
-      const lineDaysPdf=ln.isFee?"手数料及び販売":r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);return lnNoDisc?d:calcBillingDays(d);})():(lnNoDisc?(r.days||0):(r.billingDays||r.days||0)));
+      const _cbdC=(!ln.isFee&&!lnNoDisc&&r.billingType!=="monthly"&&!hasPerLineDate)?chainBillingDetail(r,allRecords||g.items,lineEndDate):null;
+      const useDaysForLinePdf=_cbdC?_cbdC.thisBilling:(ln.isFee?1:r.billingType==="monthly"?(r.months||1):(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);return lnNoDisc?d:calcBillingDays(d);})():(lnNoDisc?(r.days||1):(r.billingDays||r.days||1))));
+      const lineDaysPdf=_cbdC?_cbdC.thisBilling:(ln.isFee?"手数料及び販売":r.billingType==="monthly"?(r.months||1)+"ヶ月":(hasPerLineDate?(()=>{const d=calcDays(r.startDate,lineEndDate);return lnNoDisc?d:calcBillingDays(d);})():(lnNoDisc?(r.days||0):(r.billingDays||r.days||0))));
       const lineAmt=r.billingType==="monthly"?(ln.amount||0):(showDiscountLine&&r.billingType!=="monthly")?Math.round(listPrice*(ln.quantity||1)*useDaysForLinePdf):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDaysForLinePdf);
+      _pdfEquipSum+=lineAmt;
       const equipName = ln.equipmentName||r.equipmentName||"";
       const projInfo = g.projectName ? (r.projectDetail||"") : r.projectName
         ? r.projectName + (r.projectDetail ? `　${r.projectDetail}` : "")
@@ -4969,12 +4997,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           ? `<td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">手数料及び販売</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
           : hasPerLineDate
             ? `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${lineDaysPdf}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`
-            : (()=>{const _dd=!lnNoDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);const _ddDays=_dd?r.billingDays:days;const _hasAdj3=(r.notes||"").indexOf("【日数調整】")>=0;const _ddSub=_dd?(_hasAdj3?`<div style="font-size:8px;color:#555;margin-top:1px">日数調整</div>`:`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`):"";return `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`;})()}
+            : (()=>{const _dd=!_cbdC&&!lnNoDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);const _ddDays=_cbdC?_cbdC.thisBilling:(_dd?r.billingDays:days);const _hasAdj3=(r.notes||"").indexOf("【日数調整】")>=0;const _chainSubC=_cbdC?`<div style="font-size:8px;color:#555;margin-top:1px">継続通算${_cbdC.cumActual}日間 → ${_cbdC.cumBilling}日間ご請求</div><div style="font-size:8px;color:#555">(${_cbdC.prevBilling}日間ご請求済 → 今回${_cbdC.thisBilling}日間)</div>`:"";const _ddSub=_cbdC?_chainSubC:(_dd?(_hasAdj3?`<div style="font-size:8px;color:#555;margin-top:1px">日数調整</div>`:`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`):"");return `<td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(r.endDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td><td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${orderer}</td>`;})()}
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${equipName}${nameExtra}${(r.notes||"").indexOf("【日数調整】")>=0&&(r.adjustReason||"")?`<div style="font-size:8px;color:#555;margin-top:1px">[${r.adjustReason}]</div>`:""}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
-      </tr>`, weight: (()=>{const sw=strWidth(equipName+(projInfo?`　[${projInfo}]`:""));let base=sw>=150?4:sw>=100?3:sw>=50?2:1;if(strWidth(orderer)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);const dd=!hasPerLineDate&&!lnNoDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);return((r.billingType==="monthly"||r.ecOrderNo)?Math.max(2,base):base)+(dd?1:0);})()});
+      </tr>`, weight: (()=>{const sw=strWidth(equipName+(projInfo?`　[${projInfo}]`:""));let base=sw>=150?4:sw>=100?3:sw>=50?2:1;if(strWidth(orderer)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);if(_cbdC)base=Math.max(base,3);const dd=!_cbdC&&!hasPerLineDate&&!lnNoDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);return((r.billingType==="monthly"||r.ecOrderNo)?Math.max(2,base):base)+(dd?1:0);})()});
     });
     if((r.insuranceAmount||0)>0){
       allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
@@ -4982,6 +5010,12 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     if(_hasBoth&&_ri===_lastMIdx){allInvRows.push({html:`<tr><td colspan="99" style="padding:6px 0;border:none;background:#f8fafc"></td></tr>`, weight:1});}
   }
 });})();
+    // アサーション: 明細金額合計 == 小計（不一致ならPDF生成を止める）
+    const _expectedEquipTotal = showDiscountLine ? listTot : equipTotG;
+    if (Math.abs(_pdfEquipSum - _expectedEquipTotal) > 1) {
+      alert(`請求書PDF生成エラー: 明細金額合計(${_pdfEquipSum.toLocaleString()})と小計(${_expectedEquipTotal.toLocaleString()})が一致しません。\n請求書No: ${invNo}`);
+      return;
+    }
     gIncidentsPdf.forEach(inc=>{
       allInvRows.push({html:`<tr>
         <td colspan="2" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${inc.type==="loss"?"紛失":"修理/破損"}</td>
