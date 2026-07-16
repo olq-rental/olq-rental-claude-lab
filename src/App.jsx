@@ -904,6 +904,7 @@ const I = {
   search:"M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0",
   star:"M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
   list:"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
+  mail:"M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6",
 };
 
 const S = {
@@ -1086,7 +1087,64 @@ export default function App() {
   const [knowledgeSearchMode, setKnowledgeSearchMode] = useState('text');
   const [presetModal, setPresetModal] = useState(false);
 
+  // ── 受信箱 ──
+  const [inboxMessages, setInboxMessages] = useState([]);
+  const [inboxLoading, setInboxLoading] = useState(false);
+  const [inboxExpandedId, setInboxExpandedId] = useState(null);
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
+
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),3000); };
+
+  // ── 受信箱: Web Audio API ビープ ──
+  const playInboxBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    } catch (e) { /* Autoplay policy — silent until user interaction */ }
+  };
+
+  const fetchInbox = async () => {
+    setInboxLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('email_inbox')
+        .select('*')
+        .order('received_at', { ascending: false });
+      if (error) { console.error('email_inbox fetch error', error); return; }
+      setInboxMessages(data || []);
+      setInboxUnreadCount((data || []).filter(m => !m.read_at).length);
+    } catch (e) { console.error('email_inbox exception', e); }
+    setInboxLoading(false);
+  };
+
+  // 受信箱: 初回未読カウント取得（タブバッジ用）
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      try {
+        const { count, error } = await supabase
+          .from('email_inbox')
+          .select('id', { count: 'exact', head: true })
+          .is('read_at', null);
+        if (!error && count !== null) setInboxUnreadCount(count);
+      } catch (e) { console.error('inbox unread count error', e); }
+    })();
+  }, [session]);
+
+  // 受信箱: タブ切替時にfetch
+  useEffect(() => {
+    if (tab === 'inbox') fetchInbox();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   // ---- 初期データロード ----
   useEffect(() => {
@@ -1129,7 +1187,17 @@ export default function App() {
         .on('postgres_changes', { event:'*', schema:'public', table }, () => reload(table))
         .subscribe()
     );
-    return () => channels.forEach(ch => supabase.removeChannel(ch));
+    // 受信箱 Realtime（INSERT検知で新着音＋リスト更新）
+    const inboxCh = supabase.channel('rt_email_inbox')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'email_inbox' }, () => {
+        fetchInbox();
+        playInboxBeep();
+      })
+      .subscribe();
+    return () => {
+      channels.forEach(ch => supabase.removeChannel(ch));
+      supabase.removeChannel(inboxCh);
+    };
   }, [session]);
 
   const doPresetInsert=async()=>{
@@ -1716,6 +1784,7 @@ export default function App() {
     {id:"actlogs",  label:"作業履歴",    icon:I.list},
     {id:"incidents",label:"修理/紛失",   icon:I.list},
     {id:"knowledge",label:"📖 オルク辞典"},
+    {id:"inbox",    label:"受信箱",     icon:I.mail},
     {id:"bruno",    label:"Bruno"},
   ];
 
@@ -1815,7 +1884,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.81</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.82</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -1945,6 +2014,7 @@ export default function App() {
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{background:"none",border:"none",padding:"13px 16px",fontSize:13,fontWeight:600,cursor:"pointer",color:tab===t.id?"#2563eb":"#64748b",borderBottom:tab===t.id?"2px solid #2563eb":"2px solid transparent",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
             {t.icon&&<Ico d={t.icon} size={14} color={tab===t.id?"#2563eb":"#64748b"}/>}{t.label}
+            {t.id==='inbox'&&inboxUnreadCount>0&&<span style={{background:'#dc2626',color:'#fff',borderRadius:10,padding:'1px 6px',fontSize:10,fontWeight:700,marginLeft:2}}>{inboxUnreadCount}</span>}
           </button>
         ))}
       </div>
@@ -1979,6 +2049,76 @@ export default function App() {
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
         {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
         {tab==='bruno' && isBrunoTab && <BrunoChat session={session} isBruno={isBruno}/>}
+        {tab==='inbox'&&(
+          <div style={{padding:"24px 16px",maxWidth:800,margin:"0 auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h2 style={{margin:0,fontSize:18,fontWeight:700,display:"flex",alignItems:"center",gap:8}}>
+                <Ico d={I.mail} size={18}/> 受信箱
+                {inboxUnreadCount>0&&<span style={{background:'#dc2626',color:'#fff',borderRadius:10,padding:'2px 8px',fontSize:12,fontWeight:700}}>{inboxUnreadCount}件 未読</span>}
+              </h2>
+              <button onClick={fetchInbox}
+                style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#64748b"}}>
+                🔄 更新
+              </button>
+            </div>
+            {inboxLoading?<div style={{textAlign:"center",color:"#94a3b8",padding:40}}>読み込み中…</div>
+            :inboxMessages.length===0?<div style={{textAlign:"center",color:"#94a3b8",padding:40}}>メールはまだありません</div>
+            :<div style={{display:"flex",flexDirection:"column",gap:1}}>
+              {inboxMessages.map(msg=>{
+                const isUnread=!msg.read_at;
+                const isExpanded=inboxExpandedId===msg.id;
+                const attachments=Array.isArray(msg.attachment_names)?msg.attachment_names:[];
+                return(
+                  <div key={msg.id}
+                    onClick={async()=>{
+                      setInboxExpandedId(isExpanded?null:msg.id);
+                      if(isUnread){
+                        await supabase.from('email_inbox')
+                          .update({read_at:new Date().toISOString(),read_by:session.user.email})
+                          .eq('id',msg.id)
+                          .is('read_at',null);
+                        setInboxMessages(prev=>prev.map(m=>m.id===msg.id?{...m,read_at:new Date().toISOString(),read_by:session.user.email}:m));
+                        setInboxUnreadCount(prev=>Math.max(0,prev-1));
+                      }
+                    }}
+                    style={{background:isUnread?'#eff6ff':'#fff',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px',cursor:'pointer',transition:'background .15s'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                          {isUnread&&<span style={{width:8,height:8,borderRadius:4,background:'#2563eb',flexShrink:0}}/>}
+                          <span style={{fontSize:13,fontWeight:isUnread?700:500,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                            {msg.from_name||msg.from_addr||'(差出人不明)'}
+                          </span>
+                        </div>
+                        <div style={{fontSize:13,fontWeight:isUnread?700:400,color:'#334155',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {msg.subject||'(件名なし)'}
+                        </div>
+                      </div>
+                      <div style={{fontSize:11,color:'#94a3b8',whiteSpace:'nowrap',flexShrink:0}}>
+                        {msg.received_at?new Date(msg.received_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}
+                      </div>
+                    </div>
+                    {isExpanded&&(
+                      <div style={{marginTop:12,borderTop:'1px solid #e2e8f0',paddingTop:12}} onClick={e=>e.stopPropagation()}>
+                        <div style={{fontSize:11,color:'#94a3b8',marginBottom:8}}>
+                          From: {msg.from_name?`${msg.from_name} <${msg.from_addr}>`:msg.from_addr} → {msg.to_addr}
+                        </div>
+                        <pre style={{fontSize:13,color:'#334155',whiteSpace:'pre-wrap',wordBreak:'break-word',margin:0,fontFamily:'inherit',lineHeight:1.6,maxHeight:400,overflow:'auto'}}>
+                          {msg.body_text||'(本文なし)'}
+                        </pre>
+                        {attachments.length>0&&(
+                          <div style={{marginTop:10,fontSize:12,color:'#64748b'}}>
+                            📎 添付: {attachments.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>}
+          </div>
+        )}
         {tab==='knowledge'&&(
           <div style={{padding:"24px 16px",maxWidth:800,margin:"0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
