@@ -1135,6 +1135,22 @@ export default function App() {
     } catch (e) { /* Autoplay policy — silent until user interaction */ }
   };
 
+  const linkifyText = (text) => {
+    if (!text) return '(本文なし)';
+    const urlRe = /https?:\/\/[^\s\u3000-\u9FFF\uFF00-\uFFEF)）」』】。、，,]+/g;
+    const parts = [];
+    let last = 0;
+    let m;
+    while ((m = urlRe.exec(text)) !== null) {
+      if (m.index > last) parts.push(text.slice(last, m.index));
+      const url = m[0].replace(/[.,;:!?]+$/, '');
+      parts.push(<a key={m.index} href={url} target="_blank" rel="noopener noreferrer" style={{color:'#2563eb',textDecoration:'underline'}} onClick={e=>e.stopPropagation()}>{url}</a>);
+      last = m.index + url.length;
+    }
+    if (last < text.length) parts.push(text.slice(last));
+    return parts;
+  };
+
   const fetchInbox = async () => {
     setInboxLoading(true);
     try {
@@ -2127,7 +2143,7 @@ export default function App() {
                           From: {msg.from_name?`${msg.from_name} <${msg.from_addr}>`:msg.from_addr} → {msg.to_addr}
                         </div>
                         <pre style={{fontSize:13,color:'#334155',whiteSpace:'pre-wrap',wordBreak:'break-word',margin:0,fontFamily:'inherit',lineHeight:1.6,maxHeight:400,overflow:'auto',textAlign:'left'}}>
-                          {msg.body_text||'(本文なし)'}
+                          {linkifyText(msg.body_text)}
                         </pre>
                         {attachments.length>0&&(
                           <div style={{marginTop:10,fontSize:12,color:'#64748b'}}>
