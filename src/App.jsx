@@ -1117,16 +1117,21 @@ export default function App() {
   const playInboxBeep = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 880;
-      osc.type = 'sine';
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.3);
+      const notes = [523, 659, 784]; // C5→E5→G5 上昇アルペジオ
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        const t = ctx.currentTime + i * 0.2;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.6, t + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        osc.start(t);
+        osc.stop(t + 0.35);
+      });
     } catch (e) { /* Autoplay policy — silent until user interaction */ }
   };
 
@@ -2101,7 +2106,7 @@ export default function App() {
                     }}
                     style={{background:isUnread?'#eff6ff':'#fff',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px',cursor:'pointer',transition:'background .15s'}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
-                      <div style={{flex:1,minWidth:0}}>
+                      <div style={{flex:1,minWidth:0,textAlign:'left'}}>
                         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                           {isUnread&&<span style={{width:8,height:8,borderRadius:4,background:'#2563eb',flexShrink:0}}/>}
                           <span style={{fontSize:13,fontWeight:isUnread?700:500,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -2117,11 +2122,11 @@ export default function App() {
                       </div>
                     </div>
                     {isExpanded&&(
-                      <div style={{marginTop:12,borderTop:'1px solid #e2e8f0',paddingTop:12}} onClick={e=>e.stopPropagation()}>
-                        <div style={{fontSize:11,color:'#94a3b8',marginBottom:8}}>
+                      <div style={{marginTop:12,borderTop:'1px solid #e2e8f0',paddingTop:12,textAlign:'left'}} onClick={e=>e.stopPropagation()}>
+                        <div style={{fontSize:11,color:'#94a3b8',marginBottom:8,textAlign:'left'}}>
                           From: {msg.from_name?`${msg.from_name} <${msg.from_addr}>`:msg.from_addr} → {msg.to_addr}
                         </div>
-                        <pre style={{fontSize:13,color:'#334155',whiteSpace:'pre-wrap',wordBreak:'break-word',margin:0,fontFamily:'inherit',lineHeight:1.6,maxHeight:400,overflow:'auto'}}>
+                        <pre style={{fontSize:13,color:'#334155',whiteSpace:'pre-wrap',wordBreak:'break-word',margin:0,fontFamily:'inherit',lineHeight:1.6,maxHeight:400,overflow:'auto',textAlign:'left'}}>
                           {msg.body_text||'(本文なし)'}
                         </pre>
                         {attachments.length>0&&(
