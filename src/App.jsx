@@ -1157,7 +1157,9 @@ export default function App() {
       const { data, error } = await supabase
         .from('email_inbox')
         .select('*')
-        .order('received_at', { ascending: false });
+        .is('deleted_at', null)
+        .order('received_at', { ascending: false })
+        .limit(100);
       if (error) { console.error('email_inbox fetch error', error); return; }
       setInboxMessages(data || []);
       setInboxUnreadCount((data || []).filter(m => !m.read_at).length);
@@ -1173,7 +1175,8 @@ export default function App() {
         const { count, error } = await supabase
           .from('email_inbox')
           .select('id', { count: 'exact', head: true })
-          .is('read_at', null);
+          .is('read_at', null)
+          .is('deleted_at', null);
         if (!error && count !== null) setInboxUnreadCount(count);
       } catch (e) { console.error('inbox unread count error', e); }
     })();
@@ -2133,8 +2136,18 @@ export default function App() {
                           {msg.subject||'(件名なし)'}
                         </div>
                       </div>
-                      <div style={{fontSize:11,color:'#94a3b8',whiteSpace:'nowrap',flexShrink:0}}>
-                        {msg.received_at?new Date(msg.received_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                        <span style={{fontSize:11,color:'#94a3b8',whiteSpace:'nowrap'}}>
+                          {msg.received_at?new Date(msg.received_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}
+                        </span>
+                        <button onClick={async(e)=>{
+                          e.stopPropagation();
+                          if(!confirm('このメールを削除しますか？'))return;
+                          const{error}=await supabase.from('email_inbox').update({deleted_at:new Date().toISOString(),deleted_by:session.user.email}).eq('id',msg.id);
+                          if(error){console.error('inbox delete error',error);alert('削除に失敗しました');return;}
+                          setInboxMessages(prev=>prev.filter(m=>m.id!==msg.id));
+                          if(isUnread)setInboxUnreadCount(prev=>Math.max(0,prev-1));
+                        }} style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:14,color:'#94a3b8',borderRadius:4}} title="削除">🗑</button>
                       </div>
                     </div>
                     {isExpanded&&(
