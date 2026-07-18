@@ -1538,11 +1538,13 @@ export default function App() {
       const mailUrl = `${import.meta.env.VITE_WORKER_URL}/send-faq-reply`;
       console.log('[mail] POST先URL:', mailUrl);
       try {
+        const { data: _sd } = await supabase.auth.getSession();
+        const _token = _sd?.session?.access_token;
         const mailRes = await fetch(mailUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
+            'Authorization': `Bearer ${_token}`,
           },
           body: JSON.stringify({
             email: kData.structured_data.email,
@@ -7835,8 +7837,10 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     if (syncing) return;
     setSyncing(true);
     try {
+      const { data: _sd2 } = await supabase.auth.getSession();
+      const _token2 = _sd2?.session?.access_token;
       const res = await fetch("https://olq-sync-worker.y-inoue-567.workers.dev/", {
-        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        headers: { 'Authorization': `Bearer ${_token2}` }
       });
       const msg = await res.text();
       alert(msg);
