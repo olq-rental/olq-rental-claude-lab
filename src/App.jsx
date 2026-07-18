@@ -4409,14 +4409,16 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                                               amount:0,
                                               insuranceAmount:0,
                                             };
-                                            if(continuingRec) await onDeleteRec(continuingRec.id);
-                                            const newRecords=(records||[]).map(x=>x.id===r.id?restoredOriginal:x);
-                                            await onSave(newRecords,{
-                                              action:"暫定締め取消",
-                                              name:r.deliveryNo||"",
-                                              detail:continuingRec?`継続レコード ${continuingRec.deliveryNo||""} を削除`:"継続レコードなし"
-                                            },[restoredOriginal]);
-                                            showToast("暫定締めを取り消しました");
+                                            try {
+                                              if(continuingRec) await onDeleteRec(continuingRec.id);
+                                              const newRecords=(records||[]).map(x=>x.id===r.id?restoredOriginal:x);
+                                              await onSave(newRecords,{
+                                                action:"暫定締め取消",
+                                                name:r.deliveryNo||"",
+                                                detail:continuingRec?`継続レコード ${continuingRec.deliveryNo||""} を削除`:"継続レコードなし"
+                                              },[restoredOriginal]);
+                                              showToast("暫定締めを取り消しました");
+                                            } catch(e) { console.error("暫定締め取消 error",e); setSaveErrorModal("暫定締め取消の保存に失敗しました。通信とログイン状態を確認してください。"); }
                                           }} style={{...S.ib("#0891b2"),marginRight:4,fontSize:10}}>⏪ 暫定締め取消</button>
                                         )}
                                         {r.returnDate&&<span style={{fontSize:10,color:"#7c3aed",marginRight:4,whiteSpace:"nowrap"}}>{r.isProvisionalClose?"⚠️ 暫定締め:":"計上終了:"}{r.returnDate}</span>}
@@ -5651,7 +5653,7 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                   showToast("延長案件を作成しました");
                 } catch(e) {
                   console.error("extModal2 save error",e);
-                  setSaveErrorModal("延長案件の保存に失敗しました。通信とログイン状態を確認して、もう一度お試しください。");
+                  showToast("延長案件の保存に失敗しました。通信を確認して再試行してください。",false);
                 }
               }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
               <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
