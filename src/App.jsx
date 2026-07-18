@@ -1542,7 +1542,7 @@ export default function App() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_ADMIN_SECRET}`,
+            'Authorization': `Bearer ${session?.access_token}`,
           },
           body: JSON.stringify({
             email: kData.structured_data.email,
@@ -7836,7 +7836,7 @@ function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts})
     setSyncing(true);
     try {
       const res = await fetch("https://olq-sync-worker.y-inoue-567.workers.dev/", {
-        headers: { 'Authorization': `Bearer ${import.meta.env.VITE_ADMIN_SECRET}` }
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const msg = await res.text();
       alert(msg);
