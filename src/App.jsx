@@ -1647,14 +1647,14 @@ export default function App() {
     if (logInfo) await logActivity(logInfo.action, 'customer', logInfo.name, logInfo.detail||"");
   };
   const saveRec = async (n, logInfo, changed) => {
-    setRecords(n);
     const toUpsert = changed || n;
     const rows = toUpsert.map(item => ({ id: String(item.id), data: item, updated_at: new Date().toISOString() }));
     if (rows.length > 0) {
       const { error } = await supabase.from('cases').upsert(rows, { onConflict: 'id' });
-      if (error) { console.error('saveRec upsert error', error); alert('保存に失敗しました: ' + error.message); return; }
+      if (error) { console.error('saveRec upsert error', error); throw new Error(error.message); }
     }
-    if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||"");
+    setRecords(n);
+    try { if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||""); } catch(e) { console.error('logActivity error (ignored)', e); }
   };
   const deleteCust = async (custId, custName) => {
     const filtered = customers.filter(x => x.id !== custId);
@@ -1663,9 +1663,10 @@ export default function App() {
     await logActivity("削除", "customer", custName, "顧客を削除しました");
   };
   const deleteRec = async (id, logInfo) => {
+    const { error } = await supabase.from('cases').delete().eq('id', String(id));
+    if (error) { console.error('deleteRec error', error); throw new Error(error.message); }
     setRecords(prev => prev.filter(x => x.id !== id));
-    await supabase.from('cases').delete().eq('id', String(id));
-    if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||"");
+    try { if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||""); } catch(e) { console.error('logActivity error (ignored)', e); }
   };
   const saveInv  = async n => { setInvoiceData(n); await sSet(K.inv, n); };
 
@@ -1928,7 +1929,7 @@ export default function App() {
           <div style={{background:"#fff",borderRadius:"50%",width:25,height:25,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",padding:3}}>
             <img src="/olq-logo.png" alt="olq" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           </div>
-          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.82</span>
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:2}}>オルク レンタル伝票管理</span><span style={{fontSize:10,color:"#94a3b8",marginLeft:8,fontWeight:400}}>Ver.1.83</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {isAdmin && <button onClick={()=>setShowImport(true)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fbbf24",borderRadius:5,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📥 データ移行</button>}
@@ -3247,6 +3248,8 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
   const [lineSearches,setLineSearches]=useState([""]);
   const [custSearch,setCustSearch]=useState(""); // 顧客絞り込み入力
   const [deleteModal,setDeleteModal]=useState(null);
+  const [saveErrorModal,setSaveErrorModal]=useState(null);
+  const [recSaving,setRecSaving]=useState(false);
   const [monthlyNameModal,setMonthlyNameModal]=useState(null);
 
   // 旧データ互換
@@ -3385,6 +3388,7 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
   },[form.adjustReason]);
 
   const submit=async()=>{
+    if(recSaving)return;
     if(!form.customerId){showToast("顧客は必須です",false);return;}
     if(form.billingType==="daily"&&form.adjustDays!==""&&form.adjustDays!==undefined){
       if(!Number(form.adjustDays)||Number(form.adjustDays)<1){showToast("調整日数を1以上で入力してください",false);return;}
@@ -3444,13 +3448,16 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
       if(origForExt.isProvisionalClose) rec.isProvisionalClose = true;
     }
     const custName=customers.find(x=>x.id===form.customerId)?.name||"";
+    setRecSaving(true);
     try {
       await onSave(editId?records.map(r=>r.id===editId?rec:r):[rec,...records],{action:editId?"更新":"作成",name:form.projectName||custName,detail:custName},[rec]);
     } catch(e) {
-      showToast("保存に失敗しました。もう一度登録ボタンを押してください。",false);
       console.error("save error",e);
+      setSaveErrorModal("保存に失敗しました。この伝票はまだ保存されていません。\n通信とログイン状態を確認して、もう一度「登録」を押してください。");
+      setRecSaving(false);
       return;
     }
+    setRecSaving(false);
     const wasNew=!editId;
     showToast(editId?"更新しました":"登録しました");setForm(E);setEditId(null);setOpen(false);setLineSearches([""]);
     if(wasNew&&rec){
@@ -3818,8 +3825,8 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
             <textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...S.inp,resize:"vertical"}} rows={5} placeholder="案件全体に関する備考（改行可）"/>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16}}>
-            <button onClick={submit} style={S.btn("#0f172a")}>{editId?"更新":"登録"}</button>
-            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setLineSearches([""]);}} style={S.btn("#94a3b8")}>キャンセル</button>
+            <button onClick={submit} disabled={recSaving} style={{...S.btn("#0f172a"),opacity:recSaving?0.5:1}}>{recSaving?"保存中…":(editId?"更新":"登録")}</button>
+            <button onClick={()=>{setOpen(false);setEditId(null);setForm(E);setLineSearches([""]);}} disabled={recSaving} style={S.btn("#94a3b8")}>キャンセル</button>
           </div>
         </div>
       )}
@@ -3848,9 +3855,20 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
             <div style={{fontSize:13,color:"#374151",marginBottom:6}}>顧客：{deleteModal.custName}</div>
             <div style={{fontSize:13,color:"#374151",marginBottom:20}}>案件名：{deleteModal.record.projectName||"（案件名なし）"}</div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={async()=>{const r=deleteModal.record;setDeleteModal(null);await onDeleteRec(r.id,{action:"削除",name:r.projectName||deleteModal.custName});showToast("削除しました");}} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>削除する</button>
+              <button onClick={async()=>{const r=deleteModal.record;try{await onDeleteRec(r.id,{action:"削除",name:r.projectName||deleteModal.custName});setDeleteModal(null);showToast("削除しました");}catch(e){console.error("delete error",e);setSaveErrorModal("削除に失敗しました。通信とログイン状態を確認してください。");}}} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>削除する</button>
               <button onClick={()=>setDeleteModal(null)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
             </div>
+          </div>
+        </div>
+      )}
+      {saveErrorModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:340,maxWidth:420,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#991b1b",display:"flex",alignItems:"center",gap:8}}>
+              <Ico d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" size={18} color="#991b1b"/>保存エラー
+            </div>
+            <div style={{fontSize:13,color:"#374151",lineHeight:1.7,whiteSpace:"pre-wrap",marginBottom:20}}>{saveErrorModal}</div>
+            <button onClick={()=>setSaveErrorModal(null)} style={{width:"100%",background:"#0f172a",color:"#fff",border:"none",borderRadius:7,padding:"10px 0",fontSize:13,fontWeight:600,cursor:"pointer"}}>閉じる</button>
           </div>
         </div>
       )}
@@ -4132,7 +4150,9 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                     billingDays:undefined,
                     createdAt:createdAtStr,
                   };
-                  await onSave([...records.map(x=>x.id===targetRec.id?updatedOriginal:x),continuingRec],null,[updatedOriginal,continuingRec]);
+                  try {
+                    await onSave([...records.map(x=>x.id===targetRec.id?updatedOriginal:x),continuingRec],null,[updatedOriginal,continuingRec]);
+                  } catch(e) { console.error("return+continue save error",e); setSaveErrorModal("返却確定の保存に失敗しました。通信とログイン状態を確認して、もう一度お試しください。"); return; }
                   showToast("返却確定・継続分("+newDeliveryNo+")を作成しました");
                 } else {
                   const updatedLines=allLinesInOrder;
@@ -4146,7 +4166,9 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                   },0);
                   const newInsurance=targetRec.includeInsurance?Math.round(newAmount*0.1):0;
                   const updatedRec={...records.find(x=>x.id===returnModal.id),lines:updatedLines,returnDate:allClosed?returnModal.billingEndDate:records.find(x=>x.id===returnModal.id)?.returnDate,actualReturnDate:allClosed?returnModal.returnDate:records.find(x=>x.id===returnModal.id)?.actualReturnDate,endDate:allClosed?returnModal.billingEndDate:records.find(x=>x.id===returnModal.id)?.endDate,endDateOpen:!allClosed,days:allClosed?calcDays(records.find(x=>x.id===returnModal.id)?.startDate,returnModal.billingEndDate):records.find(x=>x.id===returnModal.id)?.days,billingDays:allClosed?calcBillingDays(calcDays(records.find(x=>x.id===returnModal.id)?.startDate,returnModal.billingEndDate)):records.find(x=>x.id===returnModal.id)?.billingDays,amount:newAmount,insuranceAmount:newInsurance};
-                  await onSave(records.map(x=>x.id===returnModal.id?updatedRec:x),null,[updatedRec]);
+                  try {
+                    await onSave(records.map(x=>x.id===returnModal.id?updatedRec:x),null,[updatedRec]);
+                  } catch(e) { console.error("return save error",e); setSaveErrorModal("計上終了日の保存に失敗しました。通信とログイン状態を確認して、もう一度お試しください。"); return; }
                   showToast("計上終了日を設定しました");
                 }
                 setReturnModal(null);
@@ -4218,8 +4240,8 @@ function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onG
                   setExtModal(null);
                   showToast("延長案件を作成しました");
                 } catch(e) {
-                  showToast("保存に失敗しました。もう一度お試しください。",false);
                   console.error("extModal save error",e);
+                  setSaveErrorModal("延長案件の保存に失敗しました。通信とログイン状態を確認して、もう一度お試しください。");
                 }
               }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
               <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
@@ -5628,8 +5650,8 @@ function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, au
                   setExtModal(null);
                   showToast("延長案件を作成しました");
                 } catch(e) {
-                  showToast("保存に失敗しました。もう一度お試しください。",false);
                   console.error("extModal2 save error",e);
+                  setSaveErrorModal("延長案件の保存に失敗しました。通信とログイン状態を確認して、もう一度お試しください。");
                 }
               }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>延長案件を作成</button>
               <button onClick={()=>setExtModal(null)} style={{background:"none",border:"1.5px solid #e2e8f0",borderRadius:8,padding:"10px 20px",fontSize:13,color:"#64748b",cursor:"pointer"}}>キャンセル</button>
