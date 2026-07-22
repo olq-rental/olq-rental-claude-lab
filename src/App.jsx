@@ -4,6 +4,11 @@ import { ALL_PRODUCTS, PRESET_CUSTOMERS, K, calcDays } from './lib/constants';
 import { AI_SOURCE_MAP, aiSourceMeta, taxIn, taxEx, fmt, fmtD, uid, today } from './lib/format';
 import { expandMonthlyOpenRecord, applyBillingTable, calcBillingDays, chainBillingDays, chainBillingDetail, buildChainBlocks, calcExpectedAmount, resolvePrice, spName, syncSPs, getLines } from './lib/billing';
 import { genReceiptNo, makeExtFlatItems, buildExtLines, genDeliveryNo, downloadPrintHTML } from './lib/print';
+import { PwInput } from './components/PwInput';
+import { SearchableSelect } from './components/SearchableSelect';
+import { Ico, I } from './components/Ico';
+import { Toast } from './components/Toast';
+import { AdjAmountInput } from './components/AdjAmountInput';
 
 
 const KNOWLEDGE_TEMPLATES = [
@@ -20,26 +25,6 @@ const SCENARIO_TAGS = [
   "屋外撮影","暗所撮影","長時間収録","雨天対応","主観視点の撮影",
   "車載撮影","水中撮影","レンタルフロー",
 ];
-
-// シンプルなパスワード入力コンポーネント
-function PwInput({onOk, onCancel}) {
-  const [v, setV] = React.useState("");
-  return (
-    <div>
-      <input type="password" value={v} onChange={e=>setV(e.target.value)}
-        onKeyDown={e=>{if(e.key==="Enter")onOk(v);if(e.key==="Escape")onCancel();}}
-        placeholder="パスワードを入力" autoFocus
-        style={{width:"100%",border:"1px solid #e2e8f0",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:10,boxSizing:"border-box"}}/>
-      <div style={{display:"flex",gap:8}}>
-        <button onClick={()=>onOk(v)}
-          style={{flex:1,background:"#0f172a",color:"#fff",border:"none",borderRadius:6,padding:"8px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>確認</button>
-        <button onClick={onCancel}
-          style={{flex:1,background:"#e2e8f0",color:"#475569",border:"none",borderRadius:6,padding:"8px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
-      </div>
-    </div>
-  );
-}
-
 
 // ---- データストア（Supabase版）----
 const _TABLE = { [K.p]:'products', [K.c]:'customers', [K.r]:'cases' };
@@ -119,81 +104,6 @@ async function updateLockPw(newPw) {
 }
 
 
-// 検索絞り込み付きセレクト
-const _INP={width:"100%",padding:"8px 11px",border:"1.5px solid #e2e8f0",borderRadius:7,fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"inherit",background:"#fff"};
-function SearchableSelect({value, onChange, options, placeholder="選択...", style}){
-  const [q,setQ]=useState("");
-  const [open,setOpen]=useState(false);
-  const ref=useRef(null);
-  const filtered=q?options.filter(o=>o.label.toLowerCase().includes(q.toLowerCase())):options;
-  const selected=options.find(o=>o.value===value);
-  useEffect(()=>{
-    const handler=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",handler);
-    return()=>document.removeEventListener("mousedown",handler);
-  },[]);
-  return(
-    <div ref={ref} style={{position:"relative",...style}}>
-      <div
-        onClick={()=>{setOpen(v=>!v);setQ("");}}
-        style={{..._INP,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",userSelect:"none"}}
-      >
-        <span style={{color:selected?"#0f172a":"#94a3b8",fontSize:13}}>{selected?selected.label:placeholder}</span>
-        <span style={{color:"#94a3b8",fontSize:10}}>▼</span>
-      </div>
-      {open&&(
-        <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:200,background:"#fff",border:"1.5px solid #2563eb",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",overflow:"hidden"}}>
-          <input
-            autoFocus
-            value={q}
-            onChange={e=>setQ(e.target.value)}
-            placeholder="絞り込み..."
-            style={{width:"100%",padding:"8px 11px",border:"none",borderBottom:"1px solid #e2e8f0",fontSize:13,outline:"none",boxSizing:"border-box"}}
-          />
-          <div style={{maxHeight:220,overflowY:"auto"}}>
-            {filtered.length===0
-              ?<div style={{padding:"10px 14px",fontSize:12,color:"#94a3b8"}}>該当なし</div>
-              :filtered.map(o=>(
-                <div
-                  key={o.value}
-                  onClick={()=>{onChange(o.value);setOpen(false);setQ("");}}
-                  style={{padding:"8px 14px",fontSize:13,cursor:"pointer",background:o.value===value?"#eff6ff":"#fff",color:o.value===value?"#2563eb":"#0f172a",fontWeight:o.value===value?700:400}}
-                  onMouseEnter={e=>e.currentTarget.style.background=o.value===value?"#dbeafe":"#f8fafc"}
-                  onMouseLeave={e=>e.currentTarget.style.background=o.value===value?"#eff6ff":"#fff"}
-                >
-                  {o.label}
-                </div>
-              ))
-            }
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const Ico = ({d,size=16,color}) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke={color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
-    <path d={d}/>
-  </svg>
-);
-const I = {
-  plus:"M12 5v14M5 12h14",
-  edit:"M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z",
-  trash:"M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6",
-  print:"M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z",
-  users:"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
-  box:"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z",
-  file:"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
-  check:"M20 6L9 17l-5-5",
-  x:"M18 6L6 18M6 6l12 12",
-  search:"M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0",
-  star:"M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
-  list:"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
-  mail:"M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6",
-};
-
 const S = {
   lbl:{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4},
   inp:{width:"100%",padding:"8px 11px",border:"1.5px solid #e2e8f0",borderRadius:7,fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"inherit",background:"#fff"},
@@ -202,15 +112,6 @@ const S = {
   ib:c=>({background:"none",border:`1.5px solid ${c}`,color:c,borderRadius:6,padding:"3px 7px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:3,fontSize:12,whiteSpace:"nowrap"}),
   card:{background:"#fff",borderRadius:12,boxShadow:"0 2px 12px rgba(0,0,0,0.07)",overflow:"hidden"},
 };
-
-function Toast({t}) {
-  if (!t) return null;
-  return (
-    <div style={{position:"fixed",top:62,right:16,zIndex:9999,background:t.ok?"#166534":"#991b1b",color:"#fff",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:600,boxShadow:"0 6px 24px rgba(0,0,0,.3)",display:"flex",alignItems:"center",gap:8,maxWidth:380}}>
-      <Ico d={t.ok?I.check:"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"} size={14}/>{t.msg}
-    </div>
-  );
-}
 
 
 
@@ -4014,27 +3915,6 @@ function ReceiptPage({r, g, no, isLast, forPrint}){
     </div>
   );
 }
-
-function AdjAmountInput({value,onChange,disabled,style}){
-  const [str,setStr]=React.useState(value===0?"":String(value));
-  React.useEffect(()=>{setStr(value===0?"":String(value));},[value]);
-  return <input
-    type="text" inputMode="numeric"
-    value={str}
-    style={style}
-    disabled={disabled}
-    onChange={e=>{
-      const v=e.target.value.replace(/[^0-9\-]/g,"");
-      const raw=v.startsWith("-")?"-"+v.slice(1).replace(/-/g,""):v.replace(/-/g,"");
-      setStr(raw);
-      if(raw===""){onChange(0);return;}
-      if(raw==="-")return;
-      const num=Number(raw);
-      if(!isNaN(num))onChange(num);
-    }}
-  />;
-}
-
 
 // =========================================================
 // DeliveryTab（納品書タブ）
