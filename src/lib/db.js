@@ -6,3 +6,9 @@ export async function nextDeliveryNo() {
   if (error) { console.error('nextDeliveryNo error', error); return 'ERR'; }
   return `${yy}-${String(data).padStart(5,'0')}`;
 }
+
+export async function verifyPw(inputPw) {
+  const { data, error } = await supabase.rpc('verify_lock_password', { input_pw: inputPw });
+  if (error) { console.error('verifyPw error', error); return false; }
+  return !!data;
+}
