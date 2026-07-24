@@ -17,6 +17,7 @@ import { DeliveryTab } from './components/DeliveryTab';
 import { CustomersTab } from './components/CustomersTab';
 import { InvoiceTab } from './components/InvoiceTab';
 import { RecordsTab } from './components/RecordsTab';
+import { CouncilCard } from './components/CouncilCard';
 
 
 const KNOWLEDGE_TEMPLATES = [
@@ -992,6 +993,7 @@ export default function App() {
     {id:"knowledge",label:"📖 オルク辞典"},
     {id:"inbox",    label:"受信箱",     icon:I.mail},
     {id:"bruno",    label:"Bruno"},
+    {id:"council",  label:"評議会"},
   ];
 
   // ナレッジ質問文の自動生成
@@ -1216,7 +1218,7 @@ export default function App() {
       })()}
 
       <div className="app-tabs" style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"0 18px",display:"flex"}}>
-        {TABS.filter(t=> t.id!=='bruno' || isBrunoTab).map(t=>(
+        {TABS.filter(t=> (t.id!=='bruno' || isBrunoTab) && (t.id!=='council' || isOwner)).map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{background:"none",border:"none",padding:"13px 16px",fontSize:13,fontWeight:600,cursor:"pointer",color:tab===t.id?"#2563eb":"#64748b",borderBottom:tab===t.id?"2px solid #2563eb":"2px solid transparent",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
             {t.icon&&<Ico d={t.icon} size={14} color={tab===t.id?"#2563eb":"#64748b"}/>}{t.label}
@@ -1255,6 +1257,7 @@ export default function App() {
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
         {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
         {tab==='bruno' && isBrunoTab && <BrunoChat session={session} isBruno={isBruno}/>}
+        {tab==='council' && isOwner && <CouncilCard showToast={showToast}/>}
         {tab==='inbox'&&(
           <div style={{padding:"24px 16px",maxWidth:800,margin:"0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
