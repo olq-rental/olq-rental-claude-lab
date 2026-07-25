@@ -10,6 +10,7 @@ export function CouncilCard({ showToast }) {
   const [sending, setSending] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [aiSending, setAiSending] = useState(false);
 
   // 週次一覧の取得
   const fetchWeeks = async () => {
@@ -56,6 +57,40 @@ export function CouncilCard({ showToast }) {
       showToast("送信失敗: " + e.message, false);
     }
     setSending(false);
+  };
+
+  // AI応答生成（/council-respond JWT認証）
+  const handleAiRespond = async () => {
+    if (aiSending || !selId) return;
+    setAiSending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const tok = session?.access_token;
+      if (!tok) {
+        showToast("ログインが必要です", false);
+        setAiSending(false);
+        return;
+      }
+      const res = await fetch(`${import.meta.env.VITE_WORKER_URL}/council-respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+        body: JSON.stringify({ council_id: selId }),
+      });
+      if (!res.ok) {
+        let errMsg;
+        try { const j = await res.json(); errMsg = j.error || res.statusText; } catch { errMsg = await res.text().catch(() => res.statusText); }
+        showToast(`AI応答失敗 (${res.status}): ${errMsg}`, false);
+        console.error('[council-respond]', res.status, errMsg);
+        setAiSending(false);
+        return;
+      }
+      await fetchReplies(selId);
+      showToast("AI応答を生成しました");
+    } catch (e) {
+      showToast("AI応答エラー: " + e.message, false);
+      console.error('[council-respond] error:', e);
+    }
+    setAiSending(false);
   };
 
   const fmtTime = (iso) => {
@@ -154,9 +189,16 @@ export function CouncilCard({ showToast }) {
           </button>
           <button onClick={() => setText(t => "問い直し: " + t)} style={S.btn("#dc2626", true)}>前提が違う</button>
           <button onClick={() => setText(t => "⑦-1: " + t)} style={S.btn("#2563eb", true)}>⑦へ返信</button>
+          <button
+            onClick={handleAiRespond}
+            disabled={aiSending || !selId || isIncomplete}
+            style={{ ...S.btn("#7c3aed"), opacity: aiSending || !selId || isIncomplete ? 0.5 : 1, cursor: aiSending || !selId || isIncomplete ? "not-allowed" : "pointer" }}
+          >
+            {aiSending ? "生成中..." : "AIに返事をもらう"}
+          </button>
         </div>
         <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 10 }}>
-          ※ 対話ターン: 評議会の応答生成は当面ターミナルの curl（/council-respond）で実行。上の「更新」ボタンでスレッドを再取得できます。
+          ※ 対話ターン: 「AIに返事をもらう」ボタンで評議会の応答を生成できます。curl（/council-respond）も引き続き利用可能です。
         </div>
       </div>
     </div>
