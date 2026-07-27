@@ -4,7 +4,7 @@ import { S } from '../lib/ui';
 import { fmt, taxEx, uid } from '../lib/format';
 import { Ico, I } from './Ico';
 
-export function ProductsTab({products,customers,onSave,saveCust,showToast,allProducts}){
+export function ProductsTab({products,customers,activeCustomers,onSave,saveCust,showToast,allProducts}){
   const E={brand:"",name:"",priceIn:"",memo:"",noBillingDiscount:false,usageMemo:"",cautions:"",combinations:[],faqs:[],photos:[],batteryLife:"",ec_url:""};
   const [form,setForm]=useState(E);
   const [profileTab,setProfileTab]=useState("basic");
@@ -35,7 +35,7 @@ export function ProductsTab({products,customers,onSave,saveCust,showToast,allPro
   const [spCid,setSpCid]=useState("");
   const [spPrice,setSpPrice]=useState("");
   const [prodSpQ,setProdSpQ]=useState("");
-  const filteredProdCusts=prodSpQ.length>=1?customers.filter(c=>c.name.includes(prodSpQ)):[];
+  const filteredProdCusts=prodSpQ.length>=1?activeCustomers.filter(c=>c.name.includes(prodSpQ)):[];
   const [q,setQ]=useState("");
   const [syncing,setSyncing]=useState(false);
   const [prodKnowledge, setProdKnowledge] = useState([]);
@@ -350,11 +350,11 @@ export function ProductsTab({products,customers,onSave,saveCust,showToast,allPro
           <input value={prodSpQ} onChange={e=>setProdSpQ(e.target.value)} placeholder="顧客名で検索（1文字以上入力）..." style={{...S.inp,marginBottom:4}}/>
           {prodSpQ.length>=1?(
             <select value={spCid} onChange={e=>setSpCid(e.target.value)} style={{...S.inp,marginBottom:6}} size={Math.min(6,filteredProdCusts.length+1)}>
-              <option value="">検索結果: {filteredProdCusts.length}件（全{customers.length}件中）</option>
+              <option value="">検索結果: {filteredProdCusts.length}件（全{activeCustomers.length}件中）</option>
               {filteredProdCusts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           ):(
-            <div style={{fontSize:11,color:"#94a3b8",padding:"8px 0"}}>🔍 顧客名を入力すると全{customers.length}社から検索できます</div>
+            <div style={{fontSize:11,color:"#94a3b8",padding:"8px 0"}}>🔍 顧客名を入力すると全{activeCustomers.length}社から検索できます</div>
           )}
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>

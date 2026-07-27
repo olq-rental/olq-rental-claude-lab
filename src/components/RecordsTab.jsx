@@ -9,7 +9,7 @@ import { Ico, I } from './Ico';
 import { S } from '../lib/ui';
 import { verifyPw, nextDeliveryNo } from '../lib/db';
 
-export function RecordsTab({records,customers,products,onSave,onDeleteRec,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ,session}){
+export function RecordsTab({records,customers,activeCustomers,products,onSave,onDeleteRec,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ,session}){
   // 締め済みキーセット（customerId||projectName||month 完全一致）
   const lockedKeys = new Set(
     Object.entries(invoiceData||{}).filter(([,d])=>d.status==="locked").map(([k])=>k)
@@ -307,7 +307,7 @@ export function RecordsTab({records,customers,products,onSave,onDeleteRec,showTo
               <SearchableSelect
                 value={form.customerId}
                 onChange={v=>setForm(f=>({...f,customerId:v,projectName:"",projectDetail:""}))}
-                options={customers.map(c=>{const k=Number(c.discountRate)||0;return {value:c.id,label:c.name+(k>0&&k<10?` (${k}掛)`:"")};})} 
+                options={activeCustomers.map(c=>{const k=Number(c.discountRate)||0;return {value:c.id,label:c.name+(k>0&&k<10?` (${k}掛)`:"")};})}
                 placeholder="顧客を選択..."
               />
             </div>
@@ -1062,7 +1062,7 @@ export function RecordsTab({records,customers,products,onSave,onDeleteRec,showTo
               <div style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",opacity:.4}}><Ico d={I.search} size={13}/></div>
               <input value={fil.q} onChange={e=>setFil(f=>({...f,q:e.target.value}))} placeholder="顧客名・製品名・案件名で検索..." style={{...S.inp,paddingLeft:28}}/>
             </div>
-            <select value={fil.cid} onChange={e=>setFil(f=>({...f,cid:e.target.value}))} style={{...S.inp,width:160}}><option value="">全顧客</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+            <select value={fil.cid} onChange={e=>setFil(f=>({...f,cid:e.target.value}))} style={{...S.inp,width:160}}><option value="">全顧客</option>{activeCustomers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
             <select value={fil.month} onChange={e=>setFil(f=>({...f,month:e.target.value}))} style={{...S.inp,width:120}}><option value="">全期間</option>{mnths.map(m=><option key={m}>{m}</option>)}</select>
             <select value={fil.locked||""} onChange={e=>setFil(f=>({...f,locked:e.target.value}))} style={{...S.inp,width:110}}>
               <option value="">全ステータス</option>

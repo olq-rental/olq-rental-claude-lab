@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { supabase } from '../supabaseClient';
 import { fmt, fmtD, today } from '../lib/format';
 
-export function IncidentsTab({incidents,setIncidents,customers,records,showToast,onGoToDelivery}){
+export function IncidentsTab({incidents,setIncidents,customers,activeCustomers,records,showToast,onGoToDelivery}){
   const today=()=>{const d=new Date();return d.getFullYear()+"-"+(String(d.getMonth()+1).padStart(2,"0"))+"-"+(String(d.getDate()).padStart(2,"0"));};
   const fmt=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY"}).format(n||0);
   const fmtD=s=>s?s.replace(/-/g,"/"):"";
@@ -69,7 +69,7 @@ export function IncidentsTab({incidents,setIncidents,customers,records,showToast
         <input type="text" value={filterCustQ} onChange={e=>setFilterCustQ(e.target.value)} placeholder="顧客名で検索..." style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,minWidth:160}}/>
         <select value={filterCust} onChange={e=>setFilterCust(e.target.value)} style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,minWidth:160}}>
           <option value="">全顧客</option>
-          {customers.filter(c=>!filterCustQ||c.name.includes(filterCustQ)).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          {activeCustomers.filter(c=>!filterCustQ||c.name.includes(filterCustQ)).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <button onClick={openNew} style={{marginLeft:"auto",padding:"7px 18px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontSize:13,fontWeight:600,cursor:"pointer"}}>＋ 新規登録</button>
       </div>
@@ -137,10 +137,10 @@ export function IncidentsTab({incidents,setIncidents,customers,records,showToast
                 <input type="text" value={custQ} onChange={e=>{setCustQ(e.target.value);setForm(f=>({...f,customerId:"",relatedRecordId:""}));setRecQ("");}} placeholder="顧客名で検索..." style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box",marginBottom:6}}/>
                 {custQ&&!form.customerId&&(
                   <div style={{border:"1px solid #e2e8f0",borderRadius:6,maxHeight:160,overflowY:"auto"}}>
-                    {customers.filter(c=>c.name.includes(custQ)).map(c=>(
+                    {activeCustomers.filter(c=>c.name.includes(custQ)).map(c=>(
                       <div key={c.id} onClick={()=>{setForm(f=>({...f,customerId:c.id,relatedRecordId:""}));setCustQ(c.name);setRecQ("");}} style={{padding:"8px 10px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>{c.name}</div>
                     ))}
-                    {customers.filter(c=>c.name.includes(custQ)).length===0&&<div style={{padding:"8px 10px",fontSize:12,color:"#94a3b8"}}>該当なし</div>}
+                    {activeCustomers.filter(c=>c.name.includes(custQ)).length===0&&<div style={{padding:"8px 10px",fontSize:12,color:"#94a3b8"}}>該当なし</div>}
                   </div>
                 )}
                 {form.customerId&&<div style={{fontSize:11,color:"#2563eb",marginTop:2}}>✓ {customers.find(c=>c.id===form.customerId)?.name}</div>}

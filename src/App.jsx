@@ -57,10 +57,11 @@ async function sGet(k) {
   try {
     if (_TABLE[k]) {
       const isProducts = _TABLE[k] === 'products';
-      const selectCols = isProducts ? 'id, data, ec_url' : 'id, data';
+      const isCustomers = _TABLE[k] === 'customers';
+      const selectCols = isProducts ? 'id, data, ec_url' : isCustomers ? 'id, data, deleted_at' : 'id, data';
       const data = await sGetAll(_TABLE[k], selectCols);
       if (!data?.length) return null;
-      return data.map(row => isProducts ? { ...row.data, ec_url: row.ec_url || '' } : row.data);
+      return data.map(row => isProducts ? { ...row.data, ec_url: row.ec_url || '' } : isCustomers ? { ...row.data, deleted_at: row.deleted_at || null } : row.data);
     }
     if (k === K.inv) {
       const data = await sGetAll('invoices', 'id, data, is_locked');
@@ -78,7 +79,11 @@ async function sSet(k, val) {
   try {
     if (_TABLE[k]) {
       if (!Array.isArray(val)) return;
-      const rows = val.map(item => ({ id: String(item.id), data: item, updated_at: new Date().toISOString() }));
+      const isCustomers = _TABLE[k] === 'customers';
+      const rows = val.map(item => {
+        const { deleted_at, ...cleanData } = isCustomers ? item : { deleted_at: undefined, ...item };
+        return { id: String(item.id), data: isCustomers ? cleanData : item, updated_at: new Date().toISOString() };
+      });
       if (rows.length > 0) {
         const { error } = await supabase.from(_TABLE[k]).upsert(rows, { onConflict: 'id' });
         if (error) {
@@ -819,10 +824,15 @@ export default function App() {
     try { if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||""); } catch(e) { console.error('logActivity error (ignored)', e); }
   };
   const deleteCust = async (custId, custName) => {
-    const filtered = customers.filter(x => x.id !== custId);
-    setCustomers(filtered);
-    await supabase.from('customers').delete().eq('id', String(custId));
-    await logActivity("削除", "customer", custName, "顧客を削除しました");
+    const { data, error } = await supabase
+      .from('customers')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', String(custId))
+      .select();
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error('顧客の削除に失敗しました（0件更新）');
+    setCustomers(prev => prev.map(c => c.id === custId ? { ...c, deleted_at: data[0].deleted_at } : c));
+    try { await logActivity("削除", "customer", custName, "顧客をソフト削除しました"); } catch(e) { console.error('logActivity error (ignored)', e); }
   };
   const deleteRec = async (id, logInfo) => {
     const { error } = await supabase.from('cases').delete().eq('id', String(id));
@@ -831,6 +841,8 @@ export default function App() {
     try { if (logInfo) await logActivity(logInfo.action, 'record', logInfo.name, logInfo.detail||""); } catch(e) { console.error('logActivity error (ignored)', e); }
   };
   const saveInv  = async n => { setInvoiceData(n); await sSet(K.inv, n); };
+
+  const activeCustomers = customers.filter(c => !c.deleted_at);
 
   const invoiceGroups = {};
   const _addToGroup = (c, projKey, billingMonth, split, consolidate, entry) => {
@@ -1248,14 +1260,14 @@ export default function App() {
       )}
 
       <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 16px"}}>
-        {tab==="records"   && <RecordsTab   records={records}   customers={customers} products={products} onSave={saveRec} onDeleteRec={deleteRec} showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
-        {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
+        {tab==="records"   && <RecordsTab   records={records}   customers={customers} activeCustomers={activeCustomers} products={products} onSave={saveRec} onDeleteRec={deleteRec} showToast={showToast} onGoToCustomer={(id)=>{setOpenCustomerId(id);setTab("customers");}} onAfterSubmit={(rec)=>{setTab("delivery");if(rec) setAutoOpenDelivery(rec.id);}} invoiceData={invoiceData} globalQ={globalQ} session={session}/>}
+        {tab==="delivery"  && <DeliveryTab  records={records}   customers={customers} activeCustomers={activeCustomers} groups={Object.values(invoiceGroups)} showToast={showToast} globalQ={globalQ} onSave={saveRec} autoOpenRecord={autoOpenDelivery} onClearAutoOpen={()=>setAutoOpenDelivery(null)}/>}
         {tab==="invoice"   && isAdmin && <InvoiceTab groups={Object.values(invoiceGroups)} customers={customers} products={products} onSaveCust={saveCust} invoiceData={invoiceData} onSaveInv={saveInv} showToast={showToast} globalQ={globalQ} records={records} onSaveRec={saveRec} incidents={incidents}/>}
         {tab==="invoice"   && !isAdmin && <div style={{padding:40,textAlign:"center",color:"#94a3b8",fontSize:14}}>請求書タブは管理者のみ閲覧できます。</div>}
-        {tab==="customers" && <CustomersTab customers={customers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
-        {tab==="products"  && <ProductsTab  products={products}  customers={customers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
+        {tab==="customers" && <CustomersTab customers={customers} activeCustomers={activeCustomers} products={products} records={records} onSave={saveCust} onDeleteCust={deleteCust} onLogActivity={logActivity} showToast={showToast} presetCustomers={PRESET_CUSTOMERS} openCustomerId={openCustomerId} onOpenHandled={()=>setOpenCustomerId(null)}/>}
+        {tab==="products"  && <ProductsTab  products={products}  customers={customers} activeCustomers={activeCustomers} onSave={saveProd} saveCust={saveCust} showToast={showToast} allProducts={ALL_PRODUCTS}/>}
         {tab==="actlogs"   && <ActivityLogsTab session={session}/>}
-        {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
+        {tab==="incidents" && <IncidentsTab incidents={incidents} setIncidents={setIncidents} customers={customers} activeCustomers={activeCustomers} records={records} showToast={showToast} onGoToDelivery={(id)=>{setTab("delivery");if(id&&id!=="none")setAutoOpenDelivery(id);}}/>}
         {tab==='bruno' && isBrunoTab && <BrunoChat session={session} isBruno={isBruno}/>}
         {tab==='council' && isOwner && <CouncilCard showToast={showToast}/>}
         {tab==='inbox'&&(

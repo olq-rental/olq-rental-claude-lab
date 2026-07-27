@@ -5,7 +5,7 @@ import { Ico, I } from './Ico';
 import { S } from '../lib/ui';
 import { nextDeliveryNo } from '../lib/db';
 
-export function DeliveryTab({records, customers, groups, showToast, globalQ, onSave, autoOpenRecord, onClearAutoOpen}){
+export function DeliveryTab({records, customers, activeCustomers, groups, showToast, globalQ, onSave, autoOpenRecord, onClearAutoOpen}){
   const [fil, setFil] = useState({q:"", cid:"", month:new Date().toISOString().slice(0,7)});
   const [extModal, setExtModal] = useState(null);
   const [expandedDates, setExpandedDates] = useState({});
@@ -66,7 +66,7 @@ export function DeliveryTab({records, customers, groups, showToast, globalQ, onS
             </div>
             <select value={fil.cid} onChange={e=>setFil(f=>({...f,cid:e.target.value}))} style={{...S.inp,width:170}}>
               <option value="">全顧客</option>
-              {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              {activeCustomers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select value={fil.month} onChange={e=>setFil(f=>({...f,month:e.target.value}))} style={{...S.inp,width:125}}>
               <option value="">全期間</option>

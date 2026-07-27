@@ -340,7 +340,7 @@ function CustomerAnalysis({c, custRecords, products, allRecords=[]}){
   );
 }
 
-export function CustomersTab({customers,products,records,onSave,onDeleteCust,onLogActivity,showToast,presetCustomers,openCustomerId,onOpenHandled}){
+export function CustomersTab({customers,activeCustomers,products,records,onSave,onDeleteCust,onLogActivity,showToast,presetCustomers,openCustomerId,onOpenHandled}){
   const E={name:"",invoiceName:"",zipCode:"",address:"",contact:"",email:"",phone:"",discountRate:"0",paymentCycle:"月末締め 翌々月末日",splitInvoice:true,consolidateMonth:false,notes:"",staff:"",specialPrices:[],projects:[],showDeliveryPrice:false,showDiscountLine:false};
   const [form,setForm]=useState(E);
   const [editId,setEditId]=useState(null);
@@ -695,10 +695,12 @@ export function CustomersTab({customers,products,records,onSave,onDeleteCust,onL
                       <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
                       {(records||[]).filter(r=>r.customerId===editProjModal.id).length===0&&(
                         <button type="button" onClick={async()=>{
-                          await onDeleteCust(editProjModal.id,editProjModal.name);
-                          if(detailId===editProjModal.id)setDetailId(null);
-                          setEditProjModal(null);
-                          showToast("削除しました");
+                          try {
+                            await onDeleteCust(editProjModal.id,editProjModal.name);
+                            if(detailId===editProjModal.id)setDetailId(null);
+                            setEditProjModal(null);
+                            showToast("削除しました");
+                          } catch(e) { showToast("削除失敗: "+e.message,false); }
                         }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
                       )}
                     </div>
@@ -876,7 +878,7 @@ export function CustomersTab({customers,products,records,onSave,onDeleteCust,onL
       )}
       <div style={S.card}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-          <h3 style={{margin:0,fontSize:15,fontWeight:700}}>顧客一覧（{customers.length}社）</h3>
+          <h3 style={{margin:0,fontSize:15,fontWeight:700}}>顧客一覧（{activeCustomers.length}社）</h3>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
             <div style={{display:"flex",gap:2,background:"#f1f5f9",borderRadius:6,padding:2}}>
               {[{k:"name",l:"あいうえお順"},{k:"sales",l:"売上高順"}].map(s=>(
@@ -894,7 +896,7 @@ export function CustomersTab({customers,products,records,onSave,onDeleteCust,onL
           </div>
         </div>
         {(()=>{
-          const fc=customers.filter(c=>!custQ||c.name.toLowerCase().includes(custQ.toLowerCase()));
+          const fc=activeCustomers.filter(c=>!custQ||c.name.toLowerCase().includes(custQ.toLowerCase()));
           const sorted = [...fc].sort((a,b)=>{
             if(sortKey==="sales") return getSales(b.id)-getSales(a.id);
             return a.name.localeCompare(b.name,"ja");
@@ -971,11 +973,12 @@ export function CustomersTab({customers,products,records,onSave,onDeleteCust,onL
                   <button type="button" onClick={()=>setEditProjModal(null)} style={{background:"none",border:"1.5px solid #64748b",color:"#64748b",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>キャンセル</button>
                   {(records||[]).filter(r=>r.customerId===editProjModal.id).length===0&&(
                     <button type="button" onClick={async()=>{
-                      await onSave(customers.filter(x=>x.id!==editProjModal.id));
-                      if(detailId===editProjModal.id)setDetailId(null);
-                      await onLogActivity("削除","customer",editProjModal.name,"顧客を削除しました");
-                      setEditProjModal(null);
-                      showToast("削除しました");
+                      try {
+                        await onDeleteCust(editProjModal.id,editProjModal.name);
+                        if(detailId===editProjModal.id)setDetailId(null);
+                        setEditProjModal(null);
+                        showToast("削除しました");
+                      } catch(e) { showToast("削除失敗: "+e.message,false); }
                     }} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontWeight:700}}>削除する</button>
                   )}
                 </div>
