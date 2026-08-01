@@ -186,7 +186,8 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
     const lastDayNum=new Date(sy,sm,0).getDate();
     const monthEnd=`${sy}-${String(sm).padStart(2,'0')}-${String(lastDayNum).padStart(2,'0')}`;
     let result=filtered.map(g=>({...g,items:[...g.items]}));
-    // 決裁1：締め済みグループは読むだけ・絶対に書き換えない
+    // 決裁1：締め済みグループからは「抜かない」＝締め済み月は修正前と完全に同一の描画を保つ
+    //        （足す側にはガードを入れない。入れると既存の締め済みグループから項目が外れて表示が変わるため）
     const isLockedGroup = g => getInvData(`${g.customerId}||${g.projectName}||${g.month}`).status==='locked';
     const crossRecs=(records||[]).filter(r=>{
       if(!r.startDate||!r.endDate||r.billingType==="monthly") return false;
@@ -214,13 +215,13 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
         }
         const monthAmt=r.amount||0;
         if(monthAmt<=0) return;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt&&!isLockedGroup(g));
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
         if(existingGroup){
           result=result.map(g=>(g===existingGroup?{...g,items:g.items.map(item=>item.id===r.id?{...item,amount:monthAmt}:item)}:g));
         } else {
           const custSplit=c?.splitInvoice!==false;
           const synthProjName=custSplit?(r.projectName||""):"";
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt&&!isLockedGroup(g));
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
           if(existingSame){
             result=result.map(g=>g===existingSame?{...g,items:[...g.items,{...r,amount:monthAmt}]}:g);
           } else {
@@ -268,7 +269,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
         }
         const splitItem={...r,startDate:spItem.startDate,endDate:spItem.endDate,days:splitDays,billingDays:splitBillingDays,amount:monthAmt,lines:rebuiltLines};
         const injectAutoAdj=g=>autoAdj?{...g,_autoAdjustments:[...(g._autoAdjustments||[]).filter(a=>a.id!==autoAdj.id),autoAdj]}:g;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt&&!isLockedGroup(g));
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
         if(existingGroup){
           result=result.map(g=>{
             if(g!==existingGroup) return g;
@@ -277,7 +278,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
         } else {
           const custSplit=c?.splitInvoice!==false;
           const synthProjName=custSplit?(r.projectName||""):"";
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt&&!isLockedGroup(g));
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
           if(existingSame){
             result=result.map(g=>g!==existingSame?g:injectAutoAdj({...g,items:[...g.items,splitItem]}));
           } else {
