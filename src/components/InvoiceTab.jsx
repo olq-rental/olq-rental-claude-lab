@@ -186,6 +186,8 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
     const lastDayNum=new Date(sy,sm,0).getDate();
     const monthEnd=`${sy}-${String(sm).padStart(2,'0')}-${String(lastDayNum).padStart(2,'0')}`;
     let result=filtered.map(g=>({...g,items:[...g.items]}));
+    // 決裁1：締め済みグループは読むだけ・絶対に書き換えない
+    const isLockedGroup = g => getInvData(`${g.customerId}||${g.projectName}||${g.month}`).status==='locked';
     const crossRecs=(records||[]).filter(r=>{
       if(!r.startDate||!r.endDate||r.billingType==="monthly") return false;
       const rs=r.startDate.slice(0,7),re=r.endDate.slice(0,7);
@@ -200,15 +202,25 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
       const c=customers.find(x=>x.id===r.customerId);
       const recIsReceipt=!!r.issueReceipt;
       if(sp.type==='full'){
-        const monthAmt=sp.targetMonth===selMonth?(r.amount||0):0;
+        if(sp.targetMonth!==selMonth){
+          // 当月は移動元 → 当月のグループから当該案件を取り除く（決裁2：空になった行は消す）
+          // 決裁1：締め済みグループからは抜かない（顧客に発行済みの内容を保全）
+          result=result
+            .map(g=>(!isLockedGroup(g)&&!!g._isReceiptGroup===recIsReceipt&&(g.items||[]).some(item=>item.id===r.id))
+              ?{...g,items:g.items.filter(item=>item.id!==r.id)}
+              :g)
+            .filter(g=>(g.items||[]).length>0);
+          return;
+        }
+        const monthAmt=r.amount||0;
         if(monthAmt<=0) return;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt&&!isLockedGroup(g));
         if(existingGroup){
           result=result.map(g=>(g===existingGroup?{...g,items:g.items.map(item=>item.id===r.id?{...item,amount:monthAmt}:item)}:g));
         } else {
           const custSplit=c?.splitInvoice!==false;
           const synthProjName=custSplit?(r.projectName||""):"";
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt&&!isLockedGroup(g));
           if(existingSame){
             result=result.map(g=>g===existingSame?{...g,items:[...g.items,{...r,amount:monthAmt}]}:g);
           } else {
@@ -256,7 +268,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
         }
         const splitItem={...r,startDate:spItem.startDate,endDate:spItem.endDate,days:splitDays,billingDays:splitBillingDays,amount:monthAmt,lines:rebuiltLines};
         const injectAutoAdj=g=>autoAdj?{...g,_autoAdjustments:[...(g._autoAdjustments||[]).filter(a=>a.id!==autoAdj.id),autoAdj]}:g;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt&&!isLockedGroup(g));
         if(existingGroup){
           result=result.map(g=>{
             if(g!==existingGroup) return g;
@@ -265,7 +277,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
         } else {
           const custSplit=c?.splitInvoice!==false;
           const synthProjName=custSplit?(r.projectName||""):"";
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt&&!isLockedGroup(g));
           if(existingSame){
             result=result.map(g=>g!==existingSame?g:injectAutoAdj({...g,items:[...g.items,splitItem]}));
           } else {
@@ -599,6 +611,10 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                 const sp=crossMonthSplits[r.id];
                 const totalAmt=r.amount||0;
                 const months=getMonths(r);
+                const custSplitB=c?.splitInvoice!==false;
+                const gKeyFor=m=>`${r.customerId}||${custSplitB?(r.projectName||""):""}||${m}`;
+                const isMonthLocked=m=>getInvData(gKeyFor(m)).status==='locked';
+                const curLocked=isMonthLocked(selMonth);
                 const cardStyle=status==='done'?{background:"#dcfce7",border:"1px solid #86efac"}:status==='splitting'?{background:"#dbeafe",border:"1px solid #93c5fd"}:{background:"#fffbeb",border:"1px solid #fde68a"};
                 const badge=status==='done'?{label:"処理済",bg:"#16a34a"}:status==='splitting'?{label:"分割中",bg:"#2563eb"}:{label:"未処理",bg:"#f59e0b"};
                 const splits=sp?.splits||[{startDate:r.startDate,endDate:monthEnd}];
@@ -640,13 +656,13 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                           return(
                             <div key={si} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:11}}>
                               <span style={{minWidth:44,fontWeight:500,color:"#475569"}}>{spItem.startDate?spItem.startDate.slice(0,7).slice(5)+"月":""}</span>
-                              <input type="date" value={spItem.startDate||""} disabled={si===0} onChange={e=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],startDate:e.target.value};return {...prev,[r.id]:ns};})} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
+                              <input type="date" value={spItem.startDate||""} disabled={curLocked||si===0} onChange={e=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],startDate:e.target.value};return {...prev,[r.id]:ns};})} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
                               <span>〜</span>
-                              <input type="date" value={spItem.endDate||""} disabled={isLast} onChange={e=>{const nd=addDay(e.target.value);setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],endDate:e.target.value};if(ns.splits[si+1])ns.splits[si+1]={...ns.splits[si+1],startDate:nd};const newUsed=ns.splits.slice(0,-1).reduce((s,sp2)=>s+computeSplitAmt(r,{...sp2,endDate:sp2.endDate||""}),0);if(newUsed>=(r.amount||0)){alert('非最終月の合計が案件登録金額を超えています。期間を短くしてください。');return prev;}return {...prev,[r.id]:ns};});}} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
+                              <input type="date" value={spItem.endDate||""} disabled={curLocked||isLast} onChange={e=>{const nd=addDay(e.target.value);setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits[si]={...ns.splits[si],endDate:e.target.value};if(ns.splits[si+1])ns.splits[si+1]={...ns.splits[si+1],startDate:nd};const newUsed=ns.splits.slice(0,-1).reduce((s,sp2)=>s+computeSplitAmt(r,{...sp2,endDate:sp2.endDate||""}),0);if(newUsed>=(r.amount||0)){alert('非最終月の合計が案件登録金額を超えています。期間を短くしてください。');return prev;}return {...prev,[r.id]:ns};});}} style={{border:"1px solid #e2e8f0",borderRadius:4,padding:"2px 4px",fontSize:11,width:110}}/>
                               <span style={{minWidth:64,textAlign:"right"}}>{fmt(spAmt)}</span>
                               <span style={{fontSize:10,padding:"1px 5px",borderRadius:3,background:isSet?"#dcfce7":"#fee2e2",color:isSet?"#15803d":"#dc2626"}}>{(()=>{if(!isSet)return"未設定";const rLines=(r.lines&&r.lines.length)?r.lines:[{productId:r.productId}];const hasNoBilling=rLines.some(ln=>(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount);return hasNoBilling?`${d}日間請求`:`${d}日→${calcBillingDays(d)}請求日`;})()}</span>
                               {isLast&&<span style={{fontSize:10,color:"#94a3b8"}}>（帳尻）</span>}
-                              {!isLast&&si>0&&<button onClick={()=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits.splice(si,1);return {...prev,[r.id]:ns};})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12}}>✕</button>}
+                              {!isLast&&si>0&&!curLocked&&<button onClick={()=>setCrossMonthSplits(prev=>{const ns={...prev[r.id],splits:[...prev[r.id].splits]};ns.splits.splice(si,1);return {...prev,[r.id]:ns};})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:12}}>✕</button>}
                             </div>
                           );
                         })}
@@ -658,18 +674,19 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                     <div style={{display:"flex",gap:8,alignItems:"center",marginTop:6,flexWrap:"wrap"}}>
                       {status==='pending'&&<>
                         {months.map(m=>(
-                          <button key={m} onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:{type:'full',targetMonth:m}}))}
-                            style={{fontSize:11,background:m===selMonth?"#16a34a":"#4f46e5",color:"#fff",border:"none",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>
+                          <button key={m} disabled={curLocked||isMonthLocked(m)} onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:{type:'full',targetMonth:m}}))}
+                            style={(curLocked||isMonthLocked(m))?{fontSize:11,background:"#e2e8f0",color:"#94a3b8",border:"none",borderRadius:4,padding:"3px 10px",cursor:"not-allowed"}:{fontSize:11,background:m===selMonth?"#16a34a":"#4f46e5",color:"#fff",border:"none",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>
                             ✓ {m.slice(5)}月に全額計上
                           </button>
                         ))}
-                        <button onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:{type:'split',splits:[{startDate:r.startDate,endDate:monthEnd},{startDate:addDay(monthEnd),endDate:r.endDate}]}}))}
-                          style={{fontSize:11,background:"#e0f2fe",color:"#0369a1",border:"1px solid #7dd3fc",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>
+                        <button disabled={curLocked} onClick={()=>setCrossMonthSplits(prev=>({...prev,[r.id]:{type:'split',splits:[{startDate:r.startDate,endDate:monthEnd},{startDate:addDay(monthEnd),endDate:r.endDate}]}}))}
+                          style={curLocked?{fontSize:11,background:"#e2e8f0",color:"#94a3b8",border:"1px solid #e2e8f0",borderRadius:4,padding:"3px 10px",cursor:"not-allowed"}:{fontSize:11,background:"#e0f2fe",color:"#0369a1",border:"1px solid #7dd3fc",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>
                           期間を分割して計上
                         </button>
                       </>}
-                      {status==='splitting'&&<button onClick={()=>{const s=[...splits];const prev2=s[s.length-2];const nextStart=prev2?.endDate?addDay(prev2.endDate):"";s.splice(s.length-1,0,{startDate:nextStart,endDate:""});setCrossMonthSplits(prev=>({...prev,[r.id]:{...prev[r.id],splits:s}}));}} style={{fontSize:11,color:"#0369a1",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>+ 分割を追加</button>}
-                      {status!=='pending'&&<button onClick={()=>setCrossMonthSplits(prev=>{const p={...prev};delete p[r.id];return p;})} style={{fontSize:11,color:"#64748b",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>リセット</button>}
+                      {status==='splitting'&&<button disabled={curLocked} onClick={()=>{const s=[...splits];const prev2=s[s.length-2];const nextStart=prev2?.endDate?addDay(prev2.endDate):"";s.splice(s.length-1,0,{startDate:nextStart,endDate:""});setCrossMonthSplits(prev=>({...prev,[r.id]:{...prev[r.id],splits:s}}));}} style={{fontSize:11,color:"#0369a1",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>+ 分割を追加</button>}
+                      {status!=='pending'&&<button disabled={curLocked} onClick={()=>setCrossMonthSplits(prev=>{const p={...prev};delete p[r.id];return p;})} style={{fontSize:11,color:curLocked?"#cbd5e1":"#64748b",background:"none",border:"none",cursor:curLocked?"not-allowed":"pointer",textDecoration:"underline"}}>リセット</button>}
+                      {curLocked&&<div style={{width:"100%",fontSize:11,color:"#92400e",marginTop:4}}>🔒 この月は締め済みです。変更するには先に締めを解除してください。</div>}
                     </div>
                   </div>
                 );
