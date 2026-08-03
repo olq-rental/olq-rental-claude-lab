@@ -162,7 +162,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           </div>
         </div>
       </div>`;
-    const invTableHeadHtml = `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0"><thead><tr style="background:#f0f0f0"><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;white-space:nowrap">ご利用日</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:40px">日数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:70px">ご発注者</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">製品名</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:36px">台数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:72px">単価</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;width:80px">金額</th></tr></thead>`;
+    // 列幅を固定する。自動列幅だと「そのページに何が載っているか」で製品名列の幅が変わり、
+    // 同じ製品名が1行にも2行にもなる（＝高さがページ依存になり実測が成立しない）。
+    const invTableHeadHtml = `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:0;table-layout:fixed"><colgroup><col style="width:178px"><col style="width:34px"><col style="width:66px"><col style="width:281px"><col style="width:32px"><col style="width:62px"><col style="width:72px"></colgroup><thead><tr style="background:#f0f0f0"><th style="border:1px solid #aaa;padding:3px 5px;text-align:center;white-space:nowrap">ご利用日</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">日数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">ご発注者</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">製品名</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">台数</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">単価</th><th style="border:1px solid #aaa;padding:3px 5px;text-align:center">金額</th></tr></thead>`;
     let _pdfEquipSum = 0;
     (()=>{const _bNo=dn=>(dn||"").replace(/E\d+.*$/,"");const chainEndMap={};g.items.forEach(r=>{const bk=_bNo(r.deliveryNo);if(!bk)return;const re=r.returnDate||r.endDate||"";if(!chainEndMap[bk]||re>chainEndMap[bk])chainEndMap[bk]=re;});const gKey=r=>{const bk=_bNo(r.deliveryNo);return(bk&&chainEndMap[bk])||(r.returnDate||r.endDate||"");};const _sorted=[...g.items].sort((a,b)=>{const aM=a.billingType==="monthly"?0:1;const bM=b.billingType==="monthly"?0:1;if(aM!==bM)return aM-bM;const kc=gKey(a).localeCompare(gKey(b));if(kc!==0)return kc;return(a.isExtension?1:0)-(b.isExtension?1:0);});const _lastMIdx=_sorted.reduce((acc,r,i)=>r.billingType==="monthly"?i:acc,-1);const _hasBoth=_lastMIdx>=0&&_sorted.some(r=>r.billingType!=="monthly");buildChainBlocks(_sorted).forEach((block, _bi) => {
   if (block.type === "chain") {
@@ -399,7 +401,68 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if(pages.length===0)pages.push([]);
       return pages;
     };
-    let invPages=buildInvPages(PAGE_WEIGHT_FIRST,PAGE_WEIGHT_REST);
+    // ── 実測ページ送り ──────────────────────────────────────────────
+    // 見えない iframe に同じCSS・同じ列幅で1回だけ描き、1行ずつの実際の高さを測る。
+    // 出力するHTMLは従来どおり完成済みの静的な形（検証儀式はそのまま使える）。
+    const A4_H = 1123;            // A4 @96dpi
+    const PAD_TOP_FIRST = 0, PAD_TOP_REST = 20, PAD_BOTTOM = 28;
+    const SAFETY = 6;             // 端数・印刷誤差の逃げ
+    const measureInv = () => {
+      if (typeof document === "undefined" || !document.body) return null;
+      let ifr = null;
+      try {
+        ifr = document.createElement("iframe");
+        ifr.setAttribute("aria-hidden", "true");
+        ifr.style.cssText = "position:absolute;left:-99999px;top:0;width:900px;height:6000px;border:0;visibility:hidden";
+        document.body.appendChild(ifr);
+        const d = ifr.contentDocument;
+        const contHdr = `<div data-m="cont" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999"><div style="font-size:11px;font-weight:bold">${invCustomerName}　御中　ご請求書（続き）</div><div style="font-size:9px;color:#666">管理No：${invNo}　1/1ページ</div></div>`;
+        const pageNoHtml = `<div data-m="pageno" style="text-align:right;font-size:9px;color:#666;margin-top:4px">1/1ページ</div>`;
+        d.open();
+        d.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${css}</style></head><body><div class="pb" style="padding:0px 34px 28px 34px;position:relative;font-size:10px"><div data-m="header">${invHeaderHtml}</div>${contHdr}${invTableHeadHtml}${allInvRows.map((r,i)=>`<tbody data-mi="${i}" style="break-inside:avoid;page-break-inside:avoid">${r.html}</tbody>`).join("")}${invFooterHtml}</table><div data-m="qr">${invQrHtml}</div>${pageNoHtml}</div></body></html>`);
+        d.close();
+        const H = sel => { const el = d.querySelector(sel); return el ? el.getBoundingClientRect().height : 0; };
+        const tbs = d.querySelectorAll("table > tbody");
+        const m = {
+          hHeader: H('[data-m="header"]'),
+          hCont:   H('[data-m="cont"]'),
+          hThead:  H("thead"),
+          hFooter: tbs.length ? tbs[tbs.length-1].getBoundingClientRect().height : 0,
+          hQr:     H('[data-m="qr"]'),
+          hPageNo: H('[data-m="pageno"]'),
+          rowH:    allInvRows.map((_,i)=>H(`[data-mi="${i}"]`)),
+        };
+        if (!m.hThead || !m.rowH.length || m.rowH.some(h=>!h)) return null;
+        return m;
+      } catch(e) { console.error("請求書の高さ実測に失敗（推定方式にフォールバック）", e); return null; }
+      finally { if (ifr && ifr.parentNode) ifr.parentNode.removeChild(ifr); }
+    };
+    const packByHeight = m => {
+      const avail = (isFirst,isLast) =>
+        A4_H - (isFirst?PAD_TOP_FIRST:PAD_TOP_REST) - PAD_BOTTOM
+             - (isFirst?m.hHeader:m.hCont) - m.hThead
+             - (isLast ? (m.hFooter + m.hQr) : m.hPageNo) - SAFETY;
+      const idxOf = new Map(allInvRows.map((r,i)=>[r,i]));
+      const hOf = r => m.rowH[idxOf.get(r)] || 0;
+      const pages=[]; let cur=[], used=0, isFirst=true;
+      for (let i=0;i<allInvRows.length;i++){
+        const h=m.rowH[i], cap=avail(isFirst,false);
+        if (used+h>cap && cur.length>0){ pages.push(cur); cur=[allInvRows[i]]; used=h; isFirst=false; }
+        else { cur.push(allInvRows[i]); used+=h; }
+      }
+      pages.push(cur);
+      // 最終ページに「合計＋お振込先＋QR」が入るか。入らなければ後ろの行を次ページへ送る
+      for (let guard=0; guard<500; guard++){
+        const li=pages.length-1;
+        const usedLast=pages[li].reduce((s,r)=>s+hOf(r),0);
+        if (usedLast <= avail(li===0,true)) break;
+        if (pages[li].length<=1){ pages.push([]); break; }
+        pages.push([pages[li].pop()]);
+      }
+      return pages;
+    };
+    const _m = measureInv();
+    let invPages = _m ? packByHeight(_m) : buildInvPages(PAGE_WEIGHT_FIRST,PAGE_WEIGHT_REST);
     const totalInvPages=invPages.length;
     invPages.forEach((pageRows,pageIdx)=>{
       const isFirstPage=pageIdx===0;
@@ -411,7 +474,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       } else {
         body+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999"><div style="font-size:11px;font-weight:bold">${invCustomerName}　御中　ご請求書（続き）</div><div style="font-size:9px;color:#666">管理No：${invNo}　${pageNo}/${totalInvPages}ページ</div></div>`;
       }
-      body+=invTableHeadHtml+`<tbody>`+pageRows.map(r=>r.html).join("")+`</tbody>`;
+      body+=invTableHeadHtml+pageRows.map(r=>`<tbody style="break-inside:avoid;page-break-inside:avoid">${r.html}</tbody>`).join("");
       if(isLastPage){
         body+=invFooterHtml+`</table>`+invQrHtml;
       } else {
