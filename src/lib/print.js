@@ -78,7 +78,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     const adjustments = g.adjustments || [];
     const adjSum = adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
     const totIns = g.items.reduce((s,r)=>s+(r.insuranceAmount||0),0);
-    const showDiscountLine = !!g.customer?.showDiscountLine;
+    // 確認（プレビュー）は常に「定価＋お値引き行」をオフにして、特別価格・掛け率が反映された実額を見る。
+    // 発行は各顧客の設定どおり（従来不変）。
+    const showDiscountLine = g._preview ? false : !!g.customer?.showDiscountLine;
     const extraDiscountAmt = Number(extraDiscount)||0;
     const listTot = showDiscountLine ? g.items.reduce((s,r)=>{
       if(r.billingType==="monthly") return s+(r.amount||0);
@@ -88,7 +90,10 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         const prod=(products||[]).find(p=>p.id===ln.productId);
         const lp=prod?prod.priceEx:(ln.unitPrice||0);
         const noDisc=ln.noBillingDiscount||prod?.noBillingDiscount;
-        const days=hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(noDisc?(r.days||1):(r.billingDays||r.days||1));
+        // 明細側と同じ「チェーン通算」で日数を出す（保存済み billingDays は単独計算のため通算とズレる）
+        const _lnEnd=ln.returnDate||r.endDate;
+        const _cbdL=(!noDisc&&!hasPerLineDate)?chainBillingDetail(r,allRecords||g.items,_lnEnd):null;
+        const days=hasPerLineDate?(()=>{const d=calcDays(r.startDate,ln.returnDate||r.endDate);return noDisc?d:calcBillingDays(d);})():(_cbdL?_cbdL.thisBilling:(noDisc?(r.days||1):(r.billingDays||r.days||1)));
         return s2+Math.round(lp*(ln.quantity||1)*days);
       },0);
     },0) : tot;
