@@ -599,7 +599,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
                 <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">返却確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
               </div>
         </div>${olqBlock}</div>`;
-        const headRestC = (pageNo, totalPages) => `<div style="position:relative;margin-bottom:14px">
+        const headRestC = (pageNo, totalPagesC) => `<div style="position:relative;margin-bottom:14px">
               <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center;margin-bottom:10px">納品書控　${pageNo}/${totalPagesC}</div>
               <div style="text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
         </div>`;
