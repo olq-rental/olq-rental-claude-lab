@@ -407,6 +407,10 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     // 出力するHTMLは従来どおり完成済みの静的な形（検証儀式はそのまま使える）。
     const A4_H = 1122;            // A4 @96dpi（端数は下げ側に丸める）
     const PAD_TOP_FIRST = 0, PAD_TOP_REST = 20, PAD_BOTTOM = 28;
+    // 1ページ目だけ本文全体が52px下がる（単票＝ツールバー回避のラッパー margin-top:52px、
+    // 一括＝1ページ目のpaddingを52pxに差し替え）。これが1ページ目の上余白として機能しているので、
+    // その分を1ページ目の使える高さから引く。入れ忘れると1ページ目だけ溢れる。
+    const FIRST_PAGE_TOP_SHIFT = 52;
     const SAFETY = 8;             // 印刷誤差の逃げ
     const measureInv = () => {
       if (typeof document === "undefined" || !document.body) return null;
@@ -450,7 +454,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     const packByHeight = m => {
       // topFirst/topRest は上パディングを含むので、ここで重ねて引かない
       const avail = (isFirst,isLast) =>
-        A4_H - (isFirst?m.topFirst:m.topRest) - PAD_BOTTOM
+        A4_H - (isFirst ? (FIRST_PAGE_TOP_SHIFT + m.topFirst) : m.topRest) - PAD_BOTTOM
              - (isLast ? (m.footerH + m.tailLast) : m.tailRest) - SAFETY;
       const idxOf = new Map(allInvRows.map((r,i)=>[r,i]));
       const hOf = r => m.rowH[idxOf.get(r)] || 0;
