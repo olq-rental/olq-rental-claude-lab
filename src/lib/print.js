@@ -116,7 +116,8 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
 
     const invCustomerName = g.customer?.invoiceName || g.customerName || "";
-    const PAGE_WEIGHT_REST = 52;
+    const PAGE_WEIGHT_FIRST = 44;  // 1ページ目（実測で約5行分の余白が残っていたため 40→44）
+    const PAGE_WEIGHT_REST = 55;   // 2ページ目以降（同じく約4行分の余白。57は溢れたので55で1行分の安全代を残す）
     const ORDERER_2LINE_MIN_W = 12;
     const allInvRows = [];
     const strWidth = str => [...(str||"")].reduce((w,c) => w+(c.match(/[^\x01-\x7E]/)?2:1),0);
@@ -398,8 +399,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       if(pages.length===0)pages.push([]);
       return pages;
     };
-    let invPages=buildInvPages(40,PAGE_WEIGHT_REST);
-    if(invPages.length===1)invPages=buildInvPages(40,PAGE_WEIGHT_REST);
+    let invPages=buildInvPages(PAGE_WEIGHT_FIRST,PAGE_WEIGHT_REST);
     const totalInvPages=invPages.length;
     invPages.forEach((pageRows,pageIdx)=>{
       const isFirstPage=pageIdx===0;
