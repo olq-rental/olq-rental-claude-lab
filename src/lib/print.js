@@ -294,8 +294,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const lp=prod3?prod3.priceEx:(ln.unitPrice||0);
           const noDisc=ln.noBillingDiscount||(products||[]).find(p=>p.id===ln.productId)?.noBillingDiscount;
           const lineEnd=ln.returnDate||r.endDate;
-          const cbd=noDisc?0:(chainBillingDays(r,allRecords||g.items,lineEnd)||calcBillingDays(r.days||0));
-          const useDays=noDisc?(r.days||1):(cbd||r.days||1);
+          // 「今回の請求は0日」は正しい答え。|| で拾うと 0 を「答えなし」と誤認して1日に化ける
+          // （日数値引きで通算が増えない延長＝¥0 の案件、未終了の開延長が該当）
+          const _chainable=!noDisc&&!!r.startDate&&!!lineEnd;
+          const cbd=noDisc?0:(_chainable?chainBillingDays(r,allRecords||g.items,lineEnd):calcBillingDays(r.days||0));
+          const useDays=noDisc?(r.days||1):cbd;
           _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*useDays):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDays);
           _legCalDays+=(r.days||0);
           _legBillDays+=noDisc?(r.days||0):cbd;
