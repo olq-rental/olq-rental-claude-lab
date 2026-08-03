@@ -62,6 +62,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 .empty td{height:18px}.biko{font-weight:bold;letter-spacing:6px;vertical-align:top;width:50px}`;
 
   let body = "";
+  let _mismatchWarn = "";   // 金額不一致の警告（確認モードのみ・発行は従来どおり停止）
   const fd = d => d ? new Date(d).toLocaleDateString("ja-JP") : "―";
   const fm = n => `¥${Number(n||0).toLocaleString()}`;
   const fn = n => Number(n||0).toLocaleString();
@@ -308,8 +309,15 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     // アサーション: 明細金額合計 == 小計（不一致ならPDF生成を止める）
     const _expectedEquipTotal = showDiscountLine ? listTot : equipTotG;
     if (Math.abs(_pdfEquipSum - _expectedEquipTotal) > 1) {
-      alert(`請求書PDF生成エラー: 明細金額合計(${_pdfEquipSum.toLocaleString()})と小計(${_expectedEquipTotal.toLocaleString()})が一致しません。\n請求書No: ${invNo}`);
-      return;
+      if (g._preview) {
+        // 確認（プレビュー）は止めない＝中身を見て原因を追えるようにする。
+        // 紙面に赤い警告帯を出すので、そのまま顧客に送れる見た目にはならない。
+        _mismatchWarn = `明細金額合計 ${_pdfEquipSum.toLocaleString()} と小計 ${_expectedEquipTotal.toLocaleString()} が一致しません（差 ${(_pdfEquipSum - _expectedEquipTotal).toLocaleString()}）`;
+      } else {
+        // 発行系（発行・一括印刷）は従来どおり停止する
+        alert(`請求書PDF生成エラー: 明細金額合計(${_pdfEquipSum.toLocaleString()})と小計(${_expectedEquipTotal.toLocaleString()})が一致しません。\n請求書No: ${invNo}`);
+        return;
+      }
     }
     gIncidentsPdf.forEach(inc=>{
       allInvRows.push({html:`<tr>
@@ -650,14 +658,17 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
     });
   }
 
-  if (_returnBodyOnly) return {body: body, css: css};
+  if (_mismatchWarn) {
+    body = `<div style="background:#fee2e2;border:2px solid #dc2626;color:#991b1b;padding:10px 14px;margin:0 0 10px;font-weight:700;font-size:13px;font-family:sans-serif;line-height:1.5">⚠ 確認用（この状態では発行できません）<br>${_mismatchWarn}<br><span style="font-weight:400;font-size:11px">※ 顧客へ送付しないでください</span></div>` + body;
+  }
+  if (_returnBodyOnly) return {body: body, css: css, warn: _mismatchWarn};
 
   const fullHTML = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${title}</title><style>
 ${css}
 @media print { .no-print { display:none!important; } body { margin:0; } }
 </style></head><body>
 <div class="no-print" style="position:fixed;top:0;left:0;right:0;background:#1e293b;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:9999;font-family:sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
-  <span style="font-weight:700;flex:1">${title}</span>
+  <span style="font-weight:700;flex:1">${title}${_mismatchWarn?` <span style="background:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px">⚠ 確認用・発行不可</span>`:""}</span>
   <button onclick="window.print()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px 20px;font-size:14px;font-weight:700;cursor:pointer">🖨 印刷 / PDF保存</button>
   <button onclick="window.close()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer">✕ 閉じる</button>
 </div>

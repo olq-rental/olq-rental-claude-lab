@@ -770,7 +770,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                                     const invNo=cur.invNo||(grp.month?(grp.month+"-???"):"");
                                     const grpSnap = cur.status==="locked" && cur.snapshot && cur.snapshot.items;
                                     const printGrp = grpSnap ? {...grp, items:cur.snapshot.items, projectName:cur.snapshot.projectName??grp.projectName, adjustments:cur.snapshot.adjustments||cur.adjustments} : {...grp, adjustments:cur.adjustments};
-                                    const r=downloadPrintHTML("invoice",Object.assign({},printGrp,{invNo:invNo,issueDate:cur.issueDate||""}),products,0,incidents,records,true);
+                                    const r=downloadPrintHTML("invoice",Object.assign({},printGrp,{invNo:invNo,issueDate:cur.issueDate||"",_preview:true}),products,0,incidents,records,true);
                                     if(r&&r.body){
                                       let b=gi<cust.groups.length-1?r.body.replace(/class="pb-last"/g,'class="pb"'):r.body;
                                       b=b.replace('padding:0px 34px 28px 34px','padding:52px 34px 28px 34px');
@@ -899,7 +899,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                                     const cur=getInvData(key);
                                     const invNo=cur.invNo||(g.month?`${g.month}-???`:"");
                                     const printG = useSnapshot ? {...g, items:displayItems, projectName:displayProjectName, adjustments:cur.snapshot?.adjustments||cur.adjustments} : {...g, adjustments:cur.adjustments};
-                                    downloadPrintHTML("invoice",{...printG,invNo,issueDate:cur.issueDate||""},products,0,incidents,records);
+                                    downloadPrintHTML("invoice",{...printG,invNo,issueDate:cur.issueDate||"",_preview:true},products,0,incidents,records);
                                   }} style={{...S.ib("#94a3b8"),fontSize:10,padding:"2px 6px",marginRight:3}}>
                                     <Ico d={I.print} size={10}/>確認
                                   </button>
