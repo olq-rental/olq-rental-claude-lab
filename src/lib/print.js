@@ -116,7 +116,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
 
 
     const invCustomerName = g.customer?.invoiceName || g.customerName || "";
-    const PAGE_WEIGHT_REST = 57;
+    const PAGE_WEIGHT_REST = 52;
     const ORDERER_2LINE_MIN_W = 12;
     const allInvRows = [];
     const strWidth = str => [...(str||"")].reduce((w,c) => w+(c.match(/[^\x01-\x7E]/)?2:1),0);
@@ -220,7 +220,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${ln.quantity||1}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(dispPrice)}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:right;vertical-align:middle">${fn(lineAmt)}</td>
-          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));let base=sw>=150?4:sw>=100?3:sw>=50?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);if(_cbdA)base=Math.max(base,3);return base+1+(r.ecOrderNo?1:0)+(!_cbdA&&_dd?1:0);})()});
+          </tr>`, weight:(()=>{const sw=strWidth(equipName+(_csProjInfo?`　[${_csProjInfo}]`:""));let base=sw>=120?4:sw>=80?3:sw>=40?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);if(_cbdA)base=Math.max(base,3);return base+1+(r.ecOrderNo?1:0)+(!_cbdA&&_dd?1:0);})()});
         });
       } else {
         // chainブロック（leg>=2かつ台数・単価一致）
@@ -253,7 +253,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const _isLast=si===legs.length-1;
           return `<tr><td style="border-left:1px solid #aaa;border-right:1px solid #aaa;border-top:none;${_isLast?"border-bottom:1px solid #aaa;":"border-bottom:none;"}padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle;font-size:7px;color:#555">└${_sl}　${fd(r.startDate)}〜${fd(_se)}（${r.days||0}日間）</td></tr>`;
         }).join("");
-        const _hasEc=!!(firstLeg.record.ecOrderNo);const _csw=strWidth(_ceqName);let _cbase=_csw>=150?4:_csw>=100?3:_csw>=50?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)_cbase=Math.max(_cbase,2);if(!_noValueDisc&&!_chainHasAdj)_cbase=Math.max(_cbase,3);const _cweight=legs.length+_cbase+(_noValueDisc?0:(_chainHasAdj?1:0))+(_hasEc?1:0);
+        const _hasEc=!!(firstLeg.record.ecOrderNo);const _csw=strWidth(_ceqName);let _cbase=_csw>=120?4:_csw>=80?3:_csw>=40?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)_cbase=Math.max(_cbase,2);if(!_noValueDisc&&!_chainHasAdj)_cbase=Math.max(_cbase,3);const _cweight=legs.length+_cbase+(_noValueDisc?0:(_chainHasAdj?1:0))+(_hasEc?1:0);
         allInvRows.push({html:`<tr>
           <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${firstLeg.record.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${firstLeg.record.ecOrderNo}</div>`:""}${_chainDateSub}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
@@ -303,7 +303,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:center">${ln.quantity||1}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(dispPrice)}</td>
         <td style="border:1px solid #aaa;padding:2px 5px;text-align:right">${fn(lineAmt)}</td>
-      </tr>`, weight: (()=>{const sw=strWidth(equipName+(projInfo?`　[${projInfo}]`:""));let base=sw>=150?4:sw>=100?3:sw>=50?2:1;if(strWidth(orderer)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);if(_cbdC)base=Math.max(base,3);const dd=!_cbdC&&!hasPerLineDate&&!lnNoDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);return((r.billingType==="monthly"||r.ecOrderNo)?Math.max(2,base):base)+(dd?1:0);})()});
+      </tr>`, weight: (()=>{const sw=strWidth(equipName+(projInfo?`　[${projInfo}]`:""));let base=sw>=120?4:sw>=80?3:sw>=40?2:1;if(strWidth(orderer)>=ORDERER_2LINE_MIN_W)base=Math.max(base,2);if(_cbdC)base=Math.max(base,3);const dd=!_cbdC&&!hasPerLineDate&&!lnNoDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);return((r.billingType==="monthly"||r.ecOrderNo)?Math.max(2,base):base)+(dd?1:0);})()});
     });
     if((r.insuranceAmount||0)>0){
       allInvRows.push({html:`<tr><td colspan="6" style="border:1px solid #aaa;padding:4px 6px;text-align:right">補償料</td><td style="border:1px solid #aaa;padding:4px 6px;text-align:right">${fn(r.insuranceAmount)}</td></tr>`, weight:1});
@@ -440,6 +440,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       { // ページ分割スコープ
         const ROWS_PER_PAGE_C = 32; // 1ページ目
         const ROWS_PER_PAGE_C_REST = 40; // 2ページ目以降
+        // 品名・備考が長いと表示が折り返して2行以上になる。行数ではなく「重み」で数える
+        const _dW = t => { const w=[...(t||"")].reduce((a,c)=>a+(c.match(/[^\x01-\x7E]/)?2:1),0); return w>=120?4:w>=80?3:w>=40?2:1; };
+        const _dRowWeight = row => row.type==='main' ? Math.max(_dW(row.ln.equipmentName), _dW(row.ln.lineNote)) : 1;
         const allRowsC = [];
         lines.forEach(ln => {
           allRowsC.push({type:'main', ln});
@@ -447,8 +450,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         });
         if((r.insuranceAmount||0)>0) allRowsC.push({type:'insurance'});
         const pagesC = [];
-        { let remaining = [...allRowsC]; let isFirst = true;
-          while(remaining.length > 0){ const limit = isFirst ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST; pagesC.push(remaining.slice(0,limit)); remaining = remaining.slice(limit); isFirst = false; }
+        { let cur=[],curW=0,isFirst=true;
+          for(const row of allRowsC){ const limit=isFirst?ROWS_PER_PAGE_C:ROWS_PER_PAGE_C_REST; const w=_dRowWeight(row);
+            if(curW+w>limit&&cur.length>0){ pagesC.push(cur); cur=[row]; curW=w; isFirst=false; }
+            else { cur.push(row); curW+=w; } }
+          if(cur.length>0) pagesC.push(cur);
           if(pagesC.length===0) pagesC.push([]);
         }
         const totalPagesC = pagesC.length;
@@ -494,7 +500,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             }
           });
           const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
-          const emptyCountC = pageLimitC - pageRows.length;
+          const emptyCountC = pageLimitC - pageRows.reduce((a,x)=>a+_dRowWeight(x),0);
           for(let i=0; i<emptyCountC; i++) body += `<tr class="empty">${emptyColsC}</tr>`;
           body += `</tbody></table>`;
           if(pageNo===totalPagesC){
@@ -512,6 +518,9 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       { // ページ分割スコープ
         const ROWS_PER_PAGE = 32; // 1ページ目
         const ROWS_PER_PAGE_REST = 40; // 2ページ目以降
+        // 品名・備考が長いと表示が折り返して2行以上になる。行数ではなく「重み」で数える
+        const _dW = t => { const w=[...(t||"")].reduce((a,c)=>a+(c.match(/[^\x01-\x7E]/)?2:1),0); return w>=120?4:w>=80?3:w>=40?2:1; };
+        const _dRowWeight = row => row.type==='main' ? Math.max(_dW(row.ln.equipmentName), _dW(row.ln.lineNote)) : 1;
         const allRows = [];
         lines.forEach(ln => {
           allRows.push({type:'main', ln});
@@ -519,8 +528,11 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         });
         if((r.insuranceAmount||0)>0) allRows.push({type:'insurance'});
         const pages = [];
-        { let remaining = [...allRows]; let isFirst = true;
-          while(remaining.length > 0){ const limit = isFirst ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST; pages.push(remaining.slice(0,limit)); remaining = remaining.slice(limit); isFirst = false; }
+        { let cur=[],curW=0,isFirst=true;
+          for(const row of allRows){ const limit=isFirst?ROWS_PER_PAGE:ROWS_PER_PAGE_REST; const w=_dRowWeight(row);
+            if(curW+w>limit&&cur.length>0){ pages.push(cur); cur=[row]; curW=w; isFirst=false; }
+            else { cur.push(row); curW+=w; } }
+          if(cur.length>0) pages.push(cur);
           if(pages.length===0) pages.push([]);
         }
         const totalPages = pages.length;
@@ -564,7 +576,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
             }
           });
           const pageLimit = isFirstPage ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST;
-          const emptyCount = pageLimit - pageRows.length;
+          const emptyCount = pageLimit - pageRows.reduce((a,x)=>a+_dRowWeight(x),0);
           for(let i=0; i<emptyCount; i++) body += `<tr class="empty">${emptyCols}</tr>`;
           body += `</tbody></table>`;
           if(pageNo===totalPages){
