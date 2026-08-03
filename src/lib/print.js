@@ -1,6 +1,65 @@
 import { calcDays } from './constants';
 import { calcBillingDays, chainBillingDays, chainBillingDetail, buildChainBlocks } from './billing';
 
+// ── 帳票の実測ページ送り（共通部品）────────────────────────────────
+// 見えない iframe に同じCSSで1回だけ描き、「位置の差」で寸法を測る。
+// 高さの足し算ではないので、要素の外側の余白（マージン）も自動的に含まれる。
+export function measureDocPages({ css, pbStyleFirst, pbStyleRest, headFirst, headRest, tableOpen, rowsHtml, tailHtml, emptyRowHtml }) {
+  if (typeof document === "undefined" || !document.body || !rowsHtml || !rowsHtml.length) return null;
+  let ifr = null;
+  try {
+    ifr = document.createElement("iframe");
+    ifr.setAttribute("aria-hidden", "true");
+    ifr.style.cssText = "position:absolute;left:-99999px;top:0;width:900px;height:20000px;border:0;visibility:hidden";
+    document.body.appendChild(ifr);
+    const d = ifr.contentDocument;
+    const bodies = rowsHtml.map((h, i) => `<tbody data-mi="${i}" style="break-inside:avoid;page-break-inside:avoid">${h}</tbody>`).join("");
+    d.open();
+    d.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${css}</style></head><body>`
+      + `<div class="pb" data-m="p1" style="${pbStyleFirst}">${headFirst}${tableOpen}${bodies}<tbody data-m="emp">${emptyRowHtml}</tbody></table><div data-m="tail">${tailHtml}</div></div>`
+      + `<div class="pb" data-m="p2" style="${pbStyleRest}">${headRest}${tableOpen}<tbody data-m="dummy">${rowsHtml[0]}</tbody></table></div>`
+      + `</body></html>`);
+    d.close();
+    const R = sel => { const el = d.querySelector(sel); return el ? el.getBoundingClientRect() : null; };
+    const p1 = R('[data-m="p1"]'), p2 = R('[data-m="p2"]');
+    const r0 = R('[data-mi="0"]'), dm = R('[data-m="dummy"]');
+    const t1 = R('[data-m="p1"] table'), tail = R('[data-m="tail"]'), emp = R('[data-m="emp"]');
+    if (!p1 || !p2 || !r0 || !dm || !t1 || !tail || !emp) return null;
+    const rowH = rowsHtml.map((_, i) => { const b = R(`[data-mi="${i}"]`); return b ? b.height : 0; });
+    if (rowH.some(h => !h)) return null;
+    return { topFirst: r0.top - p1.top, topRest: dm.top - p2.top, tailH: tail.bottom - t1.bottom, emptyH: emp.height, rowH };
+  } catch (e) { console.error("帳票の高さ実測に失敗（従来方式にフォールバック）", e); return null; }
+  finally { if (ifr && ifr.parentNode) ifr.parentNode.removeChild(ifr); }
+}
+
+// 実測値でページに詰める。空行の数（表の下端を揃えるための埋め）も返す。
+export function packDocPages(m, rows, { padBottom, firstShift = 0, safety = 8, A4 = 1122, fillEmpty = true }) {
+  const avail = (isFirst, isLast) =>
+    A4 - (isFirst ? (firstShift + m.topFirst) : m.topRest) - padBottom - (isLast ? m.tailH : 0) - safety;
+  const pages = []; let cur = [], used = 0, isFirst = true;
+  for (let i = 0; i < rows.length; i++) {
+    const h = m.rowH[i], cap = avail(isFirst, false);
+    if (used + h > cap && cur.length > 0) { pages.push(cur); cur = [rows[i]]; used = h; isFirst = false; }
+    else { cur.push(rows[i]); used += h; }
+  }
+  pages.push(cur);
+  const idxOf = new Map(rows.map((r, i) => [r, i]));
+  const hOf = r => m.rowH[idxOf.get(r)] || 0;
+  for (let guard = 0; guard < 500; guard++) {
+    const li = pages.length - 1;
+    const usedLast = pages[li].reduce((s, r) => s + hOf(r), 0);
+    if (usedLast <= avail(li === 0, true)) break;
+    if (pages[li].length <= 1) { pages.push([]); break; }
+    pages.push([pages[li].pop()]);
+  }
+  const emptyCounts = pages.map((pg, pi) => {
+    if (!fillEmpty || !m.emptyH) return 0;
+    const room = avail(pi === 0, pi === pages.length - 1) - pg.reduce((s, r) => s + hOf(r), 0);
+    return Math.max(0, Math.floor(room / m.emptyH));
+  });
+  return { pages, emptyCounts };
+}
+
 export function genReceiptNo(r, idx) {
   const d = r.receiptDate ? new Date(r.receiptDate) : (r.startDate ? new Date(r.startDate) : new Date());
   const yy = String(d.getFullYear()).slice(-2);
@@ -526,23 +585,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           (ln.expandRows?(ln.subItems||[]):[]).forEach(si => allRowsC.push({type:'sub', ln, si}));
         });
         if((r.insuranceAmount||0)>0) allRowsC.push({type:'insurance'});
-        const pagesC = [];
-        { let cur=[],curW=0,isFirst=true;
-          for(const row of allRowsC){ const limit=isFirst?ROWS_PER_PAGE_C:ROWS_PER_PAGE_C_REST; const w=_dRowWeight(row);
-            if(curW+w>limit&&cur.length>0){ pagesC.push(cur); cur=[row]; curW=w; isFirst=false; }
-            else { cur.push(row); curW+=w; } }
-          if(cur.length>0) pagesC.push(cur);
-          if(pagesC.length===0) pagesC.push([]);
-        }
-        const totalPagesC = pagesC.length;
-        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
-        pagesC.forEach((pageRows, pageIdx) => {
-          const isFirstPage = pageIdx === 0;
-          const pageNo = pageIdx + 1;
-          const topPad = isFirstPage ? '5px' : '20px';
-          body += `<div class="pb" style="padding:${topPad} 19px 30px 56px;position:relative;width:794px;box-sizing:border-box">`;
-          if(isFirstPage){
-            body += `<div style="position:relative">
+        const headFirstC = `<div style="position:relative">
               <div class="title" style="letter-spacing:4px">納品書控</div>
               <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
             </div>
@@ -555,33 +598,58 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
                 <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">納品確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
                 <div class="sign-box"><div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:2px"><span class="sign-label">返却確認</span><span class="sign-date" style="margin-left:8px">Date　　／</span></div><div style="min-height:28px;border-bottom:1px solid #ccc;margin-bottom:4px"></div><div style="font-size:9px;color:#555">担当</div></div>
               </div>
-            </div>${olqBlock}</div>`;
-          } else {
-            body += `<div style="position:relative;margin-bottom:14px">
+        </div>${olqBlock}</div>`;
+        const headRestC = (pageNo, totalPages) => `<div style="position:relative;margin-bottom:14px">
               <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center;margin-bottom:10px">納品書控　${pageNo}/${totalPagesC}</div>
               <div style="text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
-            </div>`;
-          }
-          body += `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:339px"><col style="width:36px"><col style="width:56px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col></colgroup><thead><tr><th>機材名</th><th>No</th><th>単価</th><th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
-          let rowNumC = pagesC.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
-          pageRows.forEach(row => {
-            rowNumC++;
+        </div>`;
+          const rowHtmlC = row => {
             if(row.type==='main'){
               const ln=row.ln;
-              body += `<tr><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:9px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+              return `<tr><td>${ln.equipmentName||""}</td><td class="c">${ln.equipNo||""}</td><td class="r">${fm(ln.unitPrice)}</td><td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:9px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
             } else if(row.type==='sub'){
               const ln=row.ln; const si=row.si;
-              body += `<tr class="sub-row"><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px;padding-left:5px">${si.note||""}</td></tr>`;
+              return `<tr class="sub-row"><td style="padding-left:14px">└ ${ln.equipmentName||""}</td><td class="c" style="font-size:10px">${si.no}</td><td></td><td></td><td></td><td></td><td style="font-size:9px;padding-left:5px">${si.note||""}</td></tr>`;
             } else if(row.type==='insurance'){
-              body += `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
+              return `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td><td></td></tr>`;
             }
-          });
+            return "";
+          };
+        const tableOpenC = `<table style="margin-top:10px;table-layout:fixed;width:100%"><colgroup><col style="width:339px"><col style="width:36px"><col style="width:56px"><col style="width:36px"><col style="width:72px"><col style="width:72px"><col></colgroup><thead><tr><th>機材名</th><th>No</th><th>単価</th><th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
+        const tailC = `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>`;
+        const emptyColsC = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
+        const emptyRowC = `<tr class="empty">${emptyColsC}</tr>`;
+        const rowsHtmlC = allRowsC.map(rowHtmlC);
+        const _mC = allRowsC.length ? measureDocPages({ css,
+          pbStyleFirst: "padding:5px 19px 30px 56px;position:relative;width:794px;box-sizing:border-box", pbStyleRest: "padding:20px 19px 30px 56px;position:relative;width:794px;box-sizing:border-box",
+          headFirst: headFirstC, headRest: headRestC(1,1), tableOpen: tableOpenC,
+          rowsHtml: rowsHtmlC, tailHtml: tailC, emptyRowHtml: emptyRowC }) : null;
+        let pagesC = [], emptyCountsC = null;
+        if (_mC) { const _r = packDocPages(_mC, allRowsC, { padBottom: 30, firstShift: (body === "" ? 52 : 0) }); pagesC = _r.pages; emptyCountsC = _r.emptyCounts; }
+        else {
+        { let cur=[],curW=0,isFirst=true;
+          for(const row of allRowsC){ const limit=isFirst?ROWS_PER_PAGE_C:ROWS_PER_PAGE_C_REST; const w=_dRowWeight(row);
+            if(curW+w>limit&&cur.length>0){ pagesC.push(cur); cur=[row]; curW=w; isFirst=false; }
+            else { cur.push(row); curW+=w; } }
+          if(cur.length>0) pagesC.push(cur);
+          if(pagesC.length===0) pagesC.push([]);
+        }
+        }
+        const totalPagesC = pagesC.length;
+        pagesC.forEach((pageRows, pageIdx) => {
+          const isFirstPage = pageIdx === 0;
+          const pageNo = pageIdx + 1;
+          const topPad = isFirstPage ? '5px' : '20px';
+          body += `<div class="pb" style="padding:${topPad} 19px 30px 56px;position:relative;width:794px;box-sizing:border-box">`;
+          body += isFirstPage ? headFirstC : headRestC(pageNo, totalPagesC);
+          body += tableOpenC;
+          pageRows.forEach(row => { body += rowHtmlC(row); });
           const pageLimitC = isFirstPage ? ROWS_PER_PAGE_C : ROWS_PER_PAGE_C_REST;
-          const emptyCountC = pageLimitC - pageRows.reduce((a,x)=>a+_dRowWeight(x),0);
+          const emptyCountC = emptyCountsC ? emptyCountsC[pageIdx] : (pageLimitC - pageRows.reduce((a,x)=>a+_dRowWeight(x),0));
           for(let i=0; i<emptyCountC; i++) body += `<tr class="empty">${emptyColsC}</tr>`;
           body += `</tbody></table>`;
           if(pageNo===totalPagesC){
-            body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>`;
+            body += tailC;
           }
           if(!isFirstPage){
             body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPagesC}</div>`;
@@ -604,22 +672,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           (ln.expandRows?(ln.subItems||[]):[]).forEach(si => allRows.push({type:'sub', ln, si}));
         });
         if((r.insuranceAmount||0)>0) allRows.push({type:'insurance'});
-        const pages = [];
-        { let cur=[],curW=0,isFirst=true;
-          for(const row of allRows){ const limit=isFirst?ROWS_PER_PAGE:ROWS_PER_PAGE_REST; const w=_dRowWeight(row);
-            if(curW+w>limit&&cur.length>0){ pages.push(cur); cur=[row]; curW=w; isFirst=false; }
-            else { cur.push(row); curW+=w; } }
-          if(cur.length>0) pages.push(cur);
-          if(pages.length===0) pages.push([]);
-        }
-        const totalPages = pages.length;
-        const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
-        pages.forEach((pageRows, pageIdx) => {
-          const isFirstPage = pageIdx === 0;
-          const pageNo = pageIdx + 1;
-          body += `<div class="pb" style="padding:30px 34px;position:relative">`;
-          if(isFirstPage){
-            body += `<div style="position:relative">
+        const headFirstD = `<div style="position:relative">
               <div class="title">納 品 書</div>
               ${r.isExtension?`<div style="font-size:11px;color:#2563eb;font-weight:700;text-align:center;margin-top:2px">${r.extendedFromNo?"元伝票No."+r.extendedFromNo+" ":""}ご延長分</div>`:""}
               <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
@@ -630,36 +683,60 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
               ${orderer?`<div style="margin-top:3px"><strong>${orderer}　様</strong></div>`:""}
               ${r.ecOrderNo?`<div style="margin-top:2px;font-size:10px">EC注文番号：${r.ecOrderNo}</div>`:""}
             </div>${olqBlock}</div>
-            <div style="font-size:10px;color:#444;margin-bottom:10px">毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>`;
-          } else {
-            body += `<div style="position:relative;margin-bottom:10px">
+        <div style="font-size:10px;color:#444;margin-bottom:10px">毎度ありがとうございます。下記の通り納品致しましたのでご査収下さい。</div>`;
+        const headRestD = (pageNo, totalPages) => `<div style="position:relative;margin-bottom:10px">
               <div style="font-size:16px;font-weight:bold;letter-spacing:6px;text-align:center">納 品 書　${pageNo}/${totalPages}</div>
               <div style="position:absolute;top:0;right:0;text-align:right;font-size:10px;line-height:1.8"><div>納品書No.　<strong>${no}</strong></div><div>日付　${fd(r.createdAt||r.startDate)}</div></div>
-            </div>`;
-          }
-          body += `<table><thead><tr><th>機材名</th>${showDPrice?`<th style="width:60px">単価</th>`:""}<th style="width:40px">数量</th><th style="width:80px">開始日</th><th style="width:80px">終了日</th><th>備考</th></tr></thead><tbody>`;
-          let rowNum = pages.slice(0, pageIdx).reduce((s,p)=>s+p.length, 0);
-          pageRows.forEach(row => {
-            rowNum++;
+        </div>`;
+          const rowHtmlD = row => {
             if(row.type==='main'){
               const ln=row.ln;
-              body += `<tr><td>${ln.equipmentName||""}</td>${showDPrice?`<td class="r">${fm(ln.unitPrice||0)}</td>`:""}<td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:9px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
+              return `<tr><td>${ln.equipmentName||""}</td>${showDPrice?`<td class="r">${fm(ln.unitPrice||0)}</td>`:""}<td class="c">${ln.quantity||""}</td><td class="c">${fd(r.startDate)}</td><td class="c">${fd(r.endDate)}</td><td style="font-size:9px">${r.billingType==="monthly"?("月極"+(ln.lineNote?" "+ln.lineNote:"")):(ln.lineNote||"")}</td></tr>`;
             } else if(row.type==='sub'){
-              body += `<tr class="sub-row"><td style="padding-left:16px">└ No.${row.si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px;padding-left:5px">${row.si.note||""}</td></tr>`;
+              return `<tr class="sub-row"><td style="padding-left:16px">└ No.${row.si.no}</td>${showDPrice?`<td></td>`:""}<td></td><td></td><td></td><td style="font-size:9px;padding-left:5px">${row.si.note||""}</td></tr>`;
             } else if(row.type==='insurance'){
-              body += showDPrice
+              return showDPrice
                 ? `<tr><td>補償料</td><td></td><td class="r">${fm(r.insuranceAmount)}</td><td></td><td></td><td></td></tr>`
                 : `<tr><td>補償料</td><td></td><td></td><td></td><td></td></tr>`;
             }
-          });
+            return "";
+          };
+        const tableOpenD = `<table style="table-layout:fixed;width:100%">`+(showDPrice?`<colgroup><col style="width:336px"><col style="width:60px"><col style="width:40px"><col style="width:80px"><col style="width:80px"><col style="width:130px"></colgroup>`:`<colgroup><col style="width:396px"><col style="width:40px"><col style="width:80px"><col style="width:80px"><col style="width:130px"></colgroup>`)+`<thead><tr><th>機材名</th>${showDPrice?`<th>単価</th>`:""}<th>数量</th><th>開始日</th><th>終了日</th><th>備考</th></tr></thead><tbody>`;
+        const tailD = `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
+              <div class="note"><div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div></div>
+              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://rental.olq.co.jp&ecc=H&color=444444&qzone=2" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>`;
+        const emptyCols = showDPrice ? `<td></td><td></td><td></td><td></td><td></td><td></td>` : `<td></td><td></td><td></td><td></td><td></td>`;
+        const emptyRowD = `<tr class="empty">${emptyCols}</tr>`;
+        const rowsHtmlD = allRows.map(rowHtmlD);
+        const _mD = allRows.length ? measureDocPages({ css,
+          pbStyleFirst: "padding:30px 34px;position:relative", pbStyleRest: "padding:30px 34px;position:relative",
+          headFirst: headFirstD, headRest: headRestD(1,1), tableOpen: tableOpenD,
+          rowsHtml: rowsHtmlD, tailHtml: tailD, emptyRowHtml: emptyRowD }) : null;
+        let pages = [], emptyCountsD = null;
+        if (_mD) { const _r = packDocPages(_mD, allRows, { padBottom: 30, firstShift: (body === "" ? 52 : 0) }); pages = _r.pages; emptyCountsD = _r.emptyCounts; }
+        else {
+        { let cur=[],curW=0,isFirst=true;
+          for(const row of allRows){ const limit=isFirst?ROWS_PER_PAGE:ROWS_PER_PAGE_REST; const w=_dRowWeight(row);
+            if(curW+w>limit&&cur.length>0){ pages.push(cur); cur=[row]; curW=w; isFirst=false; }
+            else { cur.push(row); curW+=w; } }
+          if(cur.length>0) pages.push(cur);
+          if(pages.length===0) pages.push([]);
+        }
+        }
+        const totalPages = pages.length;
+        pages.forEach((pageRows, pageIdx) => {
+          const isFirstPage = pageIdx === 0;
+          const pageNo = pageIdx + 1;
+          body += `<div class="pb" style="padding:30px 34px;position:relative">`;
+          body += isFirstPage ? headFirstD : headRestD(pageNo, totalPages);
+          body += tableOpenD;
+          pageRows.forEach(row => { body += rowHtmlD(row); });
           const pageLimit = isFirstPage ? ROWS_PER_PAGE : ROWS_PER_PAGE_REST;
-          const emptyCount = pageLimit - pageRows.reduce((a,x)=>a+_dRowWeight(x),0);
+          const emptyCount = emptyCountsD ? emptyCountsD[pageIdx] : (pageLimit - pageRows.reduce((a,x)=>a+_dRowWeight(x),0));
           for(let i=0; i<emptyCount; i++) body += `<tr class="empty">${emptyCols}</tr>`;
           body += `</tbody></table>`;
           if(pageNo===totalPages){
-            body += `<table style="margin-top:-1px"><tr><td class="biko">備　考</td><td style="min-height:90px;white-space:pre-wrap">${r.notes||""}</td></tr></table>
-              <div class="note"><div><strong>※ご利用前に、必ず内容物確認と動作チェックを行なってください。</strong></div></div>
-              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><div style="text-align:center"><div style="position:relative;display:inline-block;width:54px;height:54px"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://rental.olq.co.jp&ecc=H&color=444444&qzone=2" style="width:54px;height:54px"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1px 3px;border-radius:2px;font-size:6px;font-weight:900;color:#111;font-family:sans-serif">olq</div></div><div style="font-size:8px;color:#999;margin-top:1px">ECサイト</div></div><div style="text-align:center"><img src="https://qr-official.line.me/gs/M_783vxgoh_BW.png?oat_content=qr" style="width:54px;height:54px" alt="LINE"/><div style="font-size:8px;color:#999;margin-top:1px">公式LINE</div></div></div>`;
+            body += tailD;
           }
           if(!isFirstPage){
             body += `<div style="position:absolute;bottom:14px;right:34px;font-size:10px;color:#111">納品書No.${no}　${pageNo}/${totalPages}</div>`;
