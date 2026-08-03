@@ -402,46 +402,56 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
       return pages;
     };
     // ── 実測ページ送り ──────────────────────────────────────────────
-    // 見えない iframe に同じCSS・同じ列幅で1回だけ描き、1行ずつの実際の高さを測る。
+    // 見えない iframe に同じCSS・同じ列幅で1回だけ描き、実際の寸法を測ってから配る。
+    // 高さの足し算ではなく「位置の差」で測る＝要素の外側の余白（マージン）も自動的に含まれる。
     // 出力するHTMLは従来どおり完成済みの静的な形（検証儀式はそのまま使える）。
-    const A4_H = 1123;            // A4 @96dpi
+    const A4_H = 1122;            // A4 @96dpi（端数は下げ側に丸める）
     const PAD_TOP_FIRST = 0, PAD_TOP_REST = 20, PAD_BOTTOM = 28;
-    const SAFETY = 6;             // 端数・印刷誤差の逃げ
+    const SAFETY = 8;             // 印刷誤差の逃げ
     const measureInv = () => {
       if (typeof document === "undefined" || !document.body) return null;
       let ifr = null;
       try {
         ifr = document.createElement("iframe");
         ifr.setAttribute("aria-hidden", "true");
-        ifr.style.cssText = "position:absolute;left:-99999px;top:0;width:900px;height:6000px;border:0;visibility:hidden";
+        ifr.style.cssText = "position:absolute;left:-99999px;top:0;width:900px;height:20000px;border:0;visibility:hidden";
         document.body.appendChild(ifr);
         const d = ifr.contentDocument;
-        const contHdr = `<div data-m="cont" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999"><div style="font-size:11px;font-weight:bold">${invCustomerName}　御中　ご請求書（続き）</div><div style="font-size:9px;color:#666">管理No：${invNo}　1/1ページ</div></div>`;
-        const pageNoHtml = `<div data-m="pageno" style="text-align:right;font-size:9px;color:#666;margin-top:4px">1/1ページ</div>`;
+        const contHdr = `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999"><div style="font-size:11px;font-weight:bold">${invCustomerName}　御中　ご請求書（続き）</div><div style="font-size:9px;color:#666">管理No：${invNo}　1/1ページ</div></div>`;
+        const pageNoHtml = `<div style="text-align:right;font-size:9px;color:#666;margin-top:4px">1/1ページ</div>`;
+        const rowsHtml = allInvRows.map((r,i)=>`<tbody data-mi="${i}" style="break-inside:avoid;page-break-inside:avoid">${r.html}</tbody>`).join("");
         d.open();
-        d.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${css}</style></head><body><div class="pb" style="padding:0px 34px 28px 34px;position:relative;font-size:10px"><div data-m="header">${invHeaderHtml}</div>${contHdr}${invTableHeadHtml}${allInvRows.map((r,i)=>`<tbody data-mi="${i}" style="break-inside:avoid;page-break-inside:avoid">${r.html}</tbody>`).join("")}${invFooterHtml}</table><div data-m="qr">${invQrHtml}</div>${pageNoHtml}</div></body></html>`);
+        d.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${css}</style></head><body>`
+          + `<div class="pb" data-m="p1" style="padding:${PAD_TOP_FIRST}px 34px ${PAD_BOTTOM}px 34px;position:relative;font-size:10px">${invHeaderHtml}${invTableHeadHtml}${rowsHtml}${invFooterHtml}</table><div data-m="qr">${invQrHtml}</div></div>`
+          + `<div class="pb" data-m="p2" style="padding:${PAD_TOP_REST}px 34px ${PAD_BOTTOM}px 34px;position:relative;font-size:10px">${contHdr}${invTableHeadHtml}<tbody data-m="dummy">${allInvRows[0].html}</tbody></table><div data-m="pn">${pageNoHtml}</div></div>`
+          + `</body></html>`);
         d.close();
-        const H = sel => { const el = d.querySelector(sel); return el ? el.getBoundingClientRect().height : 0; };
-        const tbs = d.querySelectorAll("table > tbody");
+        const R = sel => { const el = d.querySelector(sel); return el ? el.getBoundingClientRect() : null; };
+        const p1=R('[data-m="p1"]'), p2=R('[data-m="p2"]');
+        const r0=R('[data-mi="0"]'), dm=R('[data-m="dummy"]');
+        const t1=R('[data-m="p1"] table'), t2=R('[data-m="p2"] table');
+        const qr=R('[data-m="qr"]'),  pn=R('[data-m="pn"]');
+        const tbs=d.querySelectorAll('[data-m="p1"] table > tbody');
+        const foot=tbs.length ? tbs[tbs.length-1].getBoundingClientRect() : null;
+        if(!p1||!p2||!r0||!dm||!t1||!t2||!qr||!pn||!foot) return null;
         const m = {
-          hHeader: H('[data-m="header"]'),
-          hCont:   H('[data-m="cont"]'),
-          hThead:  H("thead"),
-          hFooter: tbs.length ? tbs[tbs.length-1].getBoundingClientRect().height : 0,
-          hQr:     H('[data-m="qr"]'),
-          hPageNo: H('[data-m="pageno"]'),
-          rowH:    allInvRows.map((_,i)=>H(`[data-mi="${i}"]`)),
+          topFirst: r0.top - p1.top,        // 上パディング＋見出し＋表頭（マージン相殺も込み）
+          topRest:  dm.top - p2.top,        // 同・続きページ
+          footerH:  foot.height,            // 合計＋お振込先ブロック
+          tailLast: qr.bottom - t1.bottom,  // QRブロック（上マージン込み）
+          tailRest: pn.bottom - t2.bottom,  // ページ番号行（上マージン込み）
+          rowH:     allInvRows.map((_,i)=>{ const b=R(`[data-mi="${i}"]`); return b?b.height:0; }),
         };
-        if (!m.hThead || !m.rowH.length || m.rowH.some(h=>!h)) return null;
+        if(!m.topFirst||!m.topRest||!m.rowH.length||m.rowH.some(h=>!h)) return null;
         return m;
       } catch(e) { console.error("請求書の高さ実測に失敗（推定方式にフォールバック）", e); return null; }
       finally { if (ifr && ifr.parentNode) ifr.parentNode.removeChild(ifr); }
     };
     const packByHeight = m => {
+      // topFirst/topRest は上パディングを含むので、ここで重ねて引かない
       const avail = (isFirst,isLast) =>
-        A4_H - (isFirst?PAD_TOP_FIRST:PAD_TOP_REST) - PAD_BOTTOM
-             - (isFirst?m.hHeader:m.hCont) - m.hThead
-             - (isLast ? (m.hFooter + m.hQr) : m.hPageNo) - SAFETY;
+        A4_H - (isFirst?m.topFirst:m.topRest) - PAD_BOTTOM
+             - (isLast ? (m.footerH + m.tailLast) : m.tailRest) - SAFETY;
       const idxOf = new Map(allInvRows.map((r,i)=>[r,i]));
       const hOf = r => m.rowH[idxOf.get(r)] || 0;
       const pages=[]; let cur=[], used=0, isFirst=true;
