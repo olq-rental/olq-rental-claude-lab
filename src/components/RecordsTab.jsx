@@ -802,7 +802,7 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
                               return {...p,selectedLines:newSelectedLines,selectedSubItems:newSelectedSubItems};
                             })}/>
                           <span style={{fontSize:12}}>{ln.equipmentName||`機材${i+1}`}</span>
-                          {isExtRec&&(Number(ln.quantity)||1)>1&&!lineReturned&&!hasSI&&(
+                          {(Number(ln.quantity)||1)>1&&!lineReturned&&!hasSI&&(
                             <span style={{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}>
                               <span style={{fontSize:11,color:"#64748b"}}>返却数</span>
                               <input type="text" inputMode="numeric" value={returnModal.returnQtys?.[i]??(Number(ln.quantity)||1)}
