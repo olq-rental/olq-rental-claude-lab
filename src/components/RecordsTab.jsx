@@ -775,14 +775,14 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
               const hasMultiLine=rLns.length>1;
               // 台数の一部返却は元伝票でも使えるようにする（月極の1台だけ返却などに必要）
               const hasPartialQty=rLns.some(ln=>(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec));
-              const hasSubItems=isExtRec&&rLns.some(ln=>ln.subItems&&ln.subItems.length>0&&!getLineReturnDate(ln,targetRec));
+              const hasSubItems=rLns.some(ln=>ln.subItems&&ln.subItems.length>0&&!getLineReturnDate(ln,targetRec));
               return (hasMultiLine||hasPartialQty||hasSubItems)&&(
                 <div style={{marginBottom:12}}>
                   <label style={{...S.lbl,marginBottom:6}}>返却する機材を選択</label>
                   {rLns.map((ln,i)=>{
                     const lineReturned=!!getLineReturnDate(ln,targetRec);
                     const hasSI=ln.subItems&&ln.subItems.length>0;
-                    const showSubItemsList=isExtRec&&hasSI&&!lineReturned&&!!returnModal.selectedLines?.[i];
+                    const showSubItemsList=hasSI&&!lineReturned&&!!returnModal.selectedLines?.[i];
                     return (
                       <div key={i} style={{marginBottom:6,border:"1px solid #e2e8f0",borderRadius:6,background:returnModal.selectedLines?.[i]?"#eff6ff":"#fff",overflow:"hidden"}}>
                         <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"6px 10px"}}>
@@ -792,7 +792,7 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
                               const checked=e.target.checked;
                               const newSelectedLines={...p.selectedLines,[i]:checked};
                               const newSelectedSubItems={...(p.selectedSubItems||{})};
-                              if(isExtRec&&hasSI){
+                              if(hasSI){
                                 if(checked){
                                   newSelectedSubItems[i]=Object.fromEntries(ln.subItems.map((_,si)=>[si,true]));
                                 } else {
@@ -812,7 +812,7 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
                               <span style={{fontSize:11,color:"#64748b"}}>/{Number(ln.quantity)||1}台</span>
                             </span>
                           )}
-                          {hasSI&&!lineReturned&&isExtRec&&(
+                          {hasSI&&!lineReturned&&(
                             <span style={{fontSize:11,color:"#64748b",marginLeft:"auto"}}>
                               {(()=>{const ss=returnModal.selectedSubItems?.[i]||{};const cnt=Object.values(ss).filter(Boolean).length;return `${cnt}/${ln.subItems.length}台`;})()}
                             </span>
@@ -877,7 +877,7 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
                   if(!selectedIdxs.includes(i)){processed.push({ln,isReturned:false});return;}
                   const lineQty=Number(ln.quantity)||1;
                   const hasSI=ln.subItems&&ln.subItems.length>0;
-                  if(hasSI&&targetRec.isExtension){
+                  if(hasSI){
                     const siSel=returnModal.selectedSubItems?.[i]||{};
                     const returnedSubItems=ln.subItems.filter((_,siIdx)=>!!siSel[siIdx]);
                     const continuingSubItems=ln.subItems.filter((_,siIdx)=>!siSel[siIdx]);
