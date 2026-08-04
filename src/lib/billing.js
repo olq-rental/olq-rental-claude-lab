@@ -39,8 +39,11 @@ export function expandMonthlyOpenRecord(r, calcBillingDaysFn, todayFn, products,
         const prod = (products||[]).find(p => p.id === ln.productId);
         const dailyPrice = prod ? resolvePrice(prod, cust) : Number(ln.dailyUnitPrice || ln.unitPrice || 0);
         const qty = Number(ln.quantity) || 1;
+        // 日数値引きなし製品は日数を縮めない（App.jsx の延長付き月極と同じ分岐に揃える）
+        const noDisc = ln.noBillingDiscount || (prod && prod.noBillingDiscount);
+        const useDays = noDisc ? days : bDays;
         const monthlyPrice = Number(ln.unitPrice || 0) * qty;
-        const rawAmt = dailyPrice * qty * bDays;
+        const rawAmt = dailyPrice * qty * useDays;
         const amount = monthlyPrice > 0 ? Math.min(rawAmt, monthlyPrice) : rawAmt;
         return {...ln, unitPrice: dailyPrice, amount};
       });

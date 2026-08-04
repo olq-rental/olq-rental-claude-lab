@@ -773,7 +773,8 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
               const rLns=targetRec?getLines(targetRec):[];
               const isExtRec=targetRec?.isExtension;
               const hasMultiLine=rLns.length>1;
-              const hasPartialQty=isExtRec&&rLns.some(ln=>(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec));
+              // 台数の一部返却は元伝票でも使えるようにする（月極の1台だけ返却などに必要）
+              const hasPartialQty=rLns.some(ln=>(Number(ln.quantity)||1)>1&&!getLineReturnDate(ln,targetRec));
               const hasSubItems=isExtRec&&rLns.some(ln=>ln.subItems&&ln.subItems.length>0&&!getLineReturnDate(ln,targetRec));
               return (hasMultiLine||hasPartialQty||hasSubItems)&&(
                 <div style={{marginBottom:12}}>
@@ -903,15 +904,20 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
                 const returnedLines=processed.filter(p=>p.isReturned).map(p=>p.ln);
                 const continuingLines=processed.filter(p=>!p.isReturned).map(p=>p.ln);
                 const allLinesInOrder=processed.map(p=>p.ln);
-                const shouldSplit=continuingLines.length>0&&!!targetRec.isExtension;
+                // 継続分が残るなら、元伝票=返却分／新伝票=継続分 に分ける（元伝票・延長伝票を問わず）
+                const shouldSplit=continuingLines.length>0;
                 if(shouldSplit){
-                  const origDays=calcDays(targetRec.startDate,returnModal.billingEndDate);
-                  const origBillingDays=chainBillingDays(targetRec, records, returnModal.billingEndDate);
-                  const origAmount=returnedLines.reduce((s,ln)=>{
-                    const noDisc=ln.noBillingDiscount;
-                    const qty=noDisc?origDays:origBillingDays;
-                    return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
-                  },0);
+                  const _isMonthlyRec=targetRec.billingType==='monthly';
+                  const origDays=_isMonthlyRec?undefined:calcDays(targetRec.startDate,returnModal.billingEndDate);
+                  const origBillingDays=_isMonthlyRec?undefined:chainBillingDays(targetRec, records, returnModal.billingEndDate);
+                  // 月極は日極換算しない（請求側の月極展開が周期ごとに計算し、端数月は上限＝月極単価で頭打ちにする）
+                  const origAmount=_isMonthlyRec
+                    ? returnedLines.reduce((s,ln)=>s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1),0)
+                    : returnedLines.reduce((s,ln)=>{
+                        const noDisc=ln.noBillingDiscount;
+                        const qty=noDisc?origDays:origBillingDays;
+                        return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
+                      },0);
                   const updatedOriginal={
                     ...targetRec,
                     lines:returnedLines,
