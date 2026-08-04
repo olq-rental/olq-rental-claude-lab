@@ -879,10 +879,14 @@ export default function App() {
       // 固定月数の月極
       const rLns = (r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
       const pad = n=>String(n).padStart(2,"0");
-      const hasExtension = records.some(x => x.extendedFrom === r.id);
-
-      if (r.endDate && hasExtension) {
-        // 延長済み月極：startDate〜endDate を月ごとに展開（満了月=月極、端数月=日極）
+      // 月極の扱いを1つのルールに統一する：
+      //   終了日が決まっている → 周期ごとに展開し、最後の周期は端数を日極で計上（上限＝月極単価×台数）
+      //   終了日がない        → 従来どおり固定月数ぶんを展開
+      // 旧条件は「延長がぶら下がっているか（hasExtension）」だったが、この判定は
+      // extendedFrom がチェーンの根っこを指す作りのため、根っこ以外は必ず false になり、
+      // 延長伝票が展開されないまま1ヶ月ぶんしか請求されない穴があった（26-00306R1E1で発覚）。
+      if (r.endDate) {
+        // 終了日が決まっている月極：startDate〜endDate を月ごとに展開（満了月=月極、端数月=日極・上限つき）
         const startD = new Date(r.startDate + 'T00:00:00');
         const limitD = new Date(r.endDate + 'T00:00:00');
         const limitMonth = limitD.getFullYear() * 12 + limitD.getMonth();
