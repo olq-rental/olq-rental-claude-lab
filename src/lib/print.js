@@ -269,13 +269,14 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const _csProjInfo=g.projectName?(r.projectDetail||""):r.projectName?r.projectName+(r.projectDetail?`　${r.projectDetail}`:""):(r.projectDetail||"");
           const _csNameExtra=_csProjInfo?`<span style="color:#555;font-size:10px">　[${_csProjInfo}]</span>`:"";
           const _dd=!_cbdA&&!noDisc&&r.billingType!=="monthly"&&(r.billingDays||0)>0&&(r.billingDays||0)<(r.days||0);
-          const _ddDays=_cbdA?_cbdA.thisBilling:(_dd?r.billingDays:(r.days||0));
+          // 月極は日数ではなく「◯ヶ月」（単独行＝経路Cと同じ扱いに揃える）
+          const _ddDays=r.billingType==="monthly"?((r.months||1)+"ヶ月"):(_cbdA?_cbdA.thisBilling:(_dd?r.billingDays:(r.days||0)));
           const _hasAdj=(r.notes||"").indexOf("【日数調整】")>=0;
           const _adjReasonHtml=_hasAdj&&(r.adjustReason||"")?`<div style="font-size:8px;color:#555;margin-top:1px">[${r.adjustReason}]</div>`:"";
           const _chainSubA=_cbdA?`<div style="font-size:8px;color:#555;margin-top:1px">継続通算${_cbdA.cumActual}日間 → ${_cbdA.cumBilling}日間ご請求</div><div style="font-size:8px;color:#555">(${_cbdA.prevBilling}日間ご請求済 → 今回${_cbdA.thisBilling}日間)</div>`:"";
           const _ddSub=_cbdA?_chainSubA:(_dd?(_hasAdj?`<div style="font-size:8px;color:#555;margin-top:1px">日数調整</div>`:`<div style="font-size:8px;color:#555;margin-top:1px">合計${r.days}日間 → 日数値引</div>`):"");
           allInvRows.push({html:`<tr>
-            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}<div style="font-size:7px;color:#555">${r.isExtension?"└ご延長":"└ご注文"}</div></td>
+            <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(r.startDate)}〜${fd(lineEndDate)}${r.billingType==="monthly"?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${r.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${r.ecOrderNo}</div>`:""}${_ddSub}<div style="font-size:7px;color:#555">${r.isExtension?"└ご延長":"└ご注文"}</div></td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ddDays}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
             <td style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${equipName}${_csNameExtra}${_adjReasonHtml}</td>
@@ -288,7 +289,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         // chainブロック（leg>=2かつ台数・単価一致）
         const _legRspan = legs.length + 1;
         // ガード(a): 金額・日数はlegの保存値を合算（calcBillingDaysで再計算しない）
-        let _clineTotal=0, _legCalDays=0, _legBillDays=0;
+        let _clineTotal=0, _legCalDays=0, _legBillDays=0, _legMonths=0;
         legs.forEach(({record:r, line:ln}) => {
           const prod3=showDiscountLine?(products||[]).find(p=>p.id===ln.productId):null;
           const lp=prod3?prod3.priceEx:(ln.unitPrice||0);
@@ -299,15 +300,22 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
           const _chainable=!noDisc&&!!r.startDate&&!!lineEnd;
           const cbd=noDisc?0:(_chainable?chainBillingDays(r,allRecords||g.items,lineEnd):calcBillingDays(r.days||0));
           const useDays=noDisc?(r.days||1):cbd;
-          _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*useDays):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDays);
-          _legCalDays+=(r.days||0);
-          _legBillDays+=noDisc?(r.days||0):cbd;
+          // 月極は日数を掛けない。保存済みの月極金額をそのまま使う（経路Cと同じ扱い）
+          if(r.billingType==="monthly"){
+            _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*(r.months||1)):(ln.amount||0);
+            _legMonths+=(r.months||1);
+          } else {
+            _clineTotal+=showDiscountLine?Math.round(lp*(ln.quantity||1)*useDays):Math.round((ln.unitPrice||0)*(ln.quantity||1)*useDays);
+            _legCalDays+=(r.days||0);
+            _legBillDays+=noDisc?(r.days||0):cbd;
+          }
         });
         _pdfEquipSum+=_clineTotal;
         const _legStart=legs[0].record.startDate||"";
         const _legEnd=legs[legs.length-1].record.returnDate||legs[legs.length-1].record.endDate||"";
         const _noValueDisc=_hasNoDisc||_legBillDays>=_legCalDays;
-        const _chainBillDisp=_noValueDisc?_legCalDays:_legBillDays;
+        const _chainIsMonthly=legs.every(({record:x})=>x.billingType==="monthly");
+        const _chainBillDisp=_chainIsMonthly?(_legMonths+"ヶ月"):(_noValueDisc?_legCalDays:_legBillDays);
         // チェーン通算注記: rootStartからの累計を算出
         const _cbNoB=no=>(no||"").replace(/E\d+.*$/,"");const _cbKey=_cbNoB(firstLeg.record.deliveryNo);let _cbRootStart=_legStart;if(_cbKey){(allRecords||g.items).forEach(x=>{if(_cbNoB(x.deliveryNo)===_cbKey&&x.startDate&&x.startDate<_cbRootStart)_cbRootStart=x.startDate;});}
         const _cbCumActual=calcDays(_cbRootStart,_legEnd);const _cbCumBilling=calcBillingDays(_cbCumActual);const _cbPrevBilling=Math.max(0,_cbCumBilling-_legBillDays);
@@ -320,7 +328,7 @@ th{background:#f3f3f3;font-weight:bold;text-align:center}.r{text-align:right}.c{
         }).join("");
         const _hasEc=!!(firstLeg.record.ecOrderNo);const _csw=strWidth(_ceqName);let _cbase=_csw>=120?4:_csw>=80?3:_csw>=40?2:1;if(strWidth(chainOrdener)>=ORDERER_2LINE_MIN_W)_cbase=Math.max(_cbase,2);if(!_noValueDisc&&!_chainHasAdj)_cbase=Math.max(_cbase,3);const _cweight=legs.length+_cbase+(_noValueDisc?0:(_chainHasAdj?1:0))+(_hasEc?1:0);
         allInvRows.push({html:`<tr>
-          <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${firstLeg.record.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${firstLeg.record.ecOrderNo}</div>`:""}${_chainDateSub}</td>
+          <td style="border:1px solid #aaa;border-bottom:none;padding:2px 5px;text-align:center;white-space:nowrap;vertical-align:middle">${fd(_legStart)}〜${fd(_legEnd)}${_chainIsMonthly?'<div style="font-size:10px;margin-top:2px">[月極]</div>':""}${firstLeg.record.ecOrderNo?`<div style="font-size:10px;margin-top:2px">${firstLeg.record.ecOrderNo}</div>`:""}${_chainIsMonthly?"":_chainDateSub}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_chainBillDisp}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;font-size:10px;vertical-align:middle">${chainOrdener}</td>
           <td rowspan="${_legRspan}" style="border:1px solid #aaa;padding:2px 5px;text-align:center;vertical-align:middle">${_ceqNameDisp}</td>
