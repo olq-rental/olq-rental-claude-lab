@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { calcDays } from '../lib/constants';
 import { taxIn, fmt, fmtD, uid, today } from '../lib/format';
-import { calcBillingDays, chainBillingDays, resolvePrice, getLines } from '../lib/billing';
+import { calcBillingDays, chainBillingDays, resolvePrice, getLines, calcCloseAmount } from '../lib/billing';
 import { downloadPrintHTML } from '../lib/print';
 import { PwInput } from './PwInput';
 import { SearchableSelect } from './SearchableSelect';
@@ -911,13 +911,7 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
                   const origDays=_isMonthlyRec?undefined:calcDays(targetRec.startDate,returnModal.billingEndDate);
                   const origBillingDays=_isMonthlyRec?undefined:chainBillingDays(targetRec, records, returnModal.billingEndDate);
                   // 月極は日極換算しない（請求側の月極展開が周期ごとに計算し、端数月は上限＝月極単価で頭打ちにする）
-                  const origAmount=_isMonthlyRec
-                    ? returnedLines.reduce((s,ln)=>s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1),0)
-                    : returnedLines.reduce((s,ln)=>{
-                        const noDisc=ln.noBillingDiscount;
-                        const qty=noDisc?origDays:origBillingDays;
-                        return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
-                      },0);
+                  const origAmount=calcCloseAmount(returnedLines, targetRec.billingType, origDays, origBillingDays);
                   const updatedOriginal={
                     ...targetRec,
                     lines:returnedLines,
@@ -969,13 +963,15 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
                 } else {
                   const updatedLines=allLinesInOrder;
                   const allClosed=updatedLines.every(ln=>ln.returnDate);
-                  const newAmount=updatedLines.reduce((s,ln)=>{
-                    if(!ln.returnDate) return s;
-                    const d=calcDays(targetRec.startDate,ln.returnDate);
-                    const noDisc=ln.noBillingDiscount;
-                    const qty=noDisc?d:chainBillingDays(targetRec, records, ln.returnDate);
-                    return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
-                  },0);
+                  const newAmount=targetRec.billingType==='monthly'
+                    ? calcCloseAmount(updatedLines.filter(ln=>ln.returnDate), targetRec.billingType, 0, 0)
+                    : updatedLines.reduce((s,ln)=>{
+                        if(!ln.returnDate) return s;
+                        const d=calcDays(targetRec.startDate,ln.returnDate);
+                        const noDisc=ln.noBillingDiscount;
+                        const qty=noDisc?d:chainBillingDays(targetRec, records, ln.returnDate);
+                        return s+(Number(ln.unitPrice)||0)*(Number(ln.quantity)||1)*qty;
+                      },0);
                   const newInsurance=targetRec.includeInsurance?Math.round(newAmount*0.1):0;
                   const updatedRec={...records.find(x=>x.id===returnModal.id),lines:updatedLines,returnDate:allClosed?returnModal.billingEndDate:records.find(x=>x.id===returnModal.id)?.returnDate,actualReturnDate:allClosed?returnModal.returnDate:records.find(x=>x.id===returnModal.id)?.actualReturnDate,endDate:allClosed?returnModal.billingEndDate:records.find(x=>x.id===returnModal.id)?.endDate,endDateOpen:!allClosed,days:allClosed?calcDays(records.find(x=>x.id===returnModal.id)?.startDate,returnModal.billingEndDate):records.find(x=>x.id===returnModal.id)?.days,billingDays:allClosed?calcBillingDays(calcDays(records.find(x=>x.id===returnModal.id)?.startDate,returnModal.billingEndDate)):records.find(x=>x.id===returnModal.id)?.billingDays,amount:newAmount,insuranceAmount:newInsurance};
                   try {

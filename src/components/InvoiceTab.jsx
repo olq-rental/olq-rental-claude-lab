@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { supabase } from '../supabaseClient';
 import { calcDays } from '../lib/constants';
 import { fmt, fmtD, uid, today } from '../lib/format';
-import { calcBillingDays, chainBillingDays, buildChainBlocks, calcExpectedAmount, getLines } from '../lib/billing';
+import { calcBillingDays, chainBillingDays, buildChainBlocks, calcExpectedAmount, getLines, calcCloseAmount } from '../lib/billing';
 import { downloadPrintHTML } from '../lib/print';
 import { PwInput } from './PwInput';
 import { Ico, I } from './Ico';
@@ -406,11 +406,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                     const newDays = calcDays(r.startDate, prevMonthEndStr);
                     const newBillingDays = chainBillingDays(r, allRecords, prevMonthEndStr);
                     const rLines = getLines(r);
-                    const newAmount = rLines.reduce((s, ln) => {
-                      const noDisc = ln.noBillingDiscount;
-                      const qty = noDisc ? newDays : newBillingDays;
-                      return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * qty;
-                    }, 0);
+                    const newAmount = calcCloseAmount(rLines, r.billingType, newDays, newBillingDays);
                     updatesById[r.id] = {
                       ...r,
                       endDate: prevMonthEndStr,

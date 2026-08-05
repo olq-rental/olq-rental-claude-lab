@@ -201,3 +201,17 @@ export function syncSPs(specialPrices, products) {
 }
 
 export const getLines = r => (r.lines&&r.lines.length)?r.lines:[{productId:r.productId||"",equipNo:r.equipNo||"",unitPrice:r.unitPrice,quantity:r.quantity,lineNote:r.lineNote||"",subItems:r.subItems||[],equipmentName:r.equipmentName||""}];
+
+// 終了処理が伝票に保存する金額を決める共通関数。
+// 月極（billingType='monthly'）→ lines の unitPrice × quantity の合計（月額）。日数を掛けない。
+// 日極 → 従来どおり noBillingDiscount に応じて days または billingDays を掛ける。
+export function calcCloseAmount(lines, billingType, days, billingDays) {
+  if (billingType === 'monthly') {
+    return lines.reduce((s, ln) => s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1), 0);
+  }
+  return lines.reduce((s, ln) => {
+    const noDisc = ln.noBillingDiscount;
+    const qty = noDisc ? days : billingDays;
+    return s + (Number(ln.unitPrice)||0) * (Number(ln.quantity)||1) * qty;
+  }, 0);
+}
