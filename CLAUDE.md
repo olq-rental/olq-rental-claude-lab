@@ -30,8 +30,8 @@
   AUTH=(-H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${CLAUDE_READONLY_JWT}")
   curl -s "${BASE}/テーブル名?select=列&条件" "${AUTH[@]}"
   ```
-- 読めるテーブル（8つ）: cases・customers・products・invoices・design_decisions・current_state・design_overview・ai_activity_log
-- それ以外（oauth_tokens・financials・bruno_logs・council_weekly・council_replies・email_inbox・line_messages等）は見えない＝403が正常。必要になったら雄太に相談（GRANT SELECT+claude_select_ポリシーの2点セット追加）。
+- 読めるテーブル（9つ）: cases・customers・products・invoices・design_decisions・current_state・design_overview・ai_activity_log・line_messages
+- それ以外（oauth_tokens・financials・bruno_logs・council_weekly・council_replies・email_inbox等）は見えない＝403が正常。必要になったら雄太に相談（GRANT SELECT+claude_select_ポリシーの2点セット追加）。
 - pg_catalog等のメタ情報はRESTでは読めない。必要なら雄太にSQL Editor実行を1つずつ依頼。
 - env値・JWT・キーの値は絶対に出力しない。
 - JWT期限: 2027-08-05。切れたら .dev.vars の古いCLAUDE_READONLY_JWT行を消してから bash ~/olq-sync-worker/mint-readonly-jwt.sh で再鋳造。
