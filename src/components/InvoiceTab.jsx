@@ -132,6 +132,20 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
     await updateInvData(key, {status:"open"});
     showToast("締めを解除しました");
   };
+  // 見張り：凍結の grandTotal と再計算合計の照合（新形式の凍結のみ）
+  const checkFrozenTotal = (grp, cur) => {
+    if (cur.status !== "locked" || !cur.snapshot || !cur.snapshot.items) return null;
+    if (!Array.isArray(cur.snapshot.autoAdjustments)) return null; // 古い形→対象外
+    const items = cur.snapshot.items;
+    const inc = (cur.snapshot.incidents||[]).reduce((s,x)=>s+(x.charge_amount||0),0);
+    const base = items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0) + inc;
+    const autoAdj = cur.snapshot.autoAdjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
+    const manualAdj = (cur.snapshot.adjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+    const calc = base + autoAdj + manualAdj;
+    const frozen = cur.snapshot.grandTotal;
+    if (calc === frozen) return null;
+    return { name: grp.customerName + (grp.projectName ? " / " + grp.projectName : ""), diff: calc - frozen };
+  };
   const doChangePw = async (cur) => {
     const ok = await verifyPw(cur);
     if(!ok){showToast("現在のパスワードが違います", false);return;}
@@ -744,6 +758,8 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                                     }
                                   }
                                   if(!allBody) return;
+                                  const drifts1=cust.groups.map(grp=>checkFrozenTotal(grp,getInvData(grp.key))).filter(Boolean);
+                                  if(drifts1.length>0) showToast("凍結合計ズレ: "+drifts1.map(d=>d.name+"(差額"+d.diff+"円)").join(", "), false);
                                   const mtitle="ご請求書一括_"+cust.customerName+"御中_"+((cust.groups[0]&&cust.groups[0].month)||"");
                                   const bCss1=lastCss.replace('@page{margin:0mm;size:A4}','@page{margin:52px 0 0 0;size:A4}');
                                   const nt=window.open("","_blank");
@@ -755,6 +771,8 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                                   <Ico d={I.print} size={10}/>一括確認
                                 </button>
                                 <button onClick={async()=>{
+                                  const drifts2=cust.groups.map(grp=>checkFrozenTotal(grp,getInvData(grp.key))).filter(Boolean);
+                                  if(drifts2.length>0){showToast("発行停止: 凍結合計ズレ "+drifts2.map(d=>d.name+"(差額"+d.diff+"円)").join(", "), false);return;}
                                   let allBody="";let lastCss="";
                                   for(let gi=0;gi<cust.groups.length;gi++){
                                     const grp=cust.groups[gi];
@@ -805,7 +823,9 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                             ? gInc.reduce((s,x)=>s+(x.charge_amount||0),0)
                             : gInc.filter(x=>x.status!=="paid").reduce((s,x)=>s+(x.charge_amount||0),0);
                           const baseTot=displayItems.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
-                          const autoAdjTot = useSnapshot ? 0 : (g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+                          const autoAdjTot = useSnapshot
+                            ? (Array.isArray(d.snapshot.autoAdjustments) ? d.snapshot.autoAdjustments : []).reduce((s,a)=>s+(Number(a.amount)||0),0)
+                            : (g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
                           const adjSum = useSnapshot ? (d.snapshot.adjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0) : d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
                           const grandTot=baseTot+autoAdjTot+adjSum;
                           const tax=Math.round(grandTot*0.1);
@@ -863,6 +883,8 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                                 <td style={{padding:"8px 8px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
                                   <button onClick={async()=>{
                                     const cur=getInvData(key);
+                                    const drift3=checkFrozenTotal(g,cur);
+                                    if(drift3) showToast("凍結合計ズレ: "+drift3.name+"(差額"+drift3.diff+"円)", false);
                                     const invNo=cur.invNo||(g.month?`${g.month}-???`:"");
                                     const printG = useSnapshot ? {...g, items:displayItems, projectName:displayProjectName, adjustments:cur.snapshot?.adjustments||cur.adjustments} : {...g, adjustments:cur.adjustments};
                                     downloadPrintHTML("invoice",{...printG,invNo,issueDate:cur.issueDate||"",_preview:true},products,0,incidents,records);
@@ -871,6 +893,8 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                                   </button>
                                   <button onClick={async()=>{
                                     const cur=getInvData(key);
+                                    const drift4=checkFrozenTotal(g,cur);
+                                    if(drift4){showToast("発行停止: 凍結合計ズレ "+drift4.name+"(差額"+drift4.diff+"円)", false);return;}
                                     let baseNo=cur.invNo;
                                     let count;
                                     if(!baseNo){
