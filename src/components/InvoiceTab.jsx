@@ -87,7 +87,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
     const key = lockModal.key;
     setLockModal(null);
     // 締め時にスナップショットを焼く（案件名変更やライブ再計算による金額変動から保護）
-    const g = groups.find(g => `${g.customerId}||${g.projectName}||${g.month}` === key);
+    const g = groups.find(g => g.key === key);
     const d = getInvData(key, g?.month);
     const gInc = g ? (incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).filter(x=>x.status!=="paid") : [];
     const incTot = gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
@@ -139,42 +139,22 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
     setPrintCountResetModal(false);
     const next={...invoiceData};
     Object.keys(next).forEach(key=>{
-      const [cid,,month]=key.split("||");
-      const grpRecords=records.filter(r=>r.customerId===cid&&(r.startDate||"").startsWith(month));
-      const hasReceipt=grpRecords.some(r=>r.issueReceipt);
-      if(!hasReceipt) next[key]={...next[key],printCount:0,invNo:"",lastPrintDate:""};
+      if(key.endsWith('||R')) return; // 領収済グループはリセットしない
+      next[key]={...next[key],printCount:0,invNo:"",lastPrintDate:""};
     });
     await onSaveInv(next);
     showToast("リセット完了しました",true);
   };
   const toggleExpand = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
 
-  // 領収済案件の判定ヘルパー
-  const isReceiptItem = r => !!r.issueReceipt;
-
-  // 領収済案件と振込案件が混在するグループを2分割
-  const splitGroups = [];
-  groups.forEach(g => {
-    const receiptItems = (g.items||[]).filter(isReceiptItem);
-    const transferItems = (g.items||[]).filter(r => !isReceiptItem(r));
-    if (receiptItems.length > 0 && transferItems.length > 0) {
-      splitGroups.push({...g, items: transferItems, _isReceiptGroup: false});
-      splitGroups.push({...g, items: receiptItems, _isReceiptGroup: true});
-    } else if (receiptItems.length > 0) {
-      splitGroups.push({...g, items: receiptItems, _isReceiptGroup: true});
-    } else {
-      splitGroups.push({...g, items: transferItems, _isReceiptGroup: false});
-    }
-  });
-
-  const filtered = splitGroups
+  const filtered = groups
     .filter(g=>!selMonth||g.month===selMonth)
     .filter(g=>(!custQ||g.customerName.toLowerCase().includes(custQ.toLowerCase()))&&(!globalQ||g.customerName.toLowerCase().includes(globalQ.toLowerCase())||g.projectName?.toLowerCase().includes(globalQ.toLowerCase())))
     .filter(g=>{
-      if(statusFilter==="receipt") return g._isReceiptGroup;
+      if(statusFilter==="receipt") return g.isReceipt;
       if(statusFilter==="all") return true;
-      if(g._isReceiptGroup) return false;
-      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`);
+      if(g.isReceipt) return false;
+      const d=getInvData(g.key);
       return statusFilter==="locked"?d.status==="locked":d.status!=="locked";
     })
     .sort((a,b)=>a.customerName.localeCompare(b.customerName,"ja")||a.projectName.localeCompare(b.projectName,"ja"));
@@ -188,7 +168,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
     let result=filtered.map(g=>({...g,items:[...g.items]}));
     // 決裁1：締め済みグループからは「抜かない」＝締め済み月は修正前と完全に同一の描画を保つ
     //        （足す側にはガードを入れない。入れると既存の締め済みグループから項目が外れて表示が変わるため）
-    const isLockedGroup = g => getInvData(`${g.customerId}||${g.projectName}||${g.month}`).status==='locked';
+    const isLockedGroup = g => getInvData(g.key).status==='locked';
     const crossRecs=(records||[]).filter(r=>{
       if(!r.startDate||!r.endDate||r.billingType==="monthly") return false;
       const rs=r.startDate.slice(0,7),re=r.endDate.slice(0,7);
@@ -204,10 +184,8 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
       const recIsReceipt=!!r.issueReceipt;
       if(sp.type==='full'){
         if(sp.targetMonth!==selMonth){
-          // 当月は移動元 → 当月のグループから当該案件を取り除く（決裁2：空になった行は消す）
-          // 決裁1：締め済みグループからは抜かない（顧客に発行済みの内容を保全）
           result=result
-            .map(g=>(!isLockedGroup(g)&&!!g._isReceiptGroup===recIsReceipt&&(g.items||[]).some(item=>item.id===r.id))
+            .map(g=>(!isLockedGroup(g)&&!!g.isReceipt===recIsReceipt&&(g.items||[]).some(item=>item.id===r.id))
               ?{...g,items:g.items.filter(item=>item.id!==r.id)}
               :g)
             .filter(g=>(g.items||[]).length>0);
@@ -215,17 +193,18 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
         }
         const monthAmt=r.amount||0;
         if(monthAmt<=0) return;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g.isReceipt===recIsReceipt);
         if(existingGroup){
           result=result.map(g=>(g===existingGroup?{...g,items:g.items.map(item=>item.id===r.id?{...item,amount:monthAmt}:item)}:g));
         } else {
           const custSplit=c?.splitInvoice!==false;
           const synthProjName=custSplit?(r.projectName||""):"";
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
+          const synthKey=`${r.customerId}||${synthProjName}||${selMonth}${recIsReceipt?'||R':''}`;
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g.isReceipt===recIsReceipt);
           if(existingSame){
             result=result.map(g=>g===existingSame?{...g,items:[...g.items,{...r,amount:monthAmt}]}:g);
           } else {
-            result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:synthProjName,month:selMonth,items:[{...r,amount:monthAmt}],split:custSplit,consolidate:false,_synthetic:true,_isReceiptGroup:recIsReceipt});
+            result.push({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:synthProjName,month:selMonth,items:[{...r,amount:monthAmt}],split:custSplit,consolidate:false,_synthetic:true,key:synthKey,isReceipt:recIsReceipt});
           }
         }
         return;
@@ -269,7 +248,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
         }
         const splitItem={...r,startDate:spItem.startDate,endDate:spItem.endDate,days:splitDays,billingDays:splitBillingDays,amount:monthAmt,lines:rebuiltLines};
         const injectAutoAdj=g=>autoAdj?{...g,_autoAdjustments:[...(g._autoAdjustments||[]).filter(a=>a.id!==autoAdj.id),autoAdj]}:g;
-        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g._isReceiptGroup===recIsReceipt);
+        const existingGroup=result.find(g=>g.items.some(item=>item.id===r.id)&&!!g.isReceipt===recIsReceipt);
         if(existingGroup){
           result=result.map(g=>{
             if(g!==existingGroup) return g;
@@ -278,43 +257,29 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
         } else {
           const custSplit=c?.splitInvoice!==false;
           const synthProjName=custSplit?(r.projectName||""):"";
-          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g._isReceiptGroup===recIsReceipt);
+          const synthKey=`${r.customerId}||${synthProjName}||${selMonth}${recIsReceipt?'||R':''}`;
+          const existingSame=result.find(g=>g.customerId===r.customerId&&g.projectName===synthProjName&&g.month===selMonth&&!!g.isReceipt===recIsReceipt);
           if(existingSame){
             result=result.map(g=>g!==existingSame?g:injectAutoAdj({...g,items:[...g.items,splitItem]}));
           } else {
-            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:synthProjName,month:selMonth,items:[splitItem],split:custSplit,consolidate:false,_synthetic:true,_isReceiptGroup:recIsReceipt}));
+            result.push(injectAutoAdj({customerId:r.customerId,customer:c,customerName:c?.name||"",projectName:synthProjName,month:selMonth,items:[splitItem],split:custSplit,consolidate:false,_synthetic:true,key:synthKey,isReceipt:recIsReceipt}));
           }
         }
       }
     });
-    // 最終保険：itemsの中身に応じて _isReceiptGroup を強制再分割
-    const finalResult=[];
-    result.forEach(g=>{
-      const receiptItems=(g.items||[]).filter(isReceiptItem);
-      const transferItems=(g.items||[]).filter(r=>!isReceiptItem(r));
-      if(receiptItems.length>0&&transferItems.length>0){
-        finalResult.push({...g,items:transferItems,_isReceiptGroup:false});
-        finalResult.push({...g,items:receiptItems,_isReceiptGroup:true});
-      } else if(receiptItems.length>0){
-        finalResult.push({...g,_isReceiptGroup:true});
-      } else {
-        finalResult.push({...g,_isReceiptGroup:false});
-      }
-    });
     // 後段防御：statusFilter を再適用
-    const reFiltered=finalResult.filter(g=>{
-      if(statusFilter==="receipt") return g._isReceiptGroup;
+    const reFiltered=result.filter(g=>{
+      if(statusFilter==="receipt") return g.isReceipt;
       if(statusFilter==="all") return true;
-      if(g._isReceiptGroup) return false;
-      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`);
+      if(g.isReceipt) return false;
+      const d=getInvData(g.key);
       return statusFilter==="locked"?d.status==="locked":d.status!=="locked";
     });
     return reFiltered;
   },[filtered,crossMonthSplits,selMonth,records,customers,products,statusFilter]);
 
   const monthTotal = crossAdjustedFiltered.reduce((s,g)=>{
-    const key=`${g.customerId}||${g.projectName}||${g.month}`;
-    const d=getInvData(key,g.month);
+    const d=getInvData(g.key,g.month);
     const base=g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0);
     const adj=d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
     const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
@@ -323,8 +288,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
   },0);
   // 各案件の税込を積み上げた正確な合計（顧客への請求総額）
   const monthTotalInc = crossAdjustedFiltered.reduce((s,g)=>{
-    const key=`${g.customerId}||${g.projectName}||${g.month}`;
-    const d=getInvData(key,g.month);
+    const d=getInvData(g.key,g.month);
     const base=g.items.reduce((s2,r)=>s2+(r.amount||0)+(r.insuranceAmount||0),0);
     const adj=d.adjustments.reduce((s2,a)=>s2+(Number(a.amount)||0),0);
     const autoAdj=(g._autoAdjustments||[]).reduce((s2,a)=>s2+(Number(a.amount)||0),0);
@@ -549,13 +513,12 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
               crossAdjustedFiltered.forEach(g=>{
                 const base = g.items.reduce((s,r)=>s+(Number(r.amount)||0)+(Number(r.insuranceAmount)||0),0);
                 const autoAdj=(g._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
-                const key=`${g.customerId}||${g.projectName}||${g.month}`;
-                const manualAdj=getInvData(key,g.month).adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
+                const manualAdj=getInvData(g.key,g.month).adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
                 const incTotCsv=(incidents||[]).filter(x=>!x.separate_invoice&&x.status!=="paid"&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
                 const grandBase = base + autoAdj + manualAdj + incTotCsv;
                 const total = grandBase + Math.round(grandBase*0.1);
                 const projectName = g.projectName || "";
-                if (g._isReceiptGroup) {
+                if (g.isReceipt) {
                   const ri = g.items.find(r=>r.issueReceipt&&r.receiptDate);
                   const rd = ri ? new Date(ri.receiptDate+"T00:00:00") : null;
                   const pm = ri?.paymentMethod==="cash"?"現金":ri?.paymentMethod==="square"?"スクエア クレジット":"ECクレジット";
@@ -609,7 +572,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                 const totalAmt=r.amount||0;
                 const months=getMonths(r);
                 const custSplitB=c?.splitInvoice!==false;
-                const gKeyFor=m=>`${r.customerId}||${custSplitB?(r.projectName||""):""}||${m}`;
+                const gKeyFor=m=>`${r.customerId}||${custSplitB?(r.projectName||""):""}||${m}${r.issueReceipt?'||R':''}`;
                 const isMonthLocked=m=>getInvData(gKeyFor(m)).status==='locked';
                 const curLocked=isMonthLocked(selMonth);
                 const cardStyle=status==='done'?{background:"#dcfce7",border:"1px solid #86efac"}:status==='splitting'?{background:"#dbeafe",border:"1px solid #93c5fd"}:{background:"#fffbeb",border:"1px solid #fde68a"};
@@ -723,14 +686,14 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                     const custKey=`cust_${cust.customerId}`;
                     const custOpen=!!expanded[custKey];
                     const custTotEx=cust.groups.reduce((s,g)=>{
-                      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);
+                      const d=getInvData(g.key,g.month);
                       const base=g.items.reduce((t,r)=>t+(r.amount||0)+(r.insuranceAmount||0),0);
                       const adj=d.adjustments.reduce((t,a)=>t+(Number(a.amount)||0),0);
                       const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.status!=="paid"&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
                       return s+base+adj+inc;
                     },0);
                     const custTotInc=cust.groups.reduce((s,g)=>{
-                      const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);
+                      const d=getInvData(g.key,g.month);
                       const base=g.items.reduce((t,r)=>t+(r.amount||0)+(r.insuranceAmount||0),0);
                       const adj=d.adjustments.reduce((t,a)=>t+(Number(a.amount)||0),0);
                       const inc=(incidents||[]).filter(x=>!x.separate_invoice&&x.status!=="paid"&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).reduce((t,x)=>t+(x.charge_amount||0),0);
@@ -750,7 +713,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                           <td colSpan={2} style={{padding:"8px 8px",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
                             {(()=>{
                               const total=cust.groups.length;
-                              const issued=cust.groups.filter(g=>{const d=getInvData(`${g.customerId}||${g.projectName}||${g.month}`,g.month);return (d.printCount||0)>0||g.items.some(r=>r.issueReceipt);}).length;
+                              const issued=cust.groups.filter(g=>{const d=getInvData(g.key,g.month);return (d.printCount||0)>0||g.items.some(r=>r.issueReceipt);}).length;
                               if(issued===0) return null;
                               if(issued===total) return <span style={{fontSize:10,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>✅ 全件発行済</span>;
                               return <span style={{fontSize:10,color:"#0369a1",fontWeight:700,whiteSpace:"nowrap"}}>{total}件中{issued}件発行済 残{total-issued}件</span>;
@@ -761,7 +724,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                                   let allBody="";let lastCss="";
                                   for(let gi=0;gi<cust.groups.length;gi++){
                                     const grp=cust.groups[gi];
-                                    const gkey=grp.customerId+"||"+grp.projectName+"||"+grp.month;
+                                    const gkey=grp.key;
                                     const cur=getInvData(gkey);
                                     const invNo=cur.invNo||(grp.month?(grp.month+"-???"):"");
                                     const grpSnap = cur.status==="locked" && cur.snapshot && cur.snapshot.items;
@@ -788,7 +751,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                                   let allBody="";let lastCss="";
                                   for(let gi=0;gi<cust.groups.length;gi++){
                                     const grp=cust.groups[gi];
-                                    const gkey=grp.customerId+"||"+grp.projectName+"||"+grp.month;
+                                    const gkey=grp.key;
                                     const cur=getInvData(gkey);
                                     let baseNo=cur.invNo;let count;
                                     if(!baseNo){baseNo=await nextInvoiceNo(grp.month);count=1;}
@@ -821,7 +784,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                         </tr>
                         {/* 層2: 案件行 */}
                         {custOpen&&cust.groups.map(g=>{
-                          const key=`${g.customerId}||${g.projectName}||${g.month}`;
+                          const key=g.key;
                           const d=getInvData(key,g.month);
                           const locked=d.status==="locked";
                           // 締め済みならsnapshotの明細・金額を使う（案件名変更や再計算からの保護）

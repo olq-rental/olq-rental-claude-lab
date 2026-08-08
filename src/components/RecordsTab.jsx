@@ -10,7 +10,7 @@ import { S } from '../lib/ui';
 import { verifyPw, nextDeliveryNo } from '../lib/db';
 
 export function RecordsTab({records,customers,activeCustomers,products,onSave,onDeleteRec,showToast,onGoToCustomer,onAfterSubmit,invoiceData,globalQ,session}){
-  // 締め済みキーセット（customerId||projectName||month 完全一致）
+  // 締め済みキーセット（customerId||projectName||month[||R] 完全一致）
   const lockedKeys = new Set(
     Object.entries(invoiceData||{}).filter(([,d])=>d.status==="locked").map(([k])=>k)
   );
@@ -20,7 +20,8 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
     const split = c?.splitInvoice !== false;
     const projKey = split ? (r.projectName||"") : "";
     const month = r.startDate.slice(0,7);
-    return lockedKeys.has(`${r.customerId}||${projKey}||${month}`);
+    const suffix = r.issueReceipt ? '||R' : '';
+    return lockedKeys.has(`${r.customerId}||${projKey}||${month}${suffix}`);
   };
   const [pwModal, setPwModal] = useState(null);
   const checkLock = (r, action) => {
@@ -723,7 +724,7 @@ export function RecordsTab({records,customers,activeCustomers,products,onSave,on
                 const rows=monthList.map(m=>{
                   const currentMonthName=r.monthlyProjectNames?.[m]??r.projectName??"";
                   const checkKey=split?currentMonthName:"";
-                  const isLocked=lockedKeys.has(`${r.customerId}||${checkKey}||${m}`);
+                  const isLocked=lockedKeys.has(`${r.customerId}||${checkKey}||${m}${r.issueReceipt?'||R':''}`);
                   if(isLocked) hasLockedMonth=true;
                   const currentVal=monthlyNameModal.names[m]||r.projectName||"";
                   const monthOpts=[...new Set([...baseProjSet,...(currentVal?[currentVal]:[])])].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ja"));

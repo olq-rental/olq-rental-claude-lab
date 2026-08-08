@@ -846,11 +846,13 @@ export default function App() {
 
   const invoiceGroups = {};
   const _addToGroup = (c, projKey, billingMonth, split, consolidate, entry) => {
-    const key = `${entry.customerId}||${projKey}||${billingMonth}`;
+    const isReceipt = !!entry.issueReceipt;
+    const key = `${entry.customerId}||${projKey}||${billingMonth}${isReceipt ? '||R' : ''}`;
     if (!invoiceGroups[key]) {
       invoiceGroups[key] = {
         customerId:entry.customerId, customer:c||null, customerName:c?.name||"不明",
-        projectName:projKey, month:billingMonth, items:[], split, consolidate
+        projectName:projKey, month:billingMonth, items:[], split, consolidate,
+        key, isReceipt
       };
     }
     invoiceGroups[key].items.push(entry);
@@ -869,7 +871,7 @@ export default function App() {
       // 終了未定月極：月ごとに展開
       const entries = expandMonthlyOpenRecord(r, calcBillingDays, today, products, c);
       entries.forEach(entry => {
-        const defKey = `${r.customerId}||${projKey}||${entry._billingMonth}`;
+        const defKey = `${r.customerId}||${projKey}||${entry._billingMonth}${r.issueReceipt ? '||R' : ''}`;
         const mpn = lockedKeysForExpand.has(defKey) ? (r.projectName ?? "") : (r.monthlyProjectNames?.[entry._billingMonth] ?? r.projectName ?? "");
         entry.projectName = mpn;
         const mpk = split ? mpn : "";
@@ -903,7 +905,7 @@ export default function App() {
           const bMonth = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}`;
           const pStartStr = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}-${pad(pStart.getDate())}`;
           const pEndStr = `${pEnd.getFullYear()}-${pad(pEnd.getMonth()+1)}-${pad(pEnd.getDate())}`;
-          const defKey1 = `${r.customerId}||${projKey}||${bMonth}`;
+          const defKey1 = `${r.customerId}||${projKey}||${bMonth}${r.issueReceipt ? '||R' : ''}`;
           const mpn1 = lockedKeysForExpand.has(defKey1) ? (r.projectName ?? "") : (r.monthlyProjectNames?.[bMonth] ?? r.projectName ?? "");
           const mpk1 = split ? mpn1 : "";
 
@@ -961,7 +963,7 @@ export default function App() {
           const bMonth = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}`;
           const pStartStr = `${pStart.getFullYear()}-${pad(pStart.getMonth()+1)}-${pad(pStart.getDate())}`;
           const pEndStr = `${pEnd.getFullYear()}-${pad(pEnd.getMonth()+1)}-${pad(pEnd.getDate())}`;
-          const defKey2 = `${r.customerId}||${projKey}||${bMonth}`;
+          const defKey2 = `${r.customerId}||${projKey}||${bMonth}${r.issueReceipt ? '||R' : ''}`;
           const mpn2 = lockedKeysForExpand.has(defKey2) ? (r.projectName ?? "") : (r.monthlyProjectNames?.[bMonth] ?? r.projectName ?? "");
           const mpk2 = split ? mpn2 : "";
           const lines = rLns.map(ln => {
