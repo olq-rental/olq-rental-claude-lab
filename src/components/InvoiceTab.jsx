@@ -24,7 +24,7 @@ async function nextInvoiceNo(month) {
 // =========================================================
 // InvoiceTab（請求書タブ） — 月選択・ステータス管理・調整行
 // =========================================================
-export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records, onSaveRec, incidents}){
+export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData, onSaveInv, showToast, globalQ, records, onSaveRec, incidents, isOwner}){
   const months = [...new Set(groups.map(g=>g.month).filter(Boolean))].sort().reverse();
   const currentMonth = today().slice(0,7);
   const [selMonth, setSelMonth] = useState(months.includes(currentMonth)?currentMonth:(months[0]||""));
@@ -46,6 +46,7 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
   const [lockModal, setLockModal] = useState(null); // null | {mode:"confirm",key:string} | {mode:"unlock",key:string}
   const [changePwModal, setChangePwModal] = useState(false);
   const [printCountResetModal, setPrintCountResetModal] = useState(false);
+  const [refreezeModal, setRefreezeModal] = useState(null); // null | {targets,preview,newSnaps}
   const [custQ, setCustQ] = useState("");
 
   const getInvData = (key, month) => {
@@ -83,20 +84,15 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
       setLockModal({mode:"confirm", key});
     }
   };
-  const doLockConfirm = async () => {
-    const key = lockModal.key;
-    setLockModal(null);
-    // 締め時にスナップショットを焼く（画面と同じ調整後データから凍結する）
-    const g = crossAdjustedFiltered.find(g => g.key === key);
-    if (!g) { showToast("締め対象が見つかりません（画面を更新してください）", false); return; }
-    const d = getInvData(key, g.month);
+  // 凍結データ構築（doLockConfirm と撮り直しの両方から呼ぶ）
+  const buildSnapshot = (g, d) => {
     const gInc = (incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).filter(x=>x.status!=="paid");
     const incTot = gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
     const baseTot = g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
     const autoAdj = g._autoAdjustments || [];
     const autoAdjTot = autoAdj.reduce((s,a)=>s+(Number(a.amount)||0),0);
     const adjSum = d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-    const snapshot = {
+    return {
       projectName: g.projectName,
       month: g.month,
       customerName: g.customerName,
@@ -121,6 +117,13 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
       grandTotal: baseTot + autoAdjTot + adjSum,
       frozenAt: new Date().toISOString(),
     };
+  };
+  const doLockConfirm = async () => {
+    const key = lockModal.key;
+    setLockModal(null);
+    const g = crossAdjustedFiltered.find(g => g.key === key);
+    if (!g) { showToast("締め対象が見つかりません（画面を更新してください）", false); return; }
+    const snapshot = buildSnapshot(g, getInvData(key, g.month));
     await updateInvData(key, {status:"locked", snapshot});
     showToast("締め済みにしました 🔒");
   };
@@ -351,6 +354,38 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
                 }}>{t.l}</button>
               ))}
             </div>
+            {isOwner && selMonth && (()=>{
+              const canRefreeze = (statusFilter==="all"||statusFilter==="locked") && !custQ && !globalQ;
+              return (
+                <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
+                  <button disabled={!canRefreeze} onClick={()=>{
+                    const targets = crossAdjustedFiltered.filter(g=>getInvData(g.key).status==="locked");
+                    if(targets.length===0){showToast("締め済みの請求書がありません",false);return;}
+                    const keys=targets.map(g=>g.key);
+                    if(new Set(keys).size!==keys.length){
+                      const dup=keys.filter((k,i)=>keys.indexOf(k)!==i);
+                      showToast("キー重複を検出: "+[...new Set(dup)].join(", "),false);return;
+                    }
+                    const newSnaps={};
+                    const preview=targets.map(g=>{
+                      const d=getInvData(g.key,g.month);
+                      const ns=buildSnapshot(g,d);
+                      newSnaps[g.key]=ns;
+                      const oldSnap=d.snapshot;
+                      const oldGT=oldSnap?.grandTotal;
+                      const cat=!oldSnap||!oldSnap.items?"new":(oldGT!==ns.grandTotal?"changed":"same");
+                      return {key:g.key,customerName:g.customerName,projectName:g.projectName||"",cat,oldGT:oldGT??null,newGT:ns.grandTotal};
+                    });
+                    setRefreezeModal({targets,preview,newSnaps});
+                  }} style={{
+                    background:canRefreeze?"#dc2626":"#e2e8f0",color:canRefreeze?"#fff":"#94a3b8",
+                    border:"none",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,
+                    cursor:canRefreeze?"pointer":"not-allowed",whiteSpace:"nowrap"
+                  }}>この月の締め済みを凍結し直す</button>
+                  {!canRefreeze&&<span style={{fontSize:10,color:"#dc2626"}}>絞り込みを「全て」か「締め済み」にして検索を空に</span>}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -1106,6 +1141,60 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
               <button onClick={doPrintCountReset} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>リセットする</button>
               <button onClick={()=>setPrintCountResetModal(false)} style={{flex:1,background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>キャンセル</button>
             </div>
+          </div>
+        </div>
+      )}
+      {refreezeModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"28px 32px",minWidth:400,maxWidth:600,maxHeight:"80vh",overflow:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12,color:"#991b1b"}}>凍結し直す — {selMonth}</div>
+            {(()=>{
+              const p=refreezeModal.preview;
+              const newC=p.filter(x=>x.cat==="new").length;
+              const chgC=p.filter(x=>x.cat==="changed").length;
+              const sameC=p.filter(x=>x.cat==="same").length;
+              const changed=p.filter(x=>x.cat==="changed");
+              return (<>
+                <div style={{fontSize:13,color:"#374151",marginBottom:12}}>
+                  対象 <b>{p.length}件</b>（新規凍結 {newC}件 / 金額が変わる <b style={{color:chgC>0?"#dc2626":"inherit"}}>{chgC}件</b> / 金額は同じ {sameC}件）
+                </div>
+                {changed.length>0&&(
+                  <div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"10px 14px",marginBottom:12,maxHeight:200,overflow:"auto"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#991b1b",marginBottom:6}}>金額が変わる請求書:</div>
+                    {changed.map(c=>(
+                      <div key={c.key} style={{fontSize:12,color:"#374151",marginBottom:4}}>
+                        {c.customerName}{c.projectName?" / "+c.projectName:""}：{fmt(c.oldGT)} → {fmt(c.newGT)}（差額 {fmt(c.newGT-c.oldGT)}）
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {newC>0&&(
+                  <div style={{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:8,padding:"10px 14px",marginBottom:12}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#1d4ed8",marginBottom:4}}>新規凍結（凍結データなし → 新規作成）: {newC}件（画面の数字は変わりません）</div>
+                  </div>
+                )}
+                <PwInput onOk={async(pw)=>{
+                  const ok=await verifyPw(pw);
+                  if(!ok){showToast("パスワードが違います",false);return;}
+                  const next={...invoiceData};
+                  refreezeModal.targets.forEach(g=>{
+                    const ns=refreezeModal.newSnaps[g.key];
+                    const prev=next[g.key]||{};
+                    next[g.key]={...prev,status:"locked",snapshot:ns};
+                  });
+                  try {
+                    await onSaveInv(next);
+                  } catch(e) {
+                    console.error(e);
+                    showToast("凍結し直しに失敗しました: "+(e?.message||e), false);
+                    return;
+                  }
+                  showToast(`${refreezeModal.targets.length}件を凍結し直しました。もう一度押して「金額が変わる 0件」になるか確認してください`);
+                  setRefreezeModal(null);
+                }} onCancel={()=>setRefreezeModal(null)}/>
+                <button onClick={()=>setRefreezeModal(null)} style={{marginTop:10,width:"100%",background:"#f1f5f9",color:"#374151",border:"none",borderRadius:7,padding:"9px 0",fontSize:13,cursor:"pointer"}}>やめる</button>
+              </>);
+            })()}
           </div>
         </div>
       )}
