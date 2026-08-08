@@ -86,17 +86,23 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
   const doLockConfirm = async () => {
     const key = lockModal.key;
     setLockModal(null);
-    // 締め時にスナップショットを焼く（案件名変更やライブ再計算による金額変動から保護）
-    const g = groups.find(g => g.key === key);
-    const d = getInvData(key, g?.month);
-    const gInc = g ? (incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).filter(x=>x.status!=="paid") : [];
+    // 締め時にスナップショットを焼く（画面と同じ調整後データから凍結する）
+    const g = crossAdjustedFiltered.find(g => g.key === key);
+    if (!g) { showToast("締め対象が見つかりません（画面を更新してください）", false); return; }
+    const d = getInvData(key, g.month);
+    const gInc = (incidents||[]).filter(x=>!x.separate_invoice&&x.customer_id===g.customerId&&x.invoice_month===g.month&&(g.projectName===""||( x.related_project_name||"")===(g.projectName||""))).filter(x=>x.status!=="paid");
     const incTot = gInc.reduce((s,x)=>s+(x.charge_amount||0),0);
-    const baseTot = g ? g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot : 0;
-    const autoAdjTot = (g?._autoAdjustments||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+    const baseTot = g.items.reduce((s,r)=>s+(r.amount||0)+(r.insuranceAmount||0),0)+incTot;
+    const autoAdj = g._autoAdjustments || [];
+    const autoAdjTot = autoAdj.reduce((s,a)=>s+(Number(a.amount)||0),0);
     const adjSum = d.adjustments.reduce((s,a)=>s+(Number(a.amount)||0),0);
-    const snapshot = g ? {
+    const snapshot = {
       projectName: g.projectName,
       month: g.month,
+      customerName: g.customerName,
+      customerId: g.customerId,
+      paymentCycle: g.customer?.paymentCycle || customers.find(c=>c.id===g.customerId)?.paymentCycle || "",
+      isReceipt: !!g.isReceipt,
       items: g.items.map(r => ({
         id:r.id, projectName:r.projectName, equipmentName:r.equipmentName,
         amount:r.amount, insuranceAmount:r.insuranceAmount,
@@ -111,10 +117,11 @@ export function InvoiceTab({groups, customers, products, onSaveCust, invoiceData
       })),
       incidents: gInc.map(x=>({id:x.id, charge_amount:x.charge_amount, description:x.description})),
       adjustments: d.adjustments,
+      autoAdjustments: autoAdj.map(a=>({label:a.label, amount:Number(a.amount)||0})),
       grandTotal: baseTot + autoAdjTot + adjSum,
       frozenAt: new Date().toISOString(),
-    } : null;
-    await updateInvData(key, {status:"locked", ...(snapshot ? {snapshot} : {})});
+    };
+    await updateInvData(key, {status:"locked", snapshot});
     showToast("締め済みにしました 🔒");
   };
   const doUnlock = async (pw) => {
