@@ -9,6 +9,7 @@ export const AI_SOURCE_MAP = {
   concept_update:         { label: "コンセプト更新", family: "concept_update" },
   freee_sync:             { label: "freee同期",     family: "freee_sync" },
   line_inbox:             { label: "LINE受信",     family: "line_inbox" },
+  invariant_patrol:       { label: "不変条件パトロール", family: "invariant_patrol" },
 };
 export function aiSourceMeta(source) {
   return AI_SOURCE_MAP[source] || { label: source, family: source };
